@@ -10,4 +10,4 @@
 - [ ] Hauptansicht heute, unten eine bzw. Textfeld für neue Aufgaben
 - [ ] Backlog als Liste von unten reinschieben bis zum halben Bildschirm, nochmals raufziehen als Vollbild
 - [ ] Layout soll auf für Hochformat und Schlichtheit optimiert sein!
-
+- [ ] wo werden die json-files gespeichert?

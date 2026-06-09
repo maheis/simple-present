@@ -114,61 +114,67 @@ class _HomePageState extends State<HomePage> {
     return FutureBuilder<void>(
       future: _initFuture,
       builder: (context, snap) {
+        final double sheetMin = 0.06;
+        final double bottomPad = MediaQuery.of(context).size.height * sheetMin + 16;
+
         return Scaffold(
           appBar: AppBar(title: const Text('SimplePresent')),
           body: Stack(
             children: [
-              Column(
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Heute', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 8),
-                          Expanded(
-                            child: _today.isEmpty
-                                ? const Center(child: Text('Keine Aufgaben für heute'))
-                                : ListView.builder(
-                                    itemCount: _today.length,
-                                    itemBuilder: (ctx, i) => Card(
-                                          child: ListTile(title: Text(_today[i])),
-                                        ),
-                                  ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _controller,
-                              textInputAction: TextInputAction.done,
-                              decoration: const InputDecoration(
-                                hintText: 'Neue Aufgabe (Enter: heute, + Backlog mit ⤴ long-press)',
-                                border: OutlineInputBorder(),
-                              ),
-                              onSubmitted: _addToToday,
+              Padding(
+                padding: EdgeInsets.only(bottom: bottomPad),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Heute', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 8),
+                            Expanded(
+                              child: _today.isEmpty
+                                  ? const Center(child: Text('Keine Aufgaben für heute'))
+                                  : ListView.builder(
+                                      itemCount: _today.length,
+                                      itemBuilder: (ctx, i) => Card(
+                                            child: ListTile(title: Text(_today[i])),
+                                          ),
+                                    ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(
-                            onPressed: () => _addToToday(_controller.text),
-                            child: const Icon(Icons.add),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _controller,
+                                textInputAction: TextInputAction.done,
+                                decoration: const InputDecoration(
+                                  hintText: 'Neue Aufgabe (Enter: heute, + Backlog mit ⤴ long-press)',
+                                  border: OutlineInputBorder(),
+                                ),
+                                onSubmitted: _addToToday,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: () => _addToToday(_controller.text),
+                              child: const Icon(Icons.add),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
 
               // Backlog sheet
