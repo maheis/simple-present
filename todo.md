@@ -29,6 +29,8 @@
 - [x] heute mit Datum und Tag
 - [x] Kein Header
 - [x] Darkmode
+- [ ] Zoom
+- [x] 600x1000 statt 1280x720 (Desktop)
 
 
 - [ ] LLM-Integration: Automatisches Generieren von Unteraufgaben/Schritten aus der Hauptaufgabe, Vorschläge für Notizen/Lösungen basierend auf der Aufgabe, intelligente Sortierung des Backlogs basierend auf Wichtigkeit und Dringlichkeit.
