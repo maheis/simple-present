@@ -256,10 +256,41 @@ class _HomePageState extends State<HomePage> {
                       Expanded(
                         child: _today.isEmpty
                             ? const Center(child: Text('Keine Aufgaben für heute'))
-                            : ListView.builder(
-                              itemCount: _today.length,
-                                itemBuilder: (ctx, i) => Dismissible(
-                                  key: ValueKey('today_${i}_${_today[i].text}_${_today[i].done}'),
+                            : Builder(builder: (ctx) {
+                                // Build grouped list preserving insertion order within groups
+                                final bucketA = <MapEntry<int, TaskItem>>[]; // inProgress & important
+                                final bucketB = <MapEntry<int, TaskItem>>[]; // inProgress
+                                final bucketC = <MapEntry<int, TaskItem>>[]; // important
+                                final bucketD = <MapEntry<int, TaskItem>>[]; // rest (insertion order)
+                                final bucketDone = <MapEntry<int, TaskItem>>[]; // done tasks (always bottom)
+
+                                final entries = _today.asMap().entries;
+                                for (final e in entries) {
+                                  final idx = e.key;
+                                  final t = e.value;
+                                  if (t.done) {
+                                    bucketDone.add(e);
+                                  } else if (t.inProgress && t.important) {
+                                    bucketA.add(e);
+                                  } else if (t.inProgress) {
+                                    bucketB.add(e);
+                                  } else if (t.important) {
+                                    bucketC.add(e);
+                                  } else {
+                                    bucketD.add(e);
+                                  }
+                                }
+
+                                final sorted = [...bucketA, ...bucketB, ...bucketC, ...bucketD, ...bucketDone];
+
+                                return ListView.builder(
+                                  itemCount: sorted.length,
+                                  itemBuilder: (ctx, vi) {
+                                    final originalIndex = sorted[vi].key;
+                                    final task = sorted[vi].value;
+                                    final i = originalIndex;
+                                    return Dismissible(
+                                      key: ValueKey('today_${i}_${task.text}_${task.done}'),
                                   background: Container(
                                     color: _today[i].inProgress ? Colors.green : Colors.green,
                                     alignment: Alignment.centerLeft,
@@ -276,110 +307,100 @@ class _HomePageState extends State<HomePage> {
                                         : Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              SvgPicture.asset(
-                                                'assets/icons/shovel.svg',
-                                                width: 18,
-                                                height: 18,
-                                                color: Colors.white,
-                                              ),
+                                              const Icon(Icons.construction, color: Colors.white, size: 18),
                                               const SizedBox(width: 8),
                                               const Text('In Arbeit', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
                                             ],
                                           ),
                                   ),
-                                  secondaryBackground: Container(
-                                    color: Colors.red,
-                                    alignment: Alignment.centerRight,
-                                    padding: const EdgeInsets.only(right: 20),
-                                    child: const Icon(Icons.delete, color: Colors.white),
-                                  ),
-                                  confirmDismiss: (direction) async {
-                                    if (direction == DismissDirection.startToEnd) {
-                                      final t = _today[i];
-                                      if (!t.inProgress && !t.done) {
-                                        setState(() => _today[i] = t.copyWith(inProgress: true));
-                                        _saveToday();
-                                        _showTopToast('Aufgabe als "In Arbeit" markiert');
-                                      } else if (t.inProgress && !t.done) {
-                                        _setDone(i, true);
-                                        _showTopToast('Aufgabe als fertig markiert');
-                                      }
-                                      return false;
-                                    }
-                                    final shouldDelete = await showDialog<bool>(
-                                      context: context,
-                                      builder: (dialogContext) => AlertDialog(
-                                        title: const Text('Aufgabe löschen?'),
-                                        content: Text('"${_today[i].text}" wirklich löschen?'),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.of(dialogContext).pop(false),
-                                            child: const Text('Abbrechen'),
+                                      secondaryBackground: Container(
+                                        color: Colors.red,
+                                        alignment: Alignment.centerRight,
+                                        padding: const EdgeInsets.only(right: 20),
+                                        child: const Icon(Icons.delete, color: Colors.white),
+                                      ),
+                                      confirmDismiss: (direction) async {
+                                        if (direction == DismissDirection.startToEnd) {
+                                          final t = _today[i];
+                                          if (!t.inProgress && !t.done) {
+                                            setState(() => _today[i] = t.copyWith(inProgress: true));
+                                            _saveToday();
+                                            _showTopToast('Aufgabe als "In Arbeit" markiert');
+                                          } else if (t.inProgress && !t.done) {
+                                            _setDone(i, true);
+                                            _showTopToast('Aufgabe als fertig markiert');
+                                          }
+                                          return false;
+                                        }
+                                        final shouldDelete = await showDialog<bool>(
+                                          context: context,
+                                          builder: (dialogContext) => AlertDialog(
+                                            title: const Text('Aufgabe löschen?'),
+                                            content: Text('"${_today[i].text}" wirklich löschen?'),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.of(dialogContext).pop(false),
+                                                child: const Text('Abbrechen'),
+                                              ),
+                                              FilledButton(
+                                                onPressed: () => Navigator.of(dialogContext).pop(true),
+                                                child: const Text('Löschen'),
+                                              ),
+                                            ],
                                           ),
-                                          FilledButton(
-                                            onPressed: () => Navigator.of(dialogContext).pop(true),
-                                            child: const Text('Löschen'),
+                                        );
+                                        return shouldDelete == true;
+                                      },
+                                      direction: !task.done ? DismissDirection.horizontal : DismissDirection.endToStart,
+                                      onDismissed: (_) => _removeFromToday(i),
+                                      child: Card(
+                                        color: task.inProgress ? Colors.green.withOpacity(0.10) : null,
+                                        child: ListTile(
+                                          leading: IconButton(
+                                            tooltip: 'Fertig',
+                                            icon: Icon(task.done ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+                                            onPressed: () => _setDone(i, !task.done),
                                           ),
-                                        ],
+                                          title: Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  task.text,
+                                                  style: TextStyle(
+                                                    decoration: task.done ? TextDecoration.lineThrough : TextDecoration.none,
+                                                    color: task.done
+                                                        ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65)
+                                                        : Theme.of(context).colorScheme.onSurface,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              // In-progress shovel icon
+                                              if (task.inProgress && !task.done)
+                                                Padding(
+                                                  padding: const EdgeInsets.only(right: 6.0),
+                                                  child: Icon(Icons.construction, color: Colors.greenAccent.shade200, size: 18),
+                                                ),
+                                              // Important star toggle
+                                              IconButton(
+                                                tooltip: 'Wichtig',
+                                                icon: Icon(
+                                                    task.important ? Icons.star : Icons.star_border,
+                                                    color: task.important ? Colors.amber : Theme.of(context).colorScheme.onSurfaceVariant,
+                                                  ),
+                                                onPressed: () {
+                                                  setState(() => _today[i] = _today[i].copyWith(important: !_today[i].important));
+                                                  _saveToday();
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
                                     );
-                                    return shouldDelete == true;
                                   },
-                                  direction: !_today[i].done ? DismissDirection.horizontal : DismissDirection.endToStart,
-                                  onDismissed: (_) => _removeFromToday(i),
-                                  child: Card(
-                                    color: _today[i].inProgress ? Colors.green.withOpacity(0.10) : null,
-                                    child: ListTile(
-                                      leading: IconButton(
-                                        tooltip: 'Fertig',
-                                        icon: Icon(_today[i].done ? Icons.radio_button_checked : Icons.radio_button_unchecked),
-                                        onPressed: () => _setDone(i, !_today[i].done),
-                                      ),
-                                      title: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              _today[i].text,
-                                              style: TextStyle(
-                                                decoration: _today[i].done ? TextDecoration.lineThrough : TextDecoration.none,
-                                                color: _today[i].done
-                                                    ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65)
-                                                    : Theme.of(context).colorScheme.onSurface,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          // In-progress shovel icon
-                                          if (_today[i].inProgress && !_today[i].done)
-                                            Padding(
-                                              padding: const EdgeInsets.only(right: 6.0),
-                                              child: SvgPicture.asset(
-                                                'assets/icons/shovel.svg',
-                                                width: 18,
-                                                height: 18,
-                                                color: Colors.greenAccent.shade200,
-                                              ),
-                                            ),
-                                          // Important star toggle
-                                          IconButton(
-                                            tooltip: 'Wichtig',
-                                            icon: SvgPicture.asset(
-                                              'assets/icons/star.svg',
-                                              width: 20,
-                                              height: 20,
-                                              color: _today[i].important ? Colors.amber : Theme.of(context).colorScheme.onSurfaceVariant,
-                                            ),
-                                            onPressed: () {
-                                              setState(() => _today[i] = _today[i].copyWith(important: !_today[i].important));
-                                              _saveToday();
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
+                                );
+                              }),
                       ),
                     ],
                   ),
