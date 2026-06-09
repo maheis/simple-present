@@ -1,6 +1,6 @@
 # SimplePresent
 
-A simple task management system focused on present tasks.
+A **simple** task management system focused on **present** tasks.
 
 ## Building
 
