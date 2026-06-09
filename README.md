@@ -4,12 +4,16 @@ Eine einfache (Simple) Aufgabenverwaltung mit dem Fokus auf aktuelle Aufgaben (G
 
 ## Ideensammlung
 
+- Step 1
 - [ ] 2 Listen: heute, Backlog (Json-Filesystem)
 - [ ] Hauptansicht heute, unten eine bzw. Textfeld für neue Aufgaben
 - [ ] Backlog als Liste von unten reinschieben bis zum halben Bildschirm, nochmals raufziehen als Vollbild
+- [ ] Layout soll auf für Hochformat und Schlichtheit optimiert sein!
+
+- Step ?
+- [ ] "heute" soll jeden Tag leer starten
 - [ ] Erledigt nur als Filter auf die Listen
 - [ ] Textfilter
-- [ ] "heute" soll jeden Tag leer starten
 - [ ] 3 Flags für Aufgaben: Wichtig, Erledigt, in Arbeit
 - [ ] Unteraufgaben bzw. Schritte für Aufgaben
 - [ ] Freitextfeld für Notizen/Lösung
@@ -18,7 +22,7 @@ Eine einfache (Simple) Aufgabenverwaltung mit dem Fokus auf aktuelle Aufgaben (G
 - [ ] Stopuhr: Start, Stopp, Rücksetzten
 - [ ] Manuelle Zeiterfassung (Zeit der Stopuhr wird auf 15 Min aufgerundet und vorgeschlagen)
 - [ ] App optimiert auf Hochformat
-- [ ] Fenster soll sich Modal anpinnen lassen
+- [ ] Fenster soll sich Modal anpinnen lassen (Desktop)
 - [ ] Erinnerungsfunktion an die Nutzung der App (Ton, Flackern, Aufpoppen, Benachrichtung etc.)
 
 ## Notizen
@@ -32,3 +36,7 @@ Eine einfache (Simple) Aufgabenverwaltung mit dem Fokus auf aktuelle Aufgaben (G
 - [ ] Integration mit Kalendern: Möglichkeit, Aufgaben mit Kalenderereignissen zu verknüpfen, um eine bessere Übersicht über Termine und Aufgaben zu erhalten.
 - [ ] Build-Pipeline über Github (kann man hier Zertifizieren?)
 - [ ] App-Store-Distribution (Google Play, Microsoft Store, Linux-Distributionen etc.)
+
+Ich baue Drag‑und‑Drop zwischen Backlog und Heute (komplizierter, ich implementiere ReorderableDragTargets).
+Ich füge visuelle Verbesserungen (Icons, spacing) und einfache Tests hinzu.
+Ich sorge für Undo/Confirm bei Löschungen oder füge eine kleine Animation beim Verschieben hinzu.
