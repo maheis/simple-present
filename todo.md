@@ -24,7 +24,7 @@
 - [ ] Fenster soll sich Modal anpinnen lassen (Desktop)
 - [ ] Erinnerungsfunktion an die Nutzung der App (Ton, Flackern, Aufpoppen, Benachrichtung etc.)
 - [x] Text eingabe soll immer in die Textbox geschubst werden
-- [ ] Löschen bestätigen
+- [x] Löschen bestätigen
 - [ ] "Toast" soll oben rein
 - [x] heute mit Datum und Tag
 - [x] Kein Header

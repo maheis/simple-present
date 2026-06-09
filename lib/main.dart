@@ -214,7 +214,24 @@ class _HomePageState extends State<HomePage> {
                                       }
                                       return false;
                                     }
-                                    return true;
+                                    final shouldDelete = await showDialog<bool>(
+                                      context: context,
+                                      builder: (dialogContext) => AlertDialog(
+                                        title: const Text('Aufgabe löschen?'),
+                                        content: Text('"${_today[i].text}" wirklich löschen?'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.of(dialogContext).pop(false),
+                                            child: const Text('Abbrechen'),
+                                          ),
+                                          FilledButton(
+                                            onPressed: () => Navigator.of(dialogContext).pop(true),
+                                            child: const Text('Löschen'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    return shouldDelete == true;
                                   },
                                   direction: DismissDirection.horizontal,
                                   onDismissed: (_) => _removeFromToday(i),
