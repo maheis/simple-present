@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -136,6 +138,7 @@ class _HomePageState extends State<HomePage> {
   final Set<int> _expanded = <int>{};
   final Map<int, TextEditingController> _editControllers = {};
   final Map<int, TextEditingController> _notesControllers = {};
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   late final Future<void> _initFuture = _loadToday();
 
@@ -192,6 +195,7 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _controller.dispose();
     _inputFocus.dispose();
+    _audioPlayer.dispose();
     for (final c in _editControllers.values) {
       c.dispose();
     }
@@ -313,6 +317,20 @@ class _HomePageState extends State<HomePage> {
       );
     });
     _saveToday();
+    // Play a friendly sound when a task is marked done
+    if (value == true) {
+      _playDading();
+    }
+  }
+
+  Future<void> _playDading() async {
+    try {
+      // Try to play bundled asset: assets/sounds/ding.mp3
+      await _audioPlayer.play(AssetSource('sounds/ding.mp3'));
+    } catch (e) {
+      // Fallback to system click if asset missing or playback fails
+      SystemSound.play(SystemSoundType.click);
+    }
   }
 
   void _removeFromToday(int index) {

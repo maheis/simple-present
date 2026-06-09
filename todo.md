@@ -25,6 +25,7 @@
 - [x] Editieren
 - [x] makefile
 - [x] Build-Pipeline über Github
+- [ ] Sounds
 - [ ] 2 Listen: heute, Backlog (Json-Filesystem)
 - [ ] Backlog als Liste von unten reinschieben bis zum halben Bildschirm, nochmals raufziehen als Vollbild
 - [ ] "heute" soll jeden Tag leer starten
