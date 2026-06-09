@@ -46,6 +46,7 @@ class TaskItem {
     this.completedAt,
     this.inProgressAt,
     this.importantAt,
+    this.createdAt,
   });
 
   final String text;
@@ -55,6 +56,7 @@ class TaskItem {
   final DateTime? completedAt; // timestamp when marked done
   final DateTime? inProgressAt; // timestamp when marked in progress
   final DateTime? importantAt; // timestamp when marked important
+  final DateTime? createdAt; // timestamp when created
 
   TaskItem copyWith({
     String? text,
@@ -64,6 +66,7 @@ class TaskItem {
     DateTime? completedAt,
     DateTime? inProgressAt,
     DateTime? importantAt,
+    DateTime? createdAt,
   }) {
     return TaskItem(
       text: text ?? this.text,
@@ -73,6 +76,7 @@ class TaskItem {
       completedAt: completedAt ?? this.completedAt,
       inProgressAt: inProgressAt ?? this.inProgressAt,
       importantAt: importantAt ?? this.importantAt,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 
@@ -82,6 +86,7 @@ class TaskItem {
         'important': important,
         'inProgress': inProgress,
         // English field names
+        'created_at': createdAt?.toIso8601String(),
         'completed_at': completedAt?.toIso8601String(),
         'in_progress_at': inProgressAt?.toIso8601String(),
         'important_at': importantAt?.toIso8601String(),
@@ -108,6 +113,7 @@ class TaskItem {
       important: map['important'] == true,
       inProgress: map['inProgress'] == true || map['in_arbeit'] == true,
       // support both new english keys and older german/variant keys
+      createdAt: _parseDate(map['created_at'] ?? map['createdAt']),
       completedAt: _parseDate(map['completed_at'] ?? map['erledigt_am'] ?? map['done_at'] ?? map['doneAt']),
       inProgressAt: _parseDate(map['in_progress_at'] ?? map['in_arbeit_am'] ?? map['inArbeitAt'] ?? map['in_progress_at']),
       importantAt: _parseDate(map['important_at'] ?? map['wichtig_am'] ?? map['important_at']),
@@ -159,7 +165,8 @@ class _HomePageState extends State<HomePage> {
   Future<void> _saveList(String filename, List<TaskItem> source) async {
     try {
       final f = await _fileFor(filename);
-      await f.writeAsString(jsonEncode(source.map((e) => e.toJson()).toList()));
+      final encoder = const JsonEncoder.withIndent('  ');
+      await f.writeAsString(encoder.convert(source.map((e) => e.toJson()).toList()));
     } catch (_) {}
   }
 
@@ -235,7 +242,7 @@ class _HomePageState extends State<HomePage> {
   void _addToToday(String text) {
     if (text.trim().isEmpty) return;
     setState(() {
-      _today.insert(0, TaskItem(text: text.trim(), done: false));
+      _today.insert(0, TaskItem(text: text.trim(), done: false, createdAt: DateTime.now()));
       _controller.clear();
     });
     _saveToday();

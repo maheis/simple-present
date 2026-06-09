@@ -33,9 +33,10 @@
 - [x] 600x1000 statt 1280x720 (Desktop)
 - [ ] icon
 - [x] Sortierung
-- [ ] Timestamp für Aktionen
+- [x] Timestamp für Aktionen "Erlödigt", Wichtig", "In Arbeit", "Angelegt"
 - [ ] Worklog an Aufgaben...
-- [ ] Json formatiert ablegen
+- [x] Json formatiert ablegen
+- [ ] Editieren
 
 ## notes
 
