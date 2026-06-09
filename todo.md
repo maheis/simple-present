@@ -25,9 +25,9 @@
 - [x] Editieren
 - [x] makefile
 - [x] Build-Pipeline über Github
-- [ ] Sounds
+- [x] Sounds
 - [ ] 2 Listen: heute, Backlog (Json-Filesystem)
-- [ ] Backlog als Liste von unten reinschieben bis zum halben Bildschirm, nochmals raufziehen als Vollbild
+- [ ] Backlog als Liste von unten reinschieben bis zum halben Bildschirm, nochmals raufziehen als Vollbild <- nope, liste soll einfach wechselbar sein und dann per swipe von heute nach backlog und umgekehrt geschoben werden können
 - [ ] "heute" soll jeden Tag leer starten
 - [ ] Textfilter
 - [ ] Unteraufgaben bzw. Schritte für Aufgaben
@@ -36,10 +36,11 @@
 - [ ] Stopuhr: Start, Stopp, Rücksetzten
 - [ ] Manuelle Zeiterfassung (Zeit der Stopuhr wird auf 15 Min aufgerundet und vorgeschlagen)
 - [ ] Fenster soll sich Modal anpinnen lassen (Desktop)
-- [ ] Erinnerungsfunktion an die Nutzung der App (Ton, Flackern, Aufpoppen, Benachrichtung etc.)
+- [?] Erinnerungsfunktion bei nicht Nutzung der App ([x] Ton (45m), [x] Flackern (60m), [x] Benachrichtung (75m), [] Aufpoppen (90m))
 - [ ] Zoom
-- [ ] icon
+- [?] icon
 - [ ] Worklog an Aufgaben...
+- [ ] Erinnergunsfunktion konfigurierbar machen (Zeit, Art der Erinnerung, etc.)
 
 ## notes
 

@@ -23,4 +23,12 @@ add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
 target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
 
+# Link libnotify for desktop notifications
+pkg_check_modules(LIBNOTIFY libnotify)
+if (LIBNOTIFY_FOUND)
+  target_include_directories(${BINARY_NAME} PRIVATE ${LIBNOTIFY_INCLUDE_DIRS})
+  target_link_libraries(${BINARY_NAME} PRIVATE ${LIBNOTIFY_LIBRARIES})
+  target_compile_options(${BINARY_NAME} PRIVATE ${LIBNOTIFY_CFLAGS_OTHER})
+endif()
+
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")

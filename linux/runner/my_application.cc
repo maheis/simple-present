@@ -5,6 +5,9 @@
 #include <gdk/gdkx.h>
 #endif
 
+#include <libnotify/notify.h>
+#include <gtk/gtk.h>
+
 #include "flutter/generated_plugin_registrant.h"
 
 struct _MyApplication {
@@ -14,16 +17,78 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
+static GtkWindow* g_main_window = nullptr;
+static FlMethodChannel* g_window_channel = nullptr;
+
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
 }
 
+// Method call handler for window actions on Linux.
+static void window_method_call(FlMethodChannel* channel,
+                               FlMethodCall* method_call,
+                               gpointer user_data) {
+  const gchar* method = fl_method_call_get_name(method_call);
+  FlValue* args = fl_method_call_get_args(method_call);
+  g_autoptr(FlMethodResponse) response = nullptr;
+
+  if (g_str_equal(method, "flashTaskbar")) {
+    if (g_main_window) {
+      // Request attention from the WM (urgency hint)
+      gtk_window_set_urgency_hint(g_main_window, TRUE);
+      response = FL_METHOD_RESPONSE(fl_method_success_response_new(fl_value_new_bool(TRUE)));
+    } else {
+      response = FL_METHOD_RESPONSE(fl_method_success_response_new(fl_value_new_bool(FALSE)));
+    }
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+
+  if (g_str_equal(method, "notify")) {
+    const char* title = "SimplePresent";
+    const char* body = "";
+    if (args && fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
+      FlValue* v = fl_value_lookup_string(args, "title");
+      if (v && fl_value_get_type(v) == FL_VALUE_TYPE_STRING) title = fl_value_get_string(v);
+      v = fl_value_lookup_string(args, "body");
+      if (v && fl_value_get_type(v) == FL_VALUE_TYPE_STRING) body = fl_value_get_string(v);
+    }
+    if (!notify_is_initted()) notify_init("SimplePresent");
+    NotifyNotification* n = notify_notification_new(title, body, nullptr);
+    GError* err = nullptr;
+    notify_notification_show(n, &err);
+    if (err) {
+      g_warning("notify error: %s", err->message);
+      g_clear_error(&err);
+      response = FL_METHOD_RESPONSE(fl_method_success_response_new(fl_value_new_bool(FALSE)));
+    } else {
+      response = FL_METHOD_RESPONSE(fl_method_success_response_new(fl_value_new_bool(TRUE)));
+    }
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+
+  if (g_str_equal(method, "bringToFront")) {
+    if (g_main_window) {
+      // Present brings to front and gives focus
+      gtk_window_present(g_main_window);
+      response = FL_METHOD_RESPONSE(fl_method_success_response_new(fl_value_new_bool(TRUE)));
+    } else {
+      response = FL_METHOD_RESPONSE(fl_method_success_response_new(fl_value_new_bool(FALSE)));
+    }
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+
+  response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
+  fl_method_call_respond(method_call, response, nullptr);
+}
+
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
-  GtkWindow* window =
-      GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
+  GtkWindow* window = GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
 
   // Use a header bar when running in GNOME as this is the common style used
   // by applications and is the setup most users will be using (e.g. Ubuntu
@@ -79,8 +144,7 @@ static void my_application_activate(GApplication* application) {
   }
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
-  fl_dart_project_set_dart_entrypoint_arguments(
-      project, self->dart_entrypoint_arguments);
+  fl_dart_project_set_dart_entrypoint_arguments(project, self->dart_entrypoint_arguments);
 
   FlView* view = fl_view_new(project);
   GdkRGBA background_color;
@@ -93,9 +157,18 @@ static void my_application_activate(GApplication* application) {
 
   // Show the window when Flutter renders.
   // Requires the view to be realized so we can start rendering.
-  g_signal_connect_swapped(view, "first-frame", G_CALLBACK(first_frame_cb),
-                           self);
+  g_signal_connect_swapped(view, "first-frame", G_CALLBACK(first_frame_cb), self);
   gtk_widget_realize(GTK_WIDGET(view));
+
+  // Store global pointer for method handlers
+  g_main_window = window;
+
+  // Register a method channel for window operations
+  FlEngine* engine = fl_view_get_engine(view);
+  FlBinaryMessenger* messenger = fl_engine_get_binary_messenger(engine);
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  g_window_channel = fl_method_channel_new(messenger, "simple_present/window", FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(g_window_channel, window_method_call, nullptr, nullptr);
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
 
@@ -150,8 +223,7 @@ static void my_application_dispose(GObject* object) {
 
 static void my_application_class_init(MyApplicationClass* klass) {
   G_APPLICATION_CLASS(klass)->activate = my_application_activate;
-  G_APPLICATION_CLASS(klass)->local_command_line =
-      my_application_local_command_line;
+  G_APPLICATION_CLASS(klass)->local_command_line = my_application_local_command_line;
   G_APPLICATION_CLASS(klass)->startup = my_application_startup;
   G_APPLICATION_CLASS(klass)->shutdown = my_application_shutdown;
   G_OBJECT_CLASS(klass)->dispose = my_application_dispose;

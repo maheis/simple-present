@@ -139,12 +139,25 @@ class _HomePageState extends State<HomePage> {
   final Map<int, TextEditingController> _editControllers = {};
   final Map<int, TextEditingController> _notesControllers = {};
   final AudioPlayer _audioPlayer = AudioPlayer();
+  Timer? _idleTimer;
+  Timer? _attentionTimer;
+  final Duration _idleDuration = const Duration(minutes: 45);
+  final Duration _attentionDuration = const Duration(minutes: 60);
+  Timer? _reminderTimer;
+  final Duration _reminderDuration = const Duration(minutes: 75);
+  Timer? _urgentTimer;
+  final Duration _urgentDuration = const Duration(minutes: 90);
+  final MethodChannel _nativeWindowChannel = const MethodChannel('simple_present/window');
 
   late final Future<void> _initFuture = _loadToday();
 
   @override
   void initState() {
     super.initState();
+    _startIdleTimer();
+    _startAttentionTimer();
+    _startReminderTimer();
+    _startUrgentTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _inputFocus.requestFocus();
@@ -196,6 +209,10 @@ class _HomePageState extends State<HomePage> {
     _controller.dispose();
     _inputFocus.dispose();
     _audioPlayer.dispose();
+    _idleTimer?.cancel();
+    _attentionTimer?.cancel();
+    _reminderTimer?.cancel();
+    _urgentTimer?.cancel();
     for (final c in _editControllers.values) {
       c.dispose();
     }
@@ -229,6 +246,7 @@ class _HomePageState extends State<HomePage> {
         });
       }
     });
+    _registerActivity();
   }
 
   void _saveEditedTitle(int index) {
@@ -243,6 +261,7 @@ class _HomePageState extends State<HomePage> {
     });
     _saveToday();
     _showTopToast('Task updated');
+    _registerActivity();
   }
 
   void _showTopToast(String message) {
@@ -304,6 +323,7 @@ class _HomePageState extends State<HomePage> {
     });
     _saveToday();
     _inputFocus.requestFocus();
+    _registerActivity();
   }
 
   void _setDone(int index, bool value) {
@@ -321,12 +341,13 @@ class _HomePageState extends State<HomePage> {
     if (value == true) {
       _playDading();
     }
+    _registerActivity();
   }
 
   Future<void> _playDading() async {
     try {
-      // Try to play bundled asset: assets/sounds/ding.mp3
-      await _audioPlayer.play(AssetSource('sounds/ding.mp3'));
+      // Try to play bundled asset: assets/sounds/dading.mp3
+      await _audioPlayer.play(AssetSource('sounds/dading.mp3'));
     } catch (e) {
       // Fallback to system click if asset missing or playback fails
       SystemSound.play(SystemSoundType.click);
@@ -338,6 +359,88 @@ class _HomePageState extends State<HomePage> {
       _today.removeAt(index);
     });
     _saveToday();
+    _registerActivity();
+  }
+
+  void _registerActivity() {
+    // Reset idle timer on user activity
+    try {
+      _idleTimer?.cancel();
+      _attentionTimer?.cancel();
+      _reminderTimer?.cancel();
+    } catch (_) {}
+    _startIdleTimer();
+    _startAttentionTimer();
+    _startReminderTimer();
+    _startUrgentTimer();
+  }
+
+  void _startIdleTimer() {
+    _idleTimer = Timer(_idleDuration, () async {
+      try {
+        await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+        // If configured for 60 minutes, request native flashing behavior
+        // idle timer is only for the 45-minute notification; flashing is handled by the attention timer
+      } catch (_) {
+        SystemSound.play(SystemSoundType.alert);
+      }
+      // after playing, restart timer to play again after another idle period
+      _startIdleTimer();
+    });
+  }
+
+  void _startAttentionTimer() {
+    _attentionTimer = Timer(_attentionDuration, () async {
+      try {
+        await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+        try {
+          await _nativeWindowChannel.invokeMethod('flashTaskbar');
+        } catch (_) {}
+      } catch (_) {
+        SystemSound.play(SystemSoundType.alert);
+      }
+      // restart attention timer for next cycle
+      _startAttentionTimer();
+    });
+  }
+
+  void _startReminderTimer() {
+    _reminderTimer = Timer(_reminderDuration, () async {
+      try {
+        await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+        try {
+          await _nativeWindowChannel.invokeMethod('notify', <String, String>{
+            'title': 'SimplePresent',
+            'body': 'You have been inactive for 75 minutes',
+          });
+        } catch (_) {}
+      } catch (_) {
+        SystemSound.play(SystemSoundType.alert);
+      }
+      // restart reminder timer
+      _startReminderTimer();
+    });
+  }
+
+  void _startUrgentTimer() {
+    _urgentTimer = Timer(_urgentDuration, () async {
+      try {
+        await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+        try {
+          await _nativeWindowChannel.invokeMethod('notify', <String, String>{
+            'title': 'SimplePresent',
+            'body': 'You have been inactive for 90 minutes',
+          });
+        } catch (_) {}
+        try {
+          await _nativeWindowChannel.invokeMethod('bringToFront');
+        } catch (_) {}
+      } catch (_) {
+        SystemSound.play(SystemSoundType.alert);
+      }
+      // restart urgent timer
+      _startUrgentTimer();
+    });
   }
 
   @override
@@ -350,7 +453,10 @@ class _HomePageState extends State<HomePage> {
         return Scaffold(
           body: GestureDetector(
             behavior: HitTestBehavior.translucent,
-            onTap: () => _inputFocus.requestFocus(),
+            onTap: () {
+              _inputFocus.requestFocus();
+              _registerActivity();
+            },
             child: Column(
               children: [
               Expanded(
