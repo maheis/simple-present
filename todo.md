@@ -20,7 +20,7 @@
 - [ ] Backlog sortieren nach Wichtigkeit und Reihenfolge des Einfügens (Berücksichtigung Aufgaben die aus heute rausfallen)
 - [ ] Stopuhr: Start, Stopp, Rücksetzten
 - [ ] Manuelle Zeiterfassung (Zeit der Stopuhr wird auf 15 Min aufgerundet und vorgeschlagen)
-- [ ] App optimiert auf Hochformat
+- [x] App optimiert auf Hochformat
 - [ ] Fenster soll sich Modal anpinnen lassen (Desktop)
 - [ ] Erinnerungsfunktion an die Nutzung der App (Ton, Flackern, Aufpoppen, Benachrichtung etc.)
 - [x] Text eingabe soll immer in die Textbox geschubst werden
@@ -31,7 +31,9 @@
 - [x] Darkmode
 - [ ] Zoom
 - [x] 600x1000 statt 1280x720 (Desktop)
+- [ ] icon
 
+## notes
 
 - [ ] LLM-Integration: Automatisches Generieren von Unteraufgaben/Schritten aus der Hauptaufgabe, Vorschläge für Notizen/Lösungen basierend auf der Aufgabe, intelligente Sortierung des Backlogs basierend auf Wichtigkeit und Dringlichkeit.
 - [ ] Cloud-Synchronisation: Möglichkeit, Aufgaben über mehrere Geräte hinweg zu synchronisieren, z.B. über einen eigenen Server oder Dienste wie Firebase.
