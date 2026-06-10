@@ -318,6 +318,7 @@ class _HomePageState extends State<HomePage> {
       c.dispose();
     }
     _notesControllers.clear();
+    if (_showingDone) _inputFocus.unfocus();
     await _loadToday();
   }
 
@@ -1744,19 +1745,20 @@ class _HomePageState extends State<HomePage> {
                           child: TextField(
                             controller: _controller,
                             focusNode: _inputFocus,
-                            autofocus: true,
+                            autofocus: !_showingDone,
+                            enabled: !_showingDone,
                             textInputAction: TextInputAction.done,
-                            decoration: const InputDecoration(
-                              hintText: 'New task for today',
-                              border: OutlineInputBorder(),
+                            decoration: InputDecoration(
+                              hintText: _showingDone ? 'Cannot add tasks in Done view' : 'New task for today',
+                              border: const OutlineInputBorder(),
                             ),
-                            onSubmitted: _addToToday,
+                            onSubmitted: _showingDone ? null : _addToToday,
                             onTapOutside: (_) => _inputFocus.requestFocus(),
                           ),
                         ),
                         const SizedBox(width: 8),
                         ElevatedButton(
-                          onPressed: () => _addToToday(_controller.text),
+                          onPressed: _showingDone ? null : () => _addToToday(_controller.text),
                           child: const Icon(Icons.add),
                         ),
                       ],
