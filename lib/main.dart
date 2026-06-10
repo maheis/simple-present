@@ -204,6 +204,10 @@ class _HomePageState extends State<HomePage> {
   bool _alwaysOnTop = false;
   final String _appTitle = 'SimplePresent';
 
+  // Toggle which file is shown: false = today, true = done
+  bool _showingDone = false;
+  String _currentFile = 'simplepresent_today.json';
+
   late final Future<void> _initFuture = _loadToday();
 
   @override
@@ -270,34 +274,28 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadToday() async {
-    await _loadList('simplepresent_today.json', _today);
-    try {
-      // On startup, move any already-done tasks that do NOT have today's
-      // completed_at date into the archive file `simplepresent_done.json`.
-      final now = DateTime.now();
-      final toArchive = <TaskItem>[];
-      for (final t in _today) {
-        if (t.done) {
-          if (t.completedAt == null || !_isSameDay(t.completedAt!, now)) {
-            toArchive.add(t);
-          }
-        }
-      }
-      if (toArchive.isNotEmpty) {
-        // Remove archived items from today's list
-        final ids = toArchive.map((e) => e.id).toSet();
-        _today.removeWhere((t) => ids.contains(t.id));
-        // Append to done file
-        await _appendDone(toArchive);
-        // Persist changes
-        await _saveToday();
-      }
-    } catch (_) {}
+    await _loadList(_currentFile, _today);
     setState(() {});
   }
 
   Future<void> _saveToday() async {
-    await _saveList('simplepresent_today.json', _today);
+    await _saveList(_currentFile, _today);
+  }
+
+  Future<void> _switchFile(bool showDone) async {
+    _showingDone = showDone;
+    _currentFile = showDone ? 'simplepresent_done.json' : 'simplepresent_today.json';
+    // clear expanded/edit state
+    _expanded.clear();
+    for (final c in _editControllers.values) {
+      c.dispose();
+    }
+    _editControllers.clear();
+    for (final c in _notesControllers.values) {
+      c.dispose();
+    }
+    _notesControllers.clear();
+    await _loadToday();
   }
 
   Future<void> _loadSettings() async {
@@ -948,9 +946,9 @@ class _HomePageState extends State<HomePage> {
                               child: Text.rich(
                                 TextSpan(
                                   children: [
-                                    const TextSpan(
-                                      text: 'Today',
-                                      style: TextStyle(
+                                    TextSpan(
+                                      text: _showingDone ? 'Done' : 'Today',
+                                      style: const TextStyle(
                                           fontSize: 24, fontWeight: FontWeight.w700),
                                     ),
                                     TextSpan(
@@ -980,6 +978,18 @@ class _HomePageState extends State<HomePage> {
                                   _showTopToast(newVal ? 'Window pinned' : 'Window unpinned');
                                 } catch (_) {}
                               },
+                            ),
+                            PopupMenuButton<String>(
+                              icon: const Icon(Icons.menu),
+                              tooltip: 'View',
+                              onSelected: (v) async {
+                                if (v == 'today') await _switchFile(false);
+                                if (v == 'done') await _switchFile(true);
+                              },
+                              itemBuilder: (ctx) => [
+                                const PopupMenuItem(value: 'today', child: Text('Today')),
+                                const PopupMenuItem(value: 'done', child: Text('Done')),
+                              ],
                             ),
                           ],
                         ),

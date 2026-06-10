@@ -42,6 +42,9 @@
 - [ ] 2 Listen: heute, Backlog (Json-Filesystem)
 - [ ] Backlog als Liste von unten reinschieben bis zum halben Bildschirm, nochmals raufziehen als Vollbild <- nope, liste soll einfach wechselbar sein und dann per swipe von heute nach backlog und umgekehrt geschoben werden können
 - [ ] "heute" soll jeden Tag leer starten
+  - [x] erledigt von nicht heute in done-json
+  - [x] erledigt laden können
+  - [ ] erledigt wiederholen
 - [ ] Textfilter
 - [ ] Unteraufgaben bzw. Schritte für Aufgaben
 - [ ] Backlog sortieren nach Wichtigkeit und Reihenfolge des Einfügens (Berücksichtigung Aufgaben die aus heute rausfallen)
