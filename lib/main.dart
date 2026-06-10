@@ -297,7 +297,6 @@ class _HomePageState extends State<HomePage> {
     _notesControllers.clear();
     await _loadToday();
   }
-
   Future<void> _loadSettings() async {
     try {
       final f = await _fileFor('simplepresent_settings.json');
@@ -691,6 +690,30 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _setDone(int index, bool value) async {
+    // If we're in the Done view and the user unchecks done, move the task back to Today
+    final original = _today[index];
+    if (!value && _currentFile == 'simplepresent_done.json') {
+      try {
+        final restored = original.copyWith(done: false, completedAt: null);
+        setState(() {
+          _today.removeAt(index);
+          _expanded.clear();
+        });
+        await _saveToday(); // persist removal from done file
+
+        final List<TaskItem> todayList = [];
+        await _loadList('simplepresent_today.json', todayList);
+        todayList.insert(0, restored);
+        await _saveList('simplepresent_today.json', todayList);
+
+        _showTopToast('Task moved to Today');
+      } catch (_) {
+        _showTopToast('Failed to move task');
+      }
+      _registerActivity();
+      return;
+    }
+
     setState(() {
       final t = _today[index];
       // When marking done, clear inProgress

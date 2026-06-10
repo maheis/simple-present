@@ -39,12 +39,12 @@
 - [x] Aufgaben die in Arbeit sind, sollen nach Rechts Wischen wieder "aus Arbeit" gesetzt werden
 - [?] icon
 - [?] Erinnerungsfunktion bei nicht Nutzung der App ([x] Ton (45m), [x] Flackern (60m), [x] Benachrichtung (75m), [] Aufpoppen (90m))
-- [ ] 2 Listen: heute, Backlog (Json-Filesystem)
+- [ ] 3 Listen: heute, Done, Backlog (Json-Filesystem)
 - [ ] Backlog als Liste von unten reinschieben bis zum halben Bildschirm, nochmals raufziehen als Vollbild <- nope, liste soll einfach wechselbar sein und dann per swipe von heute nach backlog und umgekehrt geschoben werden können
 - [ ] "heute" soll jeden Tag leer starten
   - [x] erledigt von nicht heute in done-json
   - [x] erledigt laden können
-  - [ ] erledigt wiederholen
+  - [x] erledigt wiederholen
 - [ ] Textfilter
 - [ ] Unteraufgaben bzw. Schritte für Aufgaben
 - [ ] Backlog sortieren nach Wichtigkeit und Reihenfolge des Einfügens (Berücksichtigung Aufgaben die aus heute rausfallen)
