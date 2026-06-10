@@ -49,6 +49,7 @@ class TaskItem {
     this.inProgressAt,
     this.importantAt,
     this.createdAt,
+    this.scheduledAt,
     this.notes,
   });
 
@@ -60,6 +61,7 @@ class TaskItem {
   final DateTime? inProgressAt; // timestamp when marked in progress
   final DateTime? importantAt; // timestamp when marked important
   final DateTime? createdAt; // timestamp when created
+  final DateTime? scheduledAt; // optional scheduled date/time
   final String? notes;
 
   TaskItem copyWith({
@@ -71,6 +73,7 @@ class TaskItem {
     DateTime? inProgressAt,
     DateTime? importantAt,
     DateTime? createdAt,
+    DateTime? scheduledAt,
     String? notes,
   }) {
     return TaskItem(
@@ -82,6 +85,7 @@ class TaskItem {
       inProgressAt: inProgressAt ?? this.inProgressAt,
       importantAt: importantAt ?? this.importantAt,
       createdAt: createdAt ?? this.createdAt,
+      scheduledAt: scheduledAt ?? this.scheduledAt,
       notes: notes ?? this.notes,
     );
   }
@@ -96,6 +100,7 @@ class TaskItem {
         'completed_at': completedAt?.toIso8601String(),
         'in_progress_at': inProgressAt?.toIso8601String(),
         'important_at': importantAt?.toIso8601String(),
+        'scheduled_at': scheduledAt?.toIso8601String(),
         'notes': notes,
       };
 
@@ -121,6 +126,7 @@ class TaskItem {
       inProgress: map['inProgress'] == true || map['in_arbeit'] == true,
       // support both new english keys and older german/variant keys
       createdAt: _parseDate(map['created_at'] ?? map['createdAt']),
+      scheduledAt: _parseDate(map['scheduled_at'] ?? map['scheduledAt'] ?? map['termin'] ?? map['due_at']),
       completedAt: _parseDate(map['completed_at'] ?? map['erledigt_am'] ?? map['done_at'] ?? map['doneAt']),
       inProgressAt: _parseDate(map['in_progress_at'] ?? map['in_arbeit_am'] ?? map['inArbeitAt'] ?? map['in_progress_at']),
       importantAt: _parseDate(map['important_at'] ?? map['wichtig_am'] ?? map['important_at']),
@@ -261,6 +267,35 @@ class _HomePageState extends State<HomePage> {
     });
     _saveToday();
     _showTopToast('Task updated');
+    _registerActivity();
+  }
+
+  Future<void> _pickSchedule(int index) async {
+    final now = DateTime.now();
+    final initial = _today[index].scheduledAt ?? now;
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 5),
+    );
+    if (date == null) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null) return;
+    final scheduled = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    setState(() => _today[index] = _today[index].copyWith(scheduledAt: scheduled));
+    await _saveToday();
+    _showTopToast('Termin gesetzt');
+    _registerActivity();
+  }
+
+  Future<void> _clearSchedule(int index) async {
+    setState(() => _today[index] = _today[index].copyWith(scheduledAt: null));
+    await _saveToday();
+    _showTopToast('Termin entfernt');
     _registerActivity();
   }
 
@@ -679,6 +714,25 @@ class _HomePageState extends State<HomePage> {
                                                   Text('In Progress: ${task.inProgressAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.inProgressAt!) : '-'}'),
                                                   const SizedBox(height: 6),
                                                   Text('Completed: ${task.completedAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.completedAt!) : '-'}'),
+                                                  const SizedBox(height: 6),
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text('Scheduled: ${task.scheduledAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!) : '-'}'),
+                                                      ),
+                                                      IconButton(
+                                                        tooltip: 'Set schedule',
+                                                        icon: const Icon(Icons.calendar_today),
+                                                        onPressed: () => _pickSchedule(i),
+                                                      ),
+                                                      if (task.scheduledAt != null)
+                                                        IconButton(
+                                                          tooltip: 'Clear schedule',
+                                                          icon: const Icon(Icons.clear),
+                                                          onPressed: () => _clearSchedule(i),
+                                                        ),
+                                                    ],
+                                                  ),
                                                   
                                                 ],
                                               ),
