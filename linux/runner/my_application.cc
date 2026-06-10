@@ -48,14 +48,61 @@ static void window_method_call(FlMethodChannel* channel,
   if (g_str_equal(method, "notify")) {
     const char* title = "SimplePresent";
     const char* body = "";
+    const char* requested_icon = NULL;
     if (args && fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
       FlValue* v = fl_value_lookup_string(args, "title");
       if (v && fl_value_get_type(v) == FL_VALUE_TYPE_STRING) title = fl_value_get_string(v);
       v = fl_value_lookup_string(args, "body");
       if (v && fl_value_get_type(v) == FL_VALUE_TYPE_STRING) body = fl_value_get_string(v);
+      v = fl_value_lookup_string(args, "icon");
+      if (v && fl_value_get_type(v) == FL_VALUE_TYPE_STRING) requested_icon = fl_value_get_string(v);
+    }
+    // If no title provided, try to use current window title
+    if ((title == NULL || title[0] == '\0') && g_main_window) {
+      const gchar* wt = gtk_window_get_title(g_main_window);
+      if (wt && wt[0] != '\0') title = wt;
     }
     if (!notify_is_initted()) notify_init("SimplePresent");
-    NotifyNotification* n = notify_notification_new(title, body, nullptr);
+    // Determine icon: prefer explicit 'icon' arg, otherwise search common asset locations
+    const char* chosen_icon = NULL;
+    if (requested_icon && requested_icon[0] != '\0') {
+      // If the caller provided a path, check it directly and also try prefixed asset locations
+      if (g_file_test(requested_icon, G_FILE_TEST_EXISTS)) {
+        chosen_icon = requested_icon;
+      } else {
+        // Try common prefixes (data/flutter_assets, ../data/flutter_assets, flutter_assets)
+        char buf[1024];
+        snprintf(buf, sizeof(buf), "data/flutter_assets/%s", requested_icon);
+        if (g_file_test(buf, G_FILE_TEST_EXISTS)) chosen_icon = g_strdup(buf);
+        else {
+          snprintf(buf, sizeof(buf), "../data/flutter_assets/%s", requested_icon);
+          if (g_file_test(buf, G_FILE_TEST_EXISTS)) chosen_icon = g_strdup(buf);
+          else {
+            snprintf(buf, sizeof(buf), "flutter_assets/%s", requested_icon);
+            if (g_file_test(buf, G_FILE_TEST_EXISTS)) chosen_icon = g_strdup(buf);
+          }
+        }
+      }
+    }
+    if (!chosen_icon) {
+      // Fallback: try to find a bundled icon from common asset locations
+      const char* icon_candidates[] = {
+        "data/flutter_assets/assets/icons/icon.png",
+        "../data/flutter_assets/assets/icons/icon.png",
+        "flutter_assets/assets/icons/icon.png",
+        "data/flutter_assets/assets/icons/icon.svg",
+        "../data/flutter_assets/assets/icons/icon.svg",
+        "flutter_assets/assets/icons/icon.svg",
+        NULL
+      };
+      for (int i = 0; icon_candidates[i] != NULL; ++i) {
+        if (g_file_test(icon_candidates[i], G_FILE_TEST_EXISTS)) {
+          chosen_icon = icon_candidates[i];
+          break;
+        }
+      }
+    }
+    NotifyNotification* n = notify_notification_new(title, body, chosen_icon);
     GError* err = nullptr;
     notify_notification_show(n, &err);
     if (err) {

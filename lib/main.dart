@@ -202,6 +202,7 @@ class _HomePageState extends State<HomePage> {
   double _tileHeightStart = 52.0;
   double _fontScaleStart = 1.0;
   bool _alwaysOnTop = false;
+  final String _appTitle = 'SimplePresent';
 
   late final Future<void> _initFuture = _loadToday();
 
@@ -423,15 +424,16 @@ class _HomePageState extends State<HomePage> {
         final diff = t.scheduledAt!.difference(now);
         final key = _taskNotifyKey(t);
         // 15-minute warning
-        if (!diff.isNegative && diff.inMinutes <= 15 && !_notified15.contains(key)) {
+          if (!diff.isNegative && diff.inMinutes <= 15 && !_notified15.contains(key)) {
           _notified15.add(key);
           try {
             await _audioPlayer.play(AssetSource('sounds/ding.mp3'));
           } catch (_) {}
           try {
             await _nativeWindowChannel.invokeMethod('notify', <String, String>{
-              'title': 'Termin in 15 Minuten',
-              'body': t.text,
+              'title': _appTitle,
+              'body': 'Termin in 15 Minuten: ${t.text}',
+              'icon': 'assets/icons/icon.png',
             });
           } catch (_) {}
           // Persist notified flags so restart doesn't re-notify
@@ -447,8 +449,9 @@ class _HomePageState extends State<HomePage> {
           } catch (_) {}
           try {
             await _nativeWindowChannel.invokeMethod('notify', <String, String>{
-              'title': 'Termin fällig',
-              'body': t.text,
+              'title': _appTitle,
+              'body': 'Termin fällig: ${t.text}',
+              'icon': 'assets/icons/icon.png',
             });
           } catch (_) {}
           try {
@@ -774,8 +777,9 @@ class _HomePageState extends State<HomePage> {
         await _audioPlayer.play(AssetSource('sounds/there.mp3'));
         try {
           await _nativeWindowChannel.invokeMethod('notify', <String, String>{
-            'title': 'SimplePresent',
+            'title': _appTitle,
             'body': 'You have been inactive for 75 minutes',
+            'icon': 'assets/icons/icon.png',
           });
         } catch (_) {}
       } catch (_) {
@@ -793,8 +797,9 @@ class _HomePageState extends State<HomePage> {
         await _audioPlayer.play(AssetSource('sounds/there.mp3'));
         try {
           await _nativeWindowChannel.invokeMethod('notify', <String, String>{
-            'title': 'SimplePresent',
+            'title': _appTitle,
             'body': 'You have been inactive for 90 minutes',
+            'icon': 'assets/icons/icon.png',
           });
         } catch (_) {}
         try {

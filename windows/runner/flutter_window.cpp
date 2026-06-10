@@ -72,18 +72,60 @@ bool FlutterWindow::OnCreate() {
               }
             }
           }
-          // Convert to wide strings
-          std::wstring wtitle(title.begin(), title.end());
+          // Prefer window title if available
+          HWND hwnd = GetHandle();
+          std::wstring wtitle;
+          if (hwnd) {
+            wchar_t buf[512] = {0};
+            if (GetWindowTextW(hwnd, buf, sizeof(buf)/sizeof(wchar_t))) {
+              wtitle = buf;
+            }
+          }
+          if (wtitle.empty()) {
+            wtitle = std::wstring(title.begin(), title.end());
+          }
           std::wstring wbody(body.begin(), body.end());
 
-          // Ensure an icon entry exists; try to add a simple icon if needed
+          // Ensure an icon entry exists; try to use the window's icon
           NOTIFYICONDATAW nidAdd = {};
           nidAdd.cbSize = sizeof(nidAdd);
           nidAdd.hWnd = GetHandle();
           nidAdd.uID = 2001;
           nidAdd.uFlags = NIF_ICON | NIF_TIP;
-          nidAdd.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-          wcscpy_s(nidAdd.szTip, sizeof(nidAdd.szTip) / sizeof(wchar_t), L"SimplePresent");
+          HICON hIcon = NULL;
+          // If caller provided an explicit icon path, try to load it first
+          if (args) {
+            const flutter::EncodableMap* amap = std::get_if<flutter::EncodableMap>(args);
+            if (amap) {
+              auto itIcon = amap->find(flutter::EncodableValue("icon"));
+              if (itIcon != amap->end() && !itIcon->second.IsNull() && std::holds_alternative<std::string>(itIcon->second)) {
+                std::string iconRel = std::get<std::string>(itIcon->second);
+                // Build candidate full path relative to exe directory
+                wchar_t modulePath[MAX_PATH + 1];
+                if (GetModuleFileNameW(nullptr, modulePath, MAX_PATH) > 0) {
+                  std::wstring mp(modulePath);
+                  // strip filename
+                  size_t pos = mp.find_last_of(L"\\/");
+                  if (pos != std::wstring::npos) mp = mp.substr(0, pos + 1);
+                  // convert iconRel to wstring
+                  std::wstring wrel(iconRel.begin(), iconRel.end());
+                  std::wstring full = mp + wrel;
+                  // try to load icon from file
+                  HICON loaded = (HICON)LoadImageW(NULL, full.c_str(), IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
+                  if (loaded) hIcon = loaded;
+                }
+              }
+            }
+          }
+          if (hwnd) {
+            hIcon = (HICON)SendMessage(hwnd, WM_GETICON, ICON_SMALL, 0);
+            if (!hIcon) hIcon = (HICON)GetClassLongPtr(hwnd, GCLP_HICONSM);
+            if (!hIcon) hIcon = (HICON)GetClassLongPtr(hwnd, GCLP_HICON);
+          }
+          if (!hIcon) hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+          nidAdd.hIcon = hIcon;
+          // Set tooltip to the window title (app name)
+          wcscpy_s(nidAdd.szTip, sizeof(nidAdd.szTip) / sizeof(wchar_t), wtitle.c_str());
           Shell_NotifyIconW(NIM_ADD, &nidAdd);
 
           NOTIFYICONDATAW nid = {};
