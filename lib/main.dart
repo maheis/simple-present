@@ -540,30 +540,59 @@ class _HomePageState extends State<HomePage> {
                           ? const Center(child: Text('No tasks for today'))
                             : Builder(builder: (ctx) {
                                 // Build grouped list preserving insertion order within groups
-                                final bucketA = <MapEntry<int, TaskItem>>[]; // inProgress & important
-                                final bucketB = <MapEntry<int, TaskItem>>[]; // inProgress
-                                final bucketC = <MapEntry<int, TaskItem>>[]; // important
-                                final bucketD = <MapEntry<int, TaskItem>>[]; // rest (insertion order)
+                                final bucketOverdue = <MapEntry<int, TaskItem>>[]; // tasks past their scheduled time
+                                final bucketImportantInProgress = <MapEntry<int, TaskItem>>[];
+                                final bucketInProgress = <MapEntry<int, TaskItem>>[];
+                                final bucketImportant = <MapEntry<int, TaskItem>>[];
+                                final bucketDueIn1h = <MapEntry<int, TaskItem>>[];
+                                final bucketRest = <MapEntry<int, TaskItem>>[]; // rest (insertion order)
                                 final bucketDone = <MapEntry<int, TaskItem>>[]; // done tasks (always bottom)
 
+                                final now = DateTime.now();
                                 final entries = _today.asMap().entries;
                                 for (final e in entries) {
-                                  final idx = e.key;
                                   final t = e.value;
                                   if (t.done) {
                                     bucketDone.add(e);
-                                  } else if (t.inProgress && t.important) {
-                                    bucketA.add(e);
-                                  } else if (t.inProgress) {
-                                    bucketB.add(e);
-                                  } else if (t.important) {
-                                    bucketC.add(e);
-                                  } else {
-                                    bucketD.add(e);
+                                    continue;
                                   }
+                                  final hasSchedule = t.scheduledAt != null;
+                                  final diff = hasSchedule ? t.scheduledAt!.difference(now) : null;
+                                  final isOverdue = hasSchedule && diff!.isNegative;
+                                  final dueWithin1h = hasSchedule && !diff!.isNegative && diff.inMinutes <= 60;
+
+                                  if (isOverdue) {
+                                    bucketOverdue.add(e);
+                                    continue;
+                                  }
+                                  if (t.important && t.inProgress) {
+                                    bucketImportantInProgress.add(e);
+                                    continue;
+                                  }
+                                  if (t.inProgress) {
+                                    bucketInProgress.add(e);
+                                    continue;
+                                  }
+                                  if (t.important) {
+                                    bucketImportant.add(e);
+                                    continue;
+                                  }
+                                  if (dueWithin1h) {
+                                    bucketDueIn1h.add(e);
+                                    continue;
+                                  }
+                                  bucketRest.add(e);
                                 }
 
-                                final sorted = [...bucketA, ...bucketB, ...bucketC, ...bucketD, ...bucketDone];
+                                final sorted = [
+                                  ...bucketOverdue,
+                                  ...bucketImportantInProgress,
+                                  ...bucketInProgress,
+                                  ...bucketImportant,
+                                  ...bucketDueIn1h,
+                                  ...bucketRest,
+                                  ...bucketDone,
+                                ];
 
                                 return ListView.builder(
                                   itemCount: sorted.length,
