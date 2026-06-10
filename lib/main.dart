@@ -1093,8 +1093,8 @@ class _HomePageState extends State<HomePage> {
                               },
                               itemBuilder: (ctx) => [
                                 const PopupMenuItem(value: 'today', child: Text('Today')),
-                                const PopupMenuItem(value: 'done', child: Text('Done')),
                                 const PopupMenuItem(value: 'backlog', child: Text('Backlog')),
+                                const PopupMenuItem(value: 'done', child: Text('Done')),
                               ],
                             ),
                           ],
