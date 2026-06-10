@@ -83,6 +83,21 @@ static void window_method_call(FlMethodChannel* channel,
 
   if (g_str_equal(method, "setWindowGeometry")) {
     if (g_main_window && args && fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
+      // Support always_on_top and maximized flags even if geometry not provided
+      FlValue* val_always = fl_value_lookup_string(args, "always_on_top");
+      if (val_always && fl_value_get_type(val_always) == FL_VALUE_TYPE_BOOL) {
+        gtk_window_set_keep_above(g_main_window, fl_value_get_bool(val_always));
+        response = FL_METHOD_RESPONSE(fl_method_success_response_new(fl_value_new_bool(TRUE)));
+        fl_method_call_respond(method_call, response, nullptr);
+        return;
+      }
+      FlValue* vmax = fl_value_lookup_string(args, "maximized");
+      if (vmax && fl_value_get_type(vmax) == FL_VALUE_TYPE_BOOL && fl_value_get_bool(vmax)) {
+        gtk_window_maximize(g_main_window);
+        response = FL_METHOD_RESPONSE(fl_method_success_response_new(fl_value_new_bool(TRUE)));
+        fl_method_call_respond(method_call, response, nullptr);
+        return;
+      }
       FlValue* vx = fl_value_lookup_string(args, "x");
       FlValue* vy = fl_value_lookup_string(args, "y");
       FlValue* vw = fl_value_lookup_string(args, "width");
@@ -92,16 +107,10 @@ static void window_method_call(FlMethodChannel* channel,
         const int y = fl_value_get_int(vy);
         const int w = fl_value_get_int(vw);
         const int h = fl_value_get_int(vh);
-        // If caller requested maximized, apply that instead of manual geometry
-        FlValue* vmax = fl_value_lookup_string(args, "maximized");
-        if (vmax && fl_value_get_type(vmax) == FL_VALUE_TYPE_BOOL && fl_value_get_bool(vmax)) {
-          gtk_window_maximize(g_main_window);
-        } else {
-          // Ensure we unmaximize before setting geometry
-          gtk_window_unmaximize(g_main_window);
-          gtk_window_move(g_main_window, x, y);
-          gtk_window_resize(g_main_window, w, h);
-        }
+        // Ensure we unmaximize before setting geometry
+        gtk_window_unmaximize(g_main_window);
+        gtk_window_move(g_main_window, x, y);
+        gtk_window_resize(g_main_window, w, h);
         response = FL_METHOD_RESPONSE(fl_method_success_response_new(fl_value_new_bool(TRUE)));
         fl_method_call_respond(method_call, response, nullptr);
         return;

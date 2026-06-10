@@ -47,7 +47,7 @@
 - [ ] Backlog sortieren nach Wichtigkeit und Reihenfolge des Einfügens (Berücksichtigung Aufgaben die aus heute rausfallen)
 - [ ] Stopuhr: Start, Stopp, Rücksetzten
 - [ ] Manuelle Zeiterfassung (Zeit der Stopuhr wird auf 15 Min aufgerundet und vorgeschlagen)
-H
+- [ ] Fenster soll sich Modal anpinnen lassen (Desktop)
 - [ ] Worklog an Aufgaben...
 - [ ] Erinnergunsfunktion konfigurierbar machen (Zeit, Art der Erinnerung, etc.)
 - [x] Position, Größe und Zoom beim schließen merken und beim start wieder laden

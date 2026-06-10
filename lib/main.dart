@@ -190,6 +190,7 @@ class _HomePageState extends State<HomePage> {
   final double _baseFontSize = 16.0; // used when scaling text down
   double _tileHeightStart = 52.0;
   double _fontScaleStart = 1.0;
+  bool _alwaysOnTop = false;
 
   late final Future<void> _initFuture = _loadToday();
 
@@ -274,6 +275,10 @@ class _HomePageState extends State<HomePage> {
           if (w is Map) {
             final wm = Map<String, int>.from(w.cast<String, dynamic>().map((k, v) => MapEntry(k, (v as num).toInt())));
             await _validateAndApplyWindow(wm);
+            if (w.containsKey('always_on_top')) {
+              final val = w['always_on_top'];
+              _alwaysOnTop = (val == true) || (val is num && (val as num) != 0);
+            }
           }
         } catch (_) {}
       }
@@ -311,7 +316,7 @@ class _HomePageState extends State<HomePage> {
         }
       }
 
-      final payload = <String, dynamic>{'x': x, 'y': y, 'width': width, 'height': height, 'maximized': maximized};
+      final payload = <String, dynamic>{'x': x, 'y': y, 'width': width, 'height': height, 'maximized': maximized, 'always_on_top': (_alwaysOnTop || (w['always_on_top'] == 1))};
       await _nativeWindowChannel.invokeMethod('setWindowGeometry', payload);
     } catch (_) {
       // fallback: try to set geometry directly
@@ -830,24 +835,46 @@ class _HomePageState extends State<HomePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text.rich(
-                          TextSpan(
-                            children: [
-                              const TextSpan(
-                                text: 'Today',
-                                style: TextStyle(
-                                    fontSize: 24, fontWeight: FontWeight.w700),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text.rich(
+                                TextSpan(
+                                  children: [
+                                    const TextSpan(
+                                      text: 'Today',
+                                      style: TextStyle(
+                                          fontSize: 24, fontWeight: FontWeight.w700),
+                                    ),
+                                    TextSpan(
+                                      text: ', $dateLabel',
+                                      style: TextStyle(
+                                          fontSize: 16,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              TextSpan(
-                                text: ', $dateLabel',
-                                style: TextStyle(
-                                    fontSize: 16,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant),
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                _alwaysOnTop ? Icons.push_pin : Icons.push_pin_outlined,
+                                size: 20,
                               ),
-                            ],
-                          ),
+                              tooltip: _alwaysOnTop ? 'Unpin window' : 'Pin window on top',
+                              onPressed: () async {
+                                final newVal = !_alwaysOnTop;
+                                try {
+                                  await _nativeWindowChannel.invokeMethod('setWindowGeometry', <String, dynamic>{'always_on_top': newVal});
+                                  setState(() => _alwaysOnTop = newVal);
+                                  await _saveSettings();
+                                  _showTopToast(newVal ? 'Window pinned' : 'Window unpinned');
+                                } catch (_) {}
+                              },
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         Expanded(
