@@ -51,17 +51,19 @@
 - [ ] Stopuhr: Start, Stopp, Rücksetzten
 - [ ] Manuelle Zeiterfassung (Zeit der Stopuhr wird auf 15 Min aufgerundet und vorgeschlagen)
 - [x] Fenster soll sich Modal anpinnen lassen (Desktop)
-- [ ] Worklog an Aufgaben...
-- [ ] Erinnergunsfunktion konfigurierbar machen (Zeit, Art der Erinnerung, etc.)
 - [x] Position, Größe und Zoom beim schließen merken und beim start wieder laden
 - [x] Schrift viel später resizen!
 - [x] Icon für in Arbeit immer sichtbar und als button zum setzen/entfernen der Flagge
 - [x] Titelleiste Windows
 - [x] Icon Redesign
-- [ ] Sounds Redesignen mit Lizenzprüfung (Pixabay)
 - [x] Popup hat kein Symbol und der Title ist noch noch falsch
 - [x] Fertige Tasks sollen nicht mehr erinnert werden.
 - [x] Erinnerung auch nicht nach neustart der Anwendung.
+- [ ] Worklog an Aufgaben...
+- [ ] Erinnergunsfunktion konfigurierbar machen (Zeit, Art der Erinnerung, etc.)
+- [ ] Sounds Redesignen mit Lizenzprüfung (Pixabay)
+- [ ] in der Done-Liste soll die Uhrzeit der Erledigung angezeigt werden
+- [ ] in der Done-Liste sollen keine Aufgaben angelegt werden können
   
 ## notes
 

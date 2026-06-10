@@ -206,9 +206,11 @@ class _HomePageState extends State<HomePage> {
 
   // Toggle which file is shown: false = today, true = done
   bool _showingDone = false;
+  // Backlog view toggle
+  bool _showingBacklog = false;
   String _currentFile = 'simplepresent_today.json';
 
-  late final Future<void> _initFuture = _loadToday();
+  late final Future<void> _initFuture = _initializeApp();
 
   @override
   void initState() {
@@ -238,13 +240,33 @@ class _HomePageState extends State<HomePage> {
     return File('${dir.path}/$name');
   }
 
+  Future<void> _ensureListFile(String filename) async {
+    try {
+      final f = await _fileFor(filename);
+      if (!await f.exists()) {
+        await f.writeAsString('[]');
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _ensureInitialFiles() async {
+    await _ensureListFile('simplepresent_today.json');
+    await _ensureListFile('simplepresent_done.json');
+    await _ensureListFile('simplepresent_backlog.json');
+  }
+
+  Future<void> _initializeApp() async {
+    await _ensureInitialFiles();
+    await _loadToday();
+  }
+
   Future<void> _loadList(String filename, List<TaskItem> target) async {
+    target.clear();
     try {
       final f = await _fileFor(filename);
       if (await f.exists()) {
         final text = await f.readAsString();
         final data = jsonDecode(text) as List<dynamic>;
-        target.clear();
         target.addAll(data.map(TaskItem.fromJson));
       }
     } catch (_) {}
@@ -284,7 +306,25 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _switchFile(bool showDone) async {
     _showingDone = showDone;
+    _showingBacklog = false;
     _currentFile = showDone ? 'simplepresent_done.json' : 'simplepresent_today.json';
+    // clear expanded/edit state
+    _expanded.clear();
+    for (final c in _editControllers.values) {
+      c.dispose();
+    }
+    _editControllers.clear();
+    for (final c in _notesControllers.values) {
+      c.dispose();
+    }
+    _notesControllers.clear();
+    await _loadToday();
+  }
+
+  Future<void> _switchToBacklog() async {
+    _showingBacklog = true;
+    _showingDone = false;
+    _currentFile = 'simplepresent_backlog.json';
     // clear expanded/edit state
     _expanded.clear();
     for (final c in _editControllers.values) {
@@ -970,7 +1010,7 @@ class _HomePageState extends State<HomePage> {
                                 TextSpan(
                                   children: [
                                     TextSpan(
-                                      text: _showingDone ? 'Done' : 'Today',
+                                      text: _showingBacklog ? 'Backlog' : (_showingDone ? 'Done' : 'Today'),
                                       style: const TextStyle(
                                           fontSize: 24, fontWeight: FontWeight.w700),
                                     ),
@@ -1008,10 +1048,12 @@ class _HomePageState extends State<HomePage> {
                               onSelected: (v) async {
                                 if (v == 'today') await _switchFile(false);
                                 if (v == 'done') await _switchFile(true);
+                                if (v == 'backlog') await _switchToBacklog();
                               },
                               itemBuilder: (ctx) => [
                                 const PopupMenuItem(value: 'today', child: Text('Today')),
                                 const PopupMenuItem(value: 'done', child: Text('Done')),
+                                const PopupMenuItem(value: 'backlog', child: Text('Backlog')),
                               ],
                             ),
                           ],
@@ -1019,7 +1061,7 @@ class _HomePageState extends State<HomePage> {
                         const SizedBox(height: 8),
                         Expanded(
                           child: _today.isEmpty
-                              ? const Center(child: Text('No tasks for today'))
+                              ? Center(child: Text(_showingBacklog ? 'No backlog tasks' : (_showingDone ? 'No archived tasks' : 'No tasks for today')))
                               : Builder(builder: (ctx) {
                                   // Build grouped list preserving insertion order within groups
                                   final bucketOverdue = <MapEntry<int,
