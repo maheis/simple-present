@@ -698,7 +698,7 @@ class _HomePageState extends State<HomePage> {
           try {
             await _nativeWindowChannel.invokeMethod('notify', <String, String>{
               'title': _appTitle,
-              'body': 'Termin in 15 Minuten: ${t.text}',
+              'body': 'due in 15 minutes: ${t.text}',
               'icon': 'assets/icons/icon.png',
             });
           } catch (_) {}
@@ -716,7 +716,7 @@ class _HomePageState extends State<HomePage> {
           try {
             await _nativeWindowChannel.invokeMethod('notify', <String, String>{
               'title': _appTitle,
-              'body': 'Termin fällig: ${t.text}',
+              'body': 'due: ${t.text}',
               'icon': 'assets/icons/icon.png',
             });
           } catch (_) {}
@@ -835,7 +835,7 @@ class _HomePageState extends State<HomePage> {
       _today[index] = updated;
     });
     _saveToday();
-    _showTopToast('Task updated');
+    _showTopToast('task updated');
     _registerActivity();
   }
 
@@ -912,7 +912,7 @@ class _HomePageState extends State<HomePage> {
     setState(
         () => _today[index] = _today[index].copyWith(scheduledAt: scheduled));
     await _saveToday();
-    _showTopToast('Termin gesetzt');
+    _showTopToast('schedule set');
     // clear any prior notifications for this task so reminders can be re-scheduled
     final idPrefix = '${_today[index].id}|';
     _notified15.removeWhere((k) => k.startsWith(idPrefix));
@@ -939,7 +939,7 @@ class _HomePageState extends State<HomePage> {
 
       _showTopToast('task moved to today');
     } catch (_) {
-      _showTopToast('Failed to move task to Today');
+      _showTopToast('failed to move task to today');
     }
     _registerActivity();
   }
@@ -947,7 +947,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _clearSchedule(int index) async {
     setState(() => _today[index] = _today[index].copyWith(scheduledAt: null));
     await _saveToday();
-    _showTopToast('Termin entfernt');
+    _showTopToast('schedule cleared');
     final idPrefix2 = '${_today[index].id}|';
     _notified15.removeWhere((k) => k.startsWith(idPrefix2));
     _notifiedDue.removeWhere((k) => k.startsWith(idPrefix2));
@@ -1049,7 +1049,7 @@ class _HomePageState extends State<HomePage> {
 
         _showTopToast('task moved to today');
       } catch (_) {
-        _showTopToast('Failed to move task');
+        _showTopToast('failed to move task');
       }
       _registerActivity();
       return;
@@ -1068,10 +1068,10 @@ class _HomePageState extends State<HomePage> {
         });
         await _saveToday(); // persist removal from backlog
         await _appendDone([moved]);
-        _showTopToast('Task moved to Done');
+        _showTopToast('task moved to done');
         _playDading();
       } catch (_) {
-        _showTopToast('Failed to move task to Done');
+        _showTopToast('failed to move task to done');
       }
       _registerActivity();
       return;
@@ -1612,7 +1612,7 @@ class _HomePageState extends State<HomePage> {
                                                 _showTopToast('task marked in progress');
                                               } else if (t.inProgress && !t.done) {
                                                 _setDone(i, true);
-                                                _showTopToast('Task marked done');
+                                                _showTopToast('task marked done');
                                               }
                                               return false;
                                             }
@@ -1632,28 +1632,28 @@ class _HomePageState extends State<HomePage> {
                                                 await showDialog<bool>(
                                               context: context,
                                               builder: (dialogContext) =>
-                                                  AlertDialog(
-                                                title:
-                                                    const Text('Delete task?'),
-                                                content: Text(
-                                                    'Delete "${_today[i].text}"?'),
-                                                actions: [
-                                                  TextButton(
-                                                    onPressed: () =>
-                                                        Navigator.of(
-                                                                dialogContext)
-                                                            .pop(false),
-                                                    child: const Text('Cancel'),
-                                                  ),
-                                                  FilledButton(
-                                                    onPressed: () =>
-                                                        Navigator.of(
-                                                                dialogContext)
-                                                            .pop(true),
-                                                    child: const Text('Delete'),
-                                                  ),
-                                                ],
-                                              ),
+                                                    AlertDialog(
+                                                  title:
+                                                      const Text('delete task?'),
+                                                  content: Text(
+                                                      'delete "${_today[i].text}"?'),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.of(
+                                                                  dialogContext)
+                                                              .pop(false),
+                                                      child: const Text('cancel'),
+                                                    ),
+                                                    FilledButton(
+                                                      onPressed: () =>
+                                                          Navigator.of(
+                                                                  dialogContext)
+                                                              .pop(true),
+                                                      child: const Text('delete'),
+                                                    ),
+                                                  ],
+                                                ),
                                             );
                                             return shouldDelete == true;
                                           },
@@ -1718,7 +1718,7 @@ class _HomePageState extends State<HomePage> {
                                                                           Padding(
                                                                             padding: const EdgeInsets.only(top: 4.0),
                                                                             child: Text(
-                                                                              'Completed: ${DateFormat('yyyy-MM-dd HH:mm').format(task.completedAt!)}',
+                                                                              'completed: ${DateFormat('yyyy-MM-dd HH:mm').format(task.completedAt!)}',
                                                                               style: TextStyle(
                                                                                 fontSize: 12,
                                                                                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1737,7 +1737,7 @@ class _HomePageState extends State<HomePage> {
                                                                             return Padding(
                                                                               padding: const EdgeInsets.only(top: 4.0),
                                                                               child: Text(
-                                                                                'Spent: $label',
+                                                                                'spent: $label',
                                                                                 style: TextStyle(
                                                                                   fontSize: 12,
                                                                                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1993,7 +1993,7 @@ class _HomePageState extends State<HomePage> {
                                                               const InputDecoration(
                                                             border: InputBorder
                                                                 .none,
-                                                            hintText: 'Titel',
+                                                            hintText: 'title',
                                                           ),
                                                           onSubmitted: (_) =>
                                                               _saveEditedTitle(
@@ -2027,7 +2027,7 @@ class _HomePageState extends State<HomePage> {
                                                               const InputDecoration(
                                                             border:
                                                                 OutlineInputBorder(),
-                                                            hintText: 'Notes',
+                                                            hintText: 'notes',
                                                           ),
                                                           onSubmitted: (_) =>
                                                               _saveEditedTitle(
@@ -2047,11 +2047,11 @@ class _HomePageState extends State<HomePage> {
                                                                       TextEditingController(),
                                                                 ),
                                                                 decoration:
-                                                                    const InputDecoration(
+                                                                  const InputDecoration(
                                                                   border:
-                                                                      OutlineInputBorder(),
+                                                                    OutlineInputBorder(),
                                                                   hintText:
-                                                                      'Unteraufgabe hinzufügen',
+                                                                    'add subtask',
                                                                 ),
                                                                 onSubmitted: (_) =>
                                                                     _addSubtask(
@@ -2192,26 +2192,26 @@ class _HomePageState extends State<HomePage> {
                                                         ),
                                                         
                                                         Text(
-                                                            'Created: ${task.createdAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.createdAt!) : '-'}'),
+                                                          'created: ${task.createdAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.createdAt!) : '-'}'),
                                                         const SizedBox(
                                                             height: 6),
                                                         Text(
-                                                            'in progress: ${task.inProgressAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.inProgressAt!) : '-'}'),
+                                                          'in progress: ${task.inProgressAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.inProgressAt!) : '-'}'),
                                                         const SizedBox(
                                                             height: 6),
                                                         Text(
-                                                            'Completed: ${task.completedAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.completedAt!) : '-'}'),
+                                                          'completed: ${task.completedAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.completedAt!) : '-'}'),
                                                         const SizedBox(
                                                             height: 6),
                                                         Row(
                                                           children: [
                                                             Expanded(
-                                                              child: Text(
-                                                                  'Scheduled: ${task.scheduledAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!) : '-'}'),
+                                                            child: Text(
+                                                              'scheduled: ${task.scheduledAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!) : '-'}'),
                                                             ),
-                                                            IconButton(
-                                                              tooltip:
-                                                                  'Set schedule',
+                                                          IconButton(
+                                                            tooltip:
+                                                              'set schedule',
                                                               icon: const Icon(Icons
                                                                   .calendar_today),
                                                               onPressed: () =>
@@ -2220,9 +2220,9 @@ class _HomePageState extends State<HomePage> {
                                                             ),
                                                             if (task.scheduledAt !=
                                                                 null)
-                                                              IconButton(
-                                                                tooltip:
-                                                                    'Clear schedule',
+                                                            IconButton(
+                                                            tooltip:
+                                                              'clear schedule',
                                                                 icon: const Icon(
                                                                     Icons
                                                                         .clear),

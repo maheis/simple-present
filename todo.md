@@ -71,6 +71,7 @@
 - [ ] Worklog an Aufgaben...
 - [ ] Erinnergunsfunktion konfigurierbar machen (Zeit, Art der Erinnerung, etc.)
 - [ ] Sounds Redesignen mit Lizenzprüfung (Pixabay)
+- [ ] Termin löschen klappt nicht. 
   
 ## notes
 
