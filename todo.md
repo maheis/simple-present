@@ -60,11 +60,13 @@
 - [x] Kleiner Zommen mit Schriftgröße
 - [x] Aufgaben die nicht heute aber erledigt ins Done
 - [x] Unteraufgaben bzw. Schritte für Aufgaben
-- [ ] verschieben von heute nach backlog
 - [x] Button für die Übernahme aus Backlog
-- [ ] Stopuhr: Start, Stopp, Rücksetzten
-- [ ] Manuelle Zeiterfassung (Zeit der Stopuhr wird auf 15 Min aufgerundet und vorgeschlagen)
+- [x] Stopuhr: Start, Stopp, Rücksetzten
+- [ ] stopuhr stoppen wenn aufgabe erledigt wird
+- [ ] spent time in done anzeigen
+- [x] Manuelle Zeiterfassung (Zeit der Stopuhr wird auf 15 Min aufgerundet und vorgeschlagen)
 - [ ] Umlaute in der Benachrichtigung
+- [ ] verschieben von heute nach backlog
 - [ ] Textfilter
 - [ ] Worklog an Aufgaben...
 - [ ] Erinnergunsfunktion konfigurierbar machen (Zeit, Art der Erinnerung, etc.)

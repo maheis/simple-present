@@ -105,6 +105,7 @@ class TaskItem {
     this.stopwatchAccumulatedSeconds = 0,
     this.stopwatchRunning = false,
     this.stopwatchStartedAt,
+    this.workMinutes = 0,
   });
 
   final String id;
@@ -124,6 +125,8 @@ class TaskItem {
   final int stopwatchAccumulatedSeconds; // total seconds accumulated when not running
   final bool stopwatchRunning;
   final DateTime? stopwatchStartedAt;
+  // manually recorded minutes (rounded suggestions accumulate here)
+  final int workMinutes;
 
   TaskItem copyWith({
     String? id,
@@ -141,6 +144,7 @@ class TaskItem {
     int? stopwatchAccumulatedSeconds,
     bool? stopwatchRunning,
     DateTime? stopwatchStartedAt,
+    int? workMinutes,
   }) {
     return TaskItem(
       id: id ?? this.id,
@@ -158,6 +162,7 @@ class TaskItem {
       stopwatchAccumulatedSeconds: stopwatchAccumulatedSeconds ?? this.stopwatchAccumulatedSeconds,
       stopwatchRunning: stopwatchRunning ?? this.stopwatchRunning,
       stopwatchStartedAt: stopwatchStartedAt ?? this.stopwatchStartedAt,
+      workMinutes: workMinutes ?? this.workMinutes,
     );
   }
 
@@ -178,6 +183,7 @@ class TaskItem {
         'stopwatch_seconds': stopwatchAccumulatedSeconds,
         'stopwatch_running': stopwatchRunning,
         'stopwatch_started_at': stopwatchStartedAt?.toIso8601String(),
+        'work_minutes': workMinutes,
       };
 
   static DateTime? _parseDate(dynamic v) {
@@ -232,6 +238,7 @@ class TaskItem {
       stopwatchAccumulatedSeconds: (map['stopwatch_seconds'] is int) ? map['stopwatch_seconds'] as int : int.tryParse((map['stopwatch_seconds'] ?? '').toString() ) ?? 0,
       stopwatchRunning: map['stopwatch_running'] == true,
       stopwatchStartedAt: _parseDate(map['stopwatch_started_at'] ?? map['stopwatchStartedAt']),
+      workMinutes: (map['work_minutes'] is int) ? map['work_minutes'] as int : int.tryParse((map['work_minutes'] ?? '').toString()) ?? 0,
     );
   }
 }
@@ -246,6 +253,7 @@ class _HomePageState extends State<HomePage> {
   final Map<int, TextEditingController> _editControllers = {};
   final Map<int, TextEditingController> _notesControllers = {};
   final Map<String, TextEditingController> _subtaskInputControllers = {};
+  final Map<String, TextEditingController> _workControllers = {};
   final AudioPlayer _audioPlayer = AudioPlayer();
   Timer? _idleTimer;
   Timer? _attentionTimer;
@@ -657,6 +665,9 @@ class _HomePageState extends State<HomePage> {
     for (final c in _subtaskInputControllers.values) {
       c.dispose();
     }
+    for (final c in _workControllers.values) {
+      c.dispose();
+    }
     _toastTimer?.cancel();
     _toastEntry?.remove();
     _stopwatchTicker?.cancel();
@@ -741,7 +752,8 @@ class _HomePageState extends State<HomePage> {
     if (!t.stopwatchRunning) return;
     final started = t.stopwatchStartedAt ?? DateTime.now();
     final added = DateTime.now().difference(started).inSeconds;
-    setState(() => _today[index] = t.copyWith(stopwatchRunning: false, stopwatchStartedAt: null, stopwatchAccumulatedSeconds: (t.stopwatchAccumulatedSeconds + added)));
+    final newAccum = t.stopwatchAccumulatedSeconds + added;
+    setState(() => _today[index] = t.copyWith(stopwatchRunning: false, stopwatchStartedAt: null, stopwatchAccumulatedSeconds: newAccum));
     await _saveToday();
   }
 
@@ -812,7 +824,15 @@ class _HomePageState extends State<HomePage> {
     final newNotes = notesCtrl.text;
     if (newText.isEmpty) return;
     setState(() {
-      _today[index] = _today[index].copyWith(text: newText, notes: newNotes);
+      var updated = _today[index].copyWith(text: newText, notes: newNotes);
+      final workCtrl = _workControllers[updated.id];
+      if (workCtrl != null) {
+        final parsed = int.tryParse(workCtrl.text.trim());
+        if (parsed != null) {
+          updated = updated.copyWith(workMinutes: parsed);
+        }
+      }
+      _today[index] = updated;
     });
     _saveToday();
     _showTopToast('Task updated');
@@ -2092,15 +2112,13 @@ class _HomePageState extends State<HomePage> {
                                                           padding: const EdgeInsets.only(bottom: 8.0),
                                                           child: Row(
                                                             children: [
-                                                              Text(
-                                                                (() {
-                                                                  final s = _elapsedSecondsFor(task);
-                                                                  final hh = (s ~/ 3600).toString().padLeft(2, '0');
-                                                                  final mm = ((s % 3600) ~/ 60).toString().padLeft(2, '0');
-                                                                  final ss = (s % 60).toString().padLeft(2, '0');
-                                                                  return 'stopwatch: $hh:$mm:$ss';
-                                                                })(),
-                                                              ),
+                                                              Text(() {
+                                                                final s = _elapsedSecondsFor(task);
+                                                                final hh = (s ~/ 3600).toString().padLeft(2, '0');
+                                                                final mm = ((s % 3600) ~/ 60).toString().padLeft(2, '0');
+                                                                final ss = (s % 60).toString().padLeft(2, '0');
+                                                                return 'stopwatch: $hh:$mm:$ss';
+                                                              }()),
                                                               const SizedBox(width: 8),
                                                               IconButton(
                                                                 tooltip: 'start',
@@ -2117,9 +2135,35 @@ class _HomePageState extends State<HomePage> {
                                                                 icon: const Icon(Icons.restart_alt),
                                                                 onPressed: (task.stopwatchAccumulatedSeconds > 0 || task.stopwatchRunning) ? () => _resetStopwatch(i) : null,
                                                               ),
+                                                              const SizedBox(width: 12),
+                                                              // Manual time entry (time spent) shown to the right of the stopwatch buttons
+                                                              SizedBox(
+                                                                width: 220,
+                                                                child: TextField(
+                                                                  controller: _workControllers.putIfAbsent(task.id, () {
+                                                                    final initial = task.workMinutes > 0 ? task.workMinutes.toString() : '';
+                                                                    final c = TextEditingController(text: initial);
+                                                                    c.addListener(() { if (mounted) setState(() {}); });
+                                                                    return c;
+                                                                  }),
+                                                                  keyboardType: TextInputType.number,
+                                                                  decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'time spent'),
+                                                                  onTap: () {
+                                                                    final ctrl = _workControllers[task.id]!;
+                                                                    if ((ctrl.text.trim().isEmpty) && (task.stopwatchAccumulatedSeconds > 0 || task.stopwatchRunning)) {
+                                                                      final s = _elapsedSecondsFor(task);
+                                                                      final mins = s / 60.0;
+                                                                      final suggested = ((mins / 15).ceil()) * 15;
+                                                                      ctrl.text = suggested.toString();
+                                                                      ctrl.selection = TextSelection.fromPosition(TextPosition(offset: ctrl.text.length));
+                                                                    }
+                                                                  },
+                                                                ),
+                                                              ),
                                                             ],
                                                           ),
                                                         ),
+                                                        
                                                         Text(
                                                             'Created: ${task.createdAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.createdAt!) : '-'}'),
                                                         const SizedBox(
