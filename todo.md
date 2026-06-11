@@ -64,7 +64,7 @@
 - [ ] Erinnergunsfunktion konfigurierbar machen (Zeit, Art der Erinnerung, etc.)
 - [ ] Sounds Redesignen mit Lizenzprüfung (Pixabay)
 - [x] karusell
-- [ ] Kleiner Zommen mit Schriftgröße
+- [x] Kleiner Zommen mit Schriftgröße
 - [x] Aufgaben die nicht heute aber erledigt ins Done
 - [ ] Umlaute in der Benachrichtigung
   

@@ -204,6 +204,10 @@ class _HomePageState extends State<HomePage> {
   bool _alwaysOnTop = false;
   final String _appTitle = 'SimplePresent';
 
+  double _fontScaleForTileHeight(double tileHeight) {
+    return tileHeight <= 1.0 ? _minFontScale : 1.0;
+  }
+
   // Toggle which file is shown: false = today, true = done
   bool _showingDone = false;
   // Backlog view toggle
@@ -434,6 +438,9 @@ class _HomePageState extends State<HomePage> {
           setState(() => _fontScale = v.toDouble());
         }
       }
+      setState(() {
+        _fontScale = _fontScaleForTileHeight(_tileHeight);
+      });
       if (data.containsKey('window')) {
         try {
           final w = data['window'];
@@ -1056,38 +1063,20 @@ class _HomePageState extends State<HomePage> {
                 if (!ctrl) return;
                 final delta = ps.scrollDelta.dy;
                 final step = delta.abs() * 0.08;
-                // increase threshold so font only shrinks much later
-                final textThreshold = _baseFontSize + 24.0;
                 if (delta > 0) {
                   // zoom out
                   final candidate = (_tileHeight - step).clamp(_minTileHeight, _defaultTileHeight);
-                  if (candidate > textThreshold + 1.0) {
-                    setState(() {
-                      _tileHeight = candidate;
-                      _fontScale = 1.0;
-                    });
-                  } else {
-                    setState(() {
-                      _tileHeight = candidate;
-                      // keep font unchanged (no resizing)
-                      _fontScale = 1.0;
-                    });
-                  }
+                  setState(() {
+                    _tileHeight = candidate;
+                    _fontScale = _fontScaleForTileHeight(_tileHeight);
+                  });
                 } else {
                   // zoom in
                   final candidate = (_tileHeight + step).clamp(_minTileHeight, _defaultTileHeight);
-                  if (candidate > textThreshold + 1.0) {
-                    setState(() {
-                      _tileHeight = candidate;
-                      _fontScale = 1.0;
-                    });
-                  } else {
-                    setState(() {
-                      _tileHeight = candidate;
-                      // keep font unchanged (no resizing)
-                      _fontScale = 1.0;
-                    });
-                  }
+                  setState(() {
+                    _tileHeight = candidate;
+                    _fontScale = _fontScaleForTileHeight(_tileHeight);
+                  });
                 }
               }
             },
@@ -1099,25 +1088,10 @@ class _HomePageState extends State<HomePage> {
               onScaleUpdate: (d) {
                 if (d.scale == 0.0 || d.scale.isNaN) return;
                 final newHeight = (_tileHeightStart * d.scale).clamp(_minTileHeight, double.infinity);
-                // increase threshold so font only shrinks much later
-                final textThreshold = _baseFontSize + 24.0;
-                if (newHeight > textThreshold + 1.0) {
-                  setState(() {
-                    _tileHeight = newHeight;
-                    _fontScale = 1.0;
-                  });
-                } else if (newHeight > _minTileHeight) {
-                  setState(() {
-                    _tileHeight = newHeight;
-                    // keep font unchanged (no resizing)
-                    _fontScale = 1.0;
-                  });
-                } else {
-                  setState(() {
-                    _tileHeight = _minTileHeight;
-                    _fontScale = 1.0;
-                  });
-                }
+                setState(() {
+                  _tileHeight = newHeight;
+                  _fontScale = _fontScaleForTileHeight(_tileHeight);
+                });
               },
               behavior: HitTestBehavior.translucent,
               onTap: () {
