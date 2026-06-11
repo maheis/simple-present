@@ -1451,6 +1451,8 @@ class _HomePageState extends State<HomePage> {
                                         List.generate(sorted.length, (vi) {
                                       final originalIndex = sorted[vi].key;
                                       final task = sorted[vi].value;
+                                          final completedSubtasks = task.subtasks.where((step) => step.done).length;
+                                          final totalSubtasks = task.subtasks.length;
                                       final i = originalIndex;
                                       return Dismissible(
                                           key: ValueKey(
@@ -1619,6 +1621,17 @@ class _HomePageState extends State<HomePage> {
                                                                                 : Theme.of(context).colorScheme.onSurface,
                                                                           ),
                                                                         ),
+                                                                        if (totalSubtasks > 0)
+                                                                          Padding(
+                                                                            padding: const EdgeInsets.only(top: 2.0),
+                                                                            child: Text(
+                                                                              '$completedSubtasks/$totalSubtasks',
+                                                                              style: TextStyle(
+                                                                                fontSize: 12,
+                                                                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                                              ),
+                                                                            ),
+                                                                          ),
                                                                         if (_showingDone && task.completedAt != null)
                                                                           Padding(
                                                                             padding: const EdgeInsets.only(top: 4.0),
@@ -1919,7 +1932,7 @@ class _HomePageState extends State<HomePage> {
                                                                       _subtaskInputControllers[
                                                                           task.id]!),
                                                               child: const Text(
-                                                                  'Add'),
+                                                                  '+'),
                                                             ),
                                                           ],
                                                         ),
