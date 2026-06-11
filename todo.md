@@ -73,6 +73,10 @@
 - [ ] Sounds Redesignen mit Lizenzprüfung (Pixabay)
 - [x] Termin löschen klappt nicht.
 - [x] Aufmerksamkeitstimer setzt sich nicht zurück
+- [ ] modal anpinnen klappt unter linux nicht.
+- [ ] kleiner zoomen
+- [ ] position, Größe und Zoom werden nicht korrekt geladen
+- [ ] 
   
 ## notes
 

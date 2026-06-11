@@ -284,9 +284,9 @@ class _HomePageState extends State<HomePage> {
   // Zoom state: tile height and font scaling
   double _tileHeight = 52.0;
   final double _defaultTileHeight = 52.0;
-  final double _minTileHeight = 1.0; // allow extremely thin tiles
+  final double _minTileHeight = 0.1; // allow very small tiles
   double _fontScale = 1.0;
-  final double _minFontScale = 0.6;
+  final double _minFontScale = 0.01;
   final double _baseFontSize = 16.0; // used when scaling text down
   double _tileHeightStart = 52.0;
   double _fontScaleStart = 1.0;
@@ -294,7 +294,8 @@ class _HomePageState extends State<HomePage> {
   final String _appTitle = 'SimplePresent';
 
   double _fontScaleForTileHeight(double tileHeight) {
-    return tileHeight <= 1.0 ? _minFontScale : 1.0;
+    if (tileHeight >= 1.0) return 1.0;
+    return math.max(tileHeight, _minFontScale);
   }
 
   // Toggle which file is shown: false = today, true = done
