@@ -44,11 +44,7 @@
   - [x] erledigt von nicht heute in done-json
   - [x] erledigt laden können
   - [x] erledigt wiederholen
-- [ ] Textfilter
-- [ ] Unteraufgaben bzw. Schritte für Aufgaben
 - [x] Backlog sortieren nach Wichtigkeit und Reihenfolge des Einfügens (Berücksichtigung Aufgaben die aus heute rausfallen)
-- [ ] Stopuhr: Start, Stopp, Rücksetzten
-- [ ] Manuelle Zeiterfassung (Zeit der Stopuhr wird auf 15 Min aufgerundet und vorgeschlagen)
 - [x] Fenster soll sich Modal anpinnen lassen (Desktop)
 - [x] Position, Größe und Zoom beim schließen merken und beim start wieder laden
 - [x] Schrift viel später resizen!
@@ -60,12 +56,16 @@
 - [x] Erinnerung auch nicht nach neustart der Anwendung.
 - [x] in der Done-Liste soll die Uhrzeit der Erledigung angezeigt werden
 - [x] in der Done-Liste sollen keine Aufgaben angelegt werden können
-- [ ] Worklog an Aufgaben...
-- [ ] Erinnergunsfunktion konfigurierbar machen (Zeit, Art der Erinnerung, etc.)
-- [ ] Sounds Redesignen mit Lizenzprüfung (Pixabay)
 - [x] karusell
 - [x] Kleiner Zommen mit Schriftgröße
 - [x] Aufgaben die nicht heute aber erledigt ins Done
+- [ ] Unteraufgaben bzw. Schritte für Aufgaben
+- [ ] Stopuhr: Start, Stopp, Rücksetzten
+- [ ] Manuelle Zeiterfassung (Zeit der Stopuhr wird auf 15 Min aufgerundet und vorgeschlagen)
+- [ ] Textfilter
+- [ ] Worklog an Aufgaben...
+- [ ] Erinnergunsfunktion konfigurierbar machen (Zeit, Art der Erinnerung, etc.)
+- [ ] Sounds Redesignen mit Lizenzprüfung (Pixabay)
 - [ ] Umlaute in der Benachrichtigung
   
 ## notes

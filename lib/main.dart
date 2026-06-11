@@ -37,6 +37,51 @@ class SimplePresentApp extends StatelessWidget {
   }
 }
 
+class TaskStep {
+  TaskStep({
+    required this.id,
+    required this.text,
+    this.done = false,
+  });
+
+  final String id;
+  final String text;
+  final bool done;
+
+  TaskStep copyWith({
+    String? id,
+    String? text,
+    bool? done,
+  }) {
+    return TaskStep(
+      id: id ?? this.id,
+      text: text ?? this.text,
+      done: done ?? this.done,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'text': text,
+        'done': done,
+      };
+
+  static TaskStep fromJson(dynamic json) {
+    if (json is String) {
+      final genId = '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+      return TaskStep(id: genId, text: json, done: false);
+    }
+    final map = json as Map<String, dynamic>;
+    final String id = (map['id'] ?? map['uid'] ?? '').toString();
+    final String useId = id.isNotEmpty ? id : '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+    return TaskStep(
+      id: useId,
+      text: (map['text'] ?? '').toString(),
+      done: map['done'] == true,
+    );
+  }
+}
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
   @override
@@ -56,6 +101,7 @@ class TaskItem {
     this.createdAt,
     this.scheduledAt,
     this.notes,
+    this.subtasks = const [],
   });
 
   final String id;
@@ -70,6 +116,7 @@ class TaskItem {
   final DateTime? createdAt; // timestamp when created
   final DateTime? scheduledAt; // optional scheduled date/time
   final String? notes;
+  final List<TaskStep> subtasks;
 
   TaskItem copyWith({
     String? id,
@@ -83,6 +130,7 @@ class TaskItem {
     DateTime? createdAt,
     DateTime? scheduledAt,
     String? notes,
+    List<TaskStep>? subtasks,
   }) {
     return TaskItem(
       id: id ?? this.id,
@@ -96,6 +144,7 @@ class TaskItem {
       createdAt: createdAt ?? this.createdAt,
       scheduledAt: scheduledAt ?? this.scheduledAt,
       notes: notes ?? this.notes,
+      subtasks: subtasks ?? this.subtasks,
     );
   }
 
@@ -112,6 +161,7 @@ class TaskItem {
         'important_at': importantAt?.toIso8601String(),
         'scheduled_at': scheduledAt?.toIso8601String(),
         'notes': notes,
+        'subtasks': subtasks.map((step) => step.toJson()).toList(),
       };
 
   static DateTime? _parseDate(dynamic v) {
@@ -156,6 +206,13 @@ class TaskItem {
       importantAt: _parseDate(
           map['important_at'] ?? map['wichtig_am'] ?? map['important_at']),
       notes: (map['notes'] ?? map['note'] ?? '').toString(),
+      subtasks: () {
+        final raw = map['subtasks'] ?? map['steps'] ?? const [];
+        if (raw is List) {
+          return raw.map(TaskStep.fromJson).toList();
+        }
+        return const <TaskStep>[];
+      }(),
     );
   }
 }
@@ -169,6 +226,7 @@ class _HomePageState extends State<HomePage> {
   final Set<int> _expanded = <int>{};
   final Map<int, TextEditingController> _editControllers = {};
   final Map<int, TextEditingController> _notesControllers = {};
+  final Map<String, TextEditingController> _subtaskInputControllers = {};
   final AudioPlayer _audioPlayer = AudioPlayer();
   Timer? _idleTimer;
   Timer? _attentionTimer;
@@ -572,6 +630,9 @@ class _HomePageState extends State<HomePage> {
     for (final c in _notesControllers.values) {
       c.dispose();
     }
+    for (final c in _subtaskInputControllers.values) {
+      c.dispose();
+    }
     _toastTimer?.cancel();
     _toastEntry?.remove();
     super.dispose();
@@ -700,6 +761,54 @@ class _HomePageState extends State<HomePage> {
     });
     _saveToday();
     _showTopToast('Task updated');
+    _registerActivity();
+  }
+
+  void _addSubtask(int taskIndex, TextEditingController controller) {
+    final text = controller.text.trim();
+    if (text.isEmpty) return;
+    final task = _today[taskIndex];
+    final step = TaskStep(
+      id: '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}',
+      text: text,
+    );
+    setState(() {
+      _today[taskIndex] = task.copyWith(subtasks: [...task.subtasks, step]);
+    });
+    controller.clear();
+    _saveToday();
+    _registerActivity();
+  }
+
+  void _updateSubtask(
+    int taskIndex,
+    String subtaskId, {
+    String? text,
+    bool? done,
+  }) {
+    final task = _today[taskIndex];
+    final updated = task.subtasks.map((step) {
+      if (step.id != subtaskId) return step;
+      return step.copyWith(
+        text: text,
+        done: done,
+      );
+    }).toList();
+    setState(() {
+      _today[taskIndex] = task.copyWith(subtasks: updated);
+    });
+    _saveToday();
+    _registerActivity();
+  }
+
+  void _removeSubtask(int taskIndex, String subtaskId) {
+    final task = _today[taskIndex];
+    setState(() {
+      _today[taskIndex] = task.copyWith(
+        subtasks: task.subtasks.where((step) => step.id != subtaskId).toList(),
+      );
+    });
+    _saveToday();
     _registerActivity();
   }
 
@@ -1774,6 +1883,105 @@ class _HomePageState extends State<HomePage> {
                                                               _saveEditedTitle(
                                                                   i),
                                                         ),
+                                                        const SizedBox(
+                                                            height: 12),
+                                                        Row(
+                                                          children: [
+                                                            Expanded(
+                                                              child:
+                                                                  TextField(
+                                                                controller: _subtaskInputControllers
+                                                                    .putIfAbsent(
+                                                                  task.id,
+                                                                  () =>
+                                                                      TextEditingController(),
+                                                                ),
+                                                                decoration:
+                                                                    const InputDecoration(
+                                                                  border:
+                                                                      OutlineInputBorder(),
+                                                                  hintText:
+                                                                      'Unteraufgabe hinzufügen',
+                                                                ),
+                                                                onSubmitted: (_) =>
+                                                                    _addSubtask(
+                                                                        i,
+                                                                        _subtaskInputControllers[
+                                                                            task.id]!),
+                                                              ),
+                                                            ),
+                                                            const SizedBox(
+                                                                width: 8),
+                                                            FilledButton(
+                                                              onPressed: () =>
+                                                                  _addSubtask(
+                                                                      i,
+                                                                      _subtaskInputControllers[
+                                                                          task.id]!),
+                                                              child: const Text(
+                                                                  'Add'),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                        if (task.subtasks.isNotEmpty)
+                                                          Padding(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .only(
+                                                                      top: 12),
+                                                            child: Column(
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .start,
+                                                              children: [
+                                                                for (final step in task.subtasks)
+                                                                  Padding(
+                                                                    padding: const EdgeInsets
+                                                                        .only(
+                                                                          bottom:
+                                                                              6),
+                                                                    child: Row(
+                                                                      children: [
+                                                                        Checkbox(
+                                                                          value:
+                                                                              step.done,
+                                                                          onChanged: (value) => _updateSubtask(
+                                                                              i,
+                                                                              step.id,
+                                                                              done: value ?? false),
+                                                                        ),
+                                                                        Expanded(
+                                                                          child:
+                                                                              TextFormField(
+                                                                            key:
+                                                                                ValueKey('subtask_${task.id}_${step.id}'),
+                                                                            initialValue:
+                                                                                step.text,
+                                                                            decoration:
+                                                                                const InputDecoration(
+                                                                              border:
+                                                                                  InputBorder.none,
+                                                                              isDense:
+                                                                                  true,
+                                                                            ),
+                                                                            onChanged:
+                                                                                (value) => _updateSubtask(i, step.id, text: value),
+                                                                          ),
+                                                                        ),
+                                                                        IconButton(
+                                                                          tooltip:
+                                                                              'Delete step',
+                                                                          icon:
+                                                                              const Icon(Icons.close),
+                                                                          onPressed: () =>
+                                                                              _removeSubtask(i, step.id),
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                  ),
+                                                              ],
+                                                            ),
+                                                          ),
                                                         const SizedBox(
                                                             height: 10),
                                                         Text(
