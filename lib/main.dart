@@ -1535,7 +1535,13 @@ class _HomePageState extends State<HomePage> {
                                         child: AnimatedOpacity(
                                           duration: const Duration(milliseconds: 250),
                                           opacity: showIconFully ? 1.0 : 0.18,
-                                          child: Image.asset('assets/icons/icon.png', width: iconSize, height: iconSize),
+                                          child: Image.asset(
+                                            _showingBacklog
+                                                ? 'assets/icons/backlog.png'
+                                                : (_showingDone ? 'assets/icons/done.png' : 'assets/icons/icon.png'),
+                                            width: iconSize,
+                                            height: iconSize,
+                                          ),
                                         ),
                                       ),
                                       // Title text — when icon is fully shown we add left padding so text sits beside the icon,
