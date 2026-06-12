@@ -1619,25 +1619,27 @@ class _HomePageState extends State<HomePage> {
                                     await _openStats();
                                   },
                                 ),
-                                IconButton(
-                                  icon: Icon(
-                                    _alwaysOnTop ? Icons.push_pin : Icons.push_pin_outlined,
-                                    size: 20,
-                                  ),
-                                  tooltip: _alwaysOnTop ? 'Unpin window' : 'Pin window on top',
-                                  padding: const EdgeInsets.symmetric(horizontal: 6.0),
-                                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                  visualDensity: VisualDensity.compact,
-                                  onPressed: () async {
-                                final newVal = !_alwaysOnTop;
-                                try {
-                                  await _nativeWindowChannel.invokeMethod('setWindowGeometry', <String, dynamic>{'always_on_top': newVal});
-                                  setState(() => _alwaysOnTop = newVal);
-                                  await _saveSettings();
-                                  _showTopToast(newVal ? 'Window pinned' : 'Window unpinned');
-                                } catch (_) {}
-                                  },
-                                ),
+                                (Platform.isLinux)
+                                    ? const SizedBox.shrink()
+                                    : IconButton(
+                                        icon: Icon(
+                                          _alwaysOnTop ? Icons.push_pin : Icons.push_pin_outlined,
+                                          size: 20,
+                                        ),
+                                        tooltip: _alwaysOnTop ? 'Unpin window' : 'Pin window on top',
+                                        padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                        visualDensity: VisualDensity.compact,
+                                        onPressed: () async {
+                                          final newVal = !_alwaysOnTop;
+                                          try {
+                                            await _nativeWindowChannel.invokeMethod('setWindowGeometry', <String, dynamic>{'always_on_top': newVal});
+                                            setState(() => _alwaysOnTop = newVal);
+                                            await _saveSettings();
+                                            _showTopToast(newVal ? 'Window pinned' : 'Window unpinned');
+                                          } catch (_) {}
+                                        },
+                                      ),
                                 IconButton(
                                   icon: const Icon(Icons.arrow_forward_ios),
                                   tooltip: 'Next',

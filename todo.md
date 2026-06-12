@@ -84,10 +84,12 @@
 - [x] eigene icons für die liste
 - [x] wenn debug, dann andere files verwenden
 - [x] 3rd party lizenzen
+- [x] wenn aufgaben aufgeklappt sind, verruschts häufger der text in eine andere aufgabe!
+- [x] delete task space
+- [x] modal anpinnen klappt unter linux nicht. (Wayland+KDE) kwin-rule würde benötigt!
 - [ ] Textfilter
 - [ ] Worklog an Aufgaben...
 - [ ] Erinnergunsfunktion konfigurierbar machen (Zeit, Art der Erinnerung, etc.)
-- [ ] modal anpinnen klappt unter linux nicht.
 - [ ] kleiner zoomen
     Ich verstehe jetzt die Ursache vollständig. Das Problem ist nicht die Icongröße, sondern ListTile selbst: Flutter's ListTile hat eine interne Mindesthöhe (~56/36dp) die sich nicht wegdiskutieren lässt. Die sauberste Lösung: Card + ListTile in ein SizedBox(height: _tileHeight) + ClipRect einwickeln. Icons können dabei so groß bleiben wie sie wollen — sie werden einfach abgeschnitten.
     Die Lösung: Card(clipBehavior: Clip.hardEdge) umschließt jetzt ein SizedBox(height: _tileHeight). Damit wird die Zeile auf genau _tileHeight Pixel abgeschnitten — egal was ListTile, Icons oder Padding intern beanspruchen. Die Icons können also in ihrer ursprünglichen Größe bleiben und müssen nicht mitskalieren.
@@ -100,11 +102,14 @@
   - [x] backlog icon ist faded (datum entfernen?)
 - [ ] Swipe Optional machen!
 - [ ] Reihenfolge auch über andere gruppen hinaus und dann optisch einsortieren
-- [x] wenn aufgaben aufgeklappt sind, verruschts häufger der text in eine andere aufgabe!
-- [x] delete task space
 
 - [ ] App-Store-Distribution (Google Play, Microsoft Store, Linux-Distributionen etc.)
 - [ ] Cloud-Synchronisation: Möglichkeit, Aufgaben über mehrere Geräte hinweg zu synchronisieren, z.B. über einen eigenen Server oder Dienste wie Firebase.
+  - [ ] eigener dienst/server
+  - [ ] beschränkt auf x user die sich registrieren können
+  - [ ] wenn es länger als 30 tage nicht genutzt wird, soll der account archiviert werden und ein neuer platz frei werden
+  - [ ] ende zu ende verschlüsselung mit word-phrasen (qr-code für einfaches pairen)
+  - [ ] 
 
 ## notes
 
