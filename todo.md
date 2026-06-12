@@ -84,7 +84,13 @@
 - [x] Automatisches wechseln auf die Today-Ansicht wenn die App länger nicht genutzt wurde (3Minuten)
 - [ ] Statistikseite in der man sich pro Tag Zeiten anzeigen lassen kann
 - [x] Subtask anlegen soll zurück in die Subtask Neuanlegen springen, nicht unten rein ins Aufgabenfeld
-  
+- [ ] Swipe Optional machen!
+- [x] Papierkorb für gelöschte Aufgaben, damit man sien nicht sofort endgültig verliert
+- [ ] Aus in Arbeit setzten soll open einsortieren
+- [ ] Reihenfolge auch über andere gruppen hinaus und dann optisch einsortieren
+- [ ] time spent, stopuhr nicht mehr vorschalgen, sondern auf die stopuhr die händische zeit drauf rechnen
+- [ ] 
+
 ## notes
 
 - [ ] LLM-Integration: Automatisches Generieren von Unteraufgaben/Schritten aus der Hauptaufgabe, Vorschläge für Notizen/Lösungen basierend auf der Aufgabe, intelligente Sortierung des Backlogs basierend auf Wichtigkeit und Dringlichkeit.

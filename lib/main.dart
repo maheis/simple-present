@@ -363,6 +363,7 @@ class _HomePageState extends State<HomePage> {
     await _ensureListFile('simplepresent_today.json');
     await _ensureListFile('simplepresent_done.json');
     await _ensureListFile('simplepresent_backlog.json');
+    await _ensureListFile('simplepresent_trash.json');
   }
 
   Future<void> _initializeApp() async {
@@ -1259,13 +1260,20 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _removeFromToday(int index) async {
-    final removedId = _today[index].id;
+    final removed = _today[index];
     setState(() {
       _today.removeAt(index);
     });
-    _saveToday();
+    await _saveToday();
+    // Move the removed task into the trash file instead of permanent delete
+    try {
+      final List<TaskItem> trash = [];
+      await _loadList('simplepresent_trash.json', trash);
+      trash.add(removed);
+      await _saveList('simplepresent_trash.json', trash);
+    } catch (_) {}
     // Clear any pending notification flags for this task (use text match)
-    final idPrefix = '${removedId}|';
+    final idPrefix = '${removed.id}|';
     _notified15.removeWhere((k) => k.startsWith(idPrefix));
     _notifiedDue.removeWhere((k) => k.startsWith(idPrefix));
     _registerActivity();
