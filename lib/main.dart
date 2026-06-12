@@ -30,6 +30,7 @@ class SimplePresentApp extends StatelessWidget {
       title: 'SimplePresent',
       locale: const Locale('de', 'DE'),
       theme: ThemeData(
+        fontFamily: 'Ubuntu',
         brightness: Brightness.dark,
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(

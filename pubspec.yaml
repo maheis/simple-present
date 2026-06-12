@@ -23,3 +23,9 @@ flutter:
   assets:
     - assets/icons/
     - assets/sounds/
+  fonts:
+    - family: Ubuntu
+      fonts:
+        - asset: assets/fonts/Ubuntu-Regular.ttf
+        - asset: assets/fonts/Ubuntu-Bold.ttf
+          weight: 700
