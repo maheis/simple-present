@@ -291,7 +291,7 @@ class _HomePageState extends State<HomePage> {
   final double _minTileHeight = 0.1; // allow very small tiles
   double _fontScale = 1.0;
   final double _minFontScale = 0.01;
-  final double _baseFontSize = 16.0; // used when scaling text down
+  final double _baseFontSize = 15.0; // used when scaling text down
   double _tileHeightStart = 52.0;
   double _fontScaleStart = 1.0;
   bool _alwaysOnTop = false;
@@ -1935,7 +1935,8 @@ class _HomePageState extends State<HomePage> {
                                                                         Text(
                                                                           task.text,
                                                                           style: TextStyle(
-                                                                            fontSize: _fontScale < 1.0 ? _baseFontSize * _fontScale : null,
+                                                                            fontSize: _baseFontSize * _fontScale,
+                                                                            fontWeight: FontWeight.normal,
                                                                             decoration: task.done ? TextDecoration.lineThrough : TextDecoration.none,
                                                                             color: task.done
                                                                                 ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65)
