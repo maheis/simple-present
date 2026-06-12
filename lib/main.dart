@@ -1619,9 +1619,8 @@ class _HomePageState extends State<HomePage> {
                                     await _openStats();
                                   },
                                 ),
-                                (Platform.isLinux)
-                                    ? const SizedBox.shrink()
-                                    : IconButton(
+                                (Platform.isWindows)
+                                    ? IconButton(
                                         icon: Icon(
                                           _alwaysOnTop ? Icons.push_pin : Icons.push_pin_outlined,
                                           size: 20,
@@ -1639,7 +1638,8 @@ class _HomePageState extends State<HomePage> {
                                             _showTopToast(newVal ? 'Window pinned' : 'Window unpinned');
                                           } catch (_) {}
                                         },
-                                      ),
+                                      )
+                                    : const SizedBox.shrink(),
                                 IconButton(
                                   icon: const Icon(Icons.arrow_forward_ios),
                                   tooltip: 'Next',

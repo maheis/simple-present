@@ -101,7 +101,7 @@
   - [x] spent time feld rutscht rechts aus dem bild
   - [x] app name ist noch simple_present
   - [x] backlog icon ist faded (datum entfernen?)
-  - [ ] pin button nur unter windows anzeigen
+  - [x] pin button nur unter windows anzeigen
   - [ ] icon fritte
 - [ ] Reihenfolge auch über andere gruppen hinaus und dann optisch einsortieren
 - [ ] Cloud-Synchronisation: Möglichkeit, Aufgaben über mehrere Geräte hinweg zu synchronisieren, z.B. über einen eigenen Server oder Dienste wie Firebase.
