@@ -833,11 +833,28 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openStats() async {
-    // load done list and open stats page
+    // load today/backlog/done lists and open stats page
+    final List<TaskItem> combined = [];
+    final List<TaskItem> todayList = [];
+    final List<TaskItem> backlogList = [];
     final List<TaskItem> doneList = [];
+    await _loadList(_storage('simplepresent_today.json'), todayList);
+    await _loadList(_storage('simplepresent_backlog.json'), backlogList);
     await _loadList(_storage('simplepresent_done.json'), doneList);
+    combined.addAll(todayList);
+    combined.addAll(backlogList);
+    combined.addAll(doneList);
+
+    // Normalize: tasks marked done but missing completedAt are considered completed now
+    final normalized = combined.map((t) {
+      if (t.done && t.completedAt == null) {
+        return t.copyWith(completedAt: DateTime.now());
+      }
+      return t;
+    }).toList();
+
     if (!mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => StatsPage(doneList: doneList)));
+    await Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => StatsPage(doneList: normalized)));
   }
 
   void _toggleExpanded(int index) {

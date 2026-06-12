@@ -93,13 +93,15 @@
 - [ ] Swipe Optional machen!
 - [x] Aus in Arbeit setzten soll oben einsortieren
 - [ ] Reihenfolge auch über andere gruppen hinaus und dann optisch einsortieren
-- [ ] Statistikseite in der man sich pro Tag Zeiten und erledigte Aufgaben anzeigen lassen kann
+- [x] Statistikseite in der man sich pro Tag Zeiten und erledigte Aufgaben anzeigen lassen kann
 - [x] aufgaben die nicht auf heute liegen, sollen ins backlog
 - [x] icon oben links einblenden
 - [x] buttons enger zusammen
 - [x] eigene icons für die liste
-- [ ] wenn debug, dann andere files verwenden
+- [x] wenn debug, dann andere files verwenden
 - [ ] 3rd party lizenzen
+- [ ] wenn aufgaben aufgeklappt sind, verruschts häufger der text in eine andere aufgabe!
+- [ ] 
 
 - [ ] App-Store-Distribution (Google Play, Microsoft Store, Linux-Distributionen etc.)
 - [ ] Cloud-Synchronisation: Möglichkeit, Aufgaben über mehrere Geräte hinweg zu synchronisieren, z.B. über einen eigenen Server oder Dienste wie Firebase.
