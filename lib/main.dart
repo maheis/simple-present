@@ -855,7 +855,7 @@ class _HomePageState extends State<HomePage> {
     _registerActivity();
   }
 
-  void _saveEditedTitle(int index) {
+  Future<void> _saveEditedTitle(int index) async {
     final titleCtrl = _editControllers[index];
     final notesCtrl = _notesControllers[index];
     if (titleCtrl == null || notesCtrl == null) return;
@@ -874,6 +874,14 @@ class _HomePageState extends State<HomePage> {
       _today[index] = updated;
     });
     _saveToday();
+
+    // If the task has a scheduled date and it's not today, move it to backlog
+    final scheduled = _today[index].scheduledAt;
+    if (scheduled != null && !_isSameDay(scheduled, DateTime.now())) {
+      await _moveToBacklogByIndex(index);
+      return;
+    }
+
     _showTopToast('task updated');
     _registerActivity();
   }
@@ -965,9 +973,15 @@ class _HomePageState extends State<HomePage> {
     if (time == null) return;
     final scheduled =
         DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    setState(
-        () => _today[index] = _today[index].copyWith(scheduledAt: scheduled));
+    setState(() => _today[index] = _today[index].copyWith(scheduledAt: scheduled));
     await _saveToday();
+
+    // If scheduled date is not today, move to backlog automatically
+    if (!_isSameDay(scheduled, DateTime.now())) {
+      await _moveToBacklogByIndex(index);
+      return;
+    }
+
     _showTopToast('schedule set');
     // clear any prior notifications for this task so reminders can be re-scheduled
     final idPrefix = '${_today[index].id}|';
@@ -996,6 +1010,31 @@ class _HomePageState extends State<HomePage> {
       _showTopToast('task moved to today');
     } catch (_) {
       _showTopToast('failed to move task to today');
+    }
+    _registerActivity();
+  }
+
+  Future<void> _moveToBacklogByIndex(int index) async {
+    try {
+      final item = _today[index];
+      setState(() {
+        _today.removeAt(index);
+        _expanded.clear();
+      });
+      await _saveToday(); // persist removal from today
+
+      final List<TaskItem> backlogList = [];
+      await _loadList('simplepresent_backlog.json', backlogList);
+      // insert at top so task appears first in backlog
+      backlogList.insert(0, item.copyWith(done: false, inProgress: false));
+      await _saveList('simplepresent_backlog.json', backlogList);
+      // If we're currently showing backlog, reload to reflect the new top item
+      if (_showingBacklog || _currentFile == 'simplepresent_backlog.json') {
+        await _loadToday();
+      }
+      _showTopToast('task moved to backlog');
+    } catch (_) {
+      _showTopToast('failed to move task to backlog');
     }
     _registerActivity();
   }

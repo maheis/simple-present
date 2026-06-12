@@ -86,9 +86,10 @@
 - [ ] position, Größe und Zoom werden nicht korrekt geladen
 - [ ] Android APK Testen 
 - [ ] Swipe Optional machen!
-- [ ] Statistikseite in der man sich pro Tag Zeiten anzeigen lassen kann
 - [x] Aus in Arbeit setzten soll oben einsortieren
 - [ ] Reihenfolge auch über andere gruppen hinaus und dann optisch einsortieren
+- [ ] Statistikseite in der man sich pro Tag Zeiten anzeigen lassen kann
+- [x] aufgaben die nicht auf heute liegen, sollen ins backlog
 
 ## notes
 
