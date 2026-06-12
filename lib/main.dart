@@ -1483,6 +1483,7 @@ class _HomePageState extends State<HomePage> {
               },
             child: Column(
               children: [
+                SizedBox(height: Platform.isAndroid ? MediaQuery.of(context).padding.top : 0.0),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(12, 22, 6, 8),
@@ -2481,7 +2482,8 @@ class _HomePageState extends State<HomePage> {
                                                           children: [
                                                             Expanded(
                                                             child: Text(
-                                                              'scheduled: ${task.scheduledAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!) : '-'}'),
+                                                              "scheduled: ${task.scheduledAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!) : '-'}",
+                                                            ),
                                                             ),
                                                           IconButton(
                                                             tooltip:

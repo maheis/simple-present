@@ -86,7 +86,8 @@
 - [ ] position, Größe und Zoom werden nicht korrekt geladen
 - [ ] Android APK Testen
   - [x] icon
-  - [ ] oben ein bisschen runter mit der app, damit platz für die android statusleiste ist
+  - [ ] den header ein bisschen runter mit der app, damit platz für die android statusleiste ist
+  - [ ] spent time feld rutscht rechts aus dem bild
 - [ ] Swipe Optional machen!
 - [x] Aus in Arbeit setzten soll oben einsortieren
 - [ ] Reihenfolge auch über andere gruppen hinaus und dann optisch einsortieren
