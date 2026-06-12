@@ -88,7 +88,7 @@
 - [x] Papierkorb für gelöschte Aufgaben, damit man sien nicht sofort endgültig verliert
 - [ ] Aus in Arbeit setzten soll open einsortieren
 - [ ] Reihenfolge auch über andere gruppen hinaus und dann optisch einsortieren
-- [ ] time spent, stopuhr nicht mehr vorschalgen, sondern auf die stopuhr die händische zeit drauf rechnen
+- [x] time spent, stopuhr nicht mehr vorschalgen, time spent schlägt stopuhr
 - [ ] 
 
 ## notes

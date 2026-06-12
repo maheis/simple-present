@@ -1879,12 +1879,17 @@ class _HomePageState extends State<HomePage> {
                                                                           ),
                                                                         if (task.done)
                                                                           Builder(builder: (ctx) {
-                                                                            final accumulatedMinutes = (task.stopwatchAccumulatedSeconds ~/ 60);
+                                                                            final accumulatedMinutes = (_elapsedSecondsFor(task) ~/ 60);
                                                                             final manual = task.workMinutes;
-                                                                            final total = (accumulatedMinutes + (manual ?? 0));
-                                                                            if (total <= 0) return const SizedBox.shrink();
-                                                                            final hours = total ~/ 60;
-                                                                            final mins = total % 60;
+                                                                            int? showMinutes;
+                                                                            if (manual != null && manual > 0) {
+                                                                              showMinutes = manual;
+                                                                            } else if (accumulatedMinutes > 0) {
+                                                                              showMinutes = accumulatedMinutes;
+                                                                            }
+                                                                            if (showMinutes == null || showMinutes <= 0) return const SizedBox.shrink();
+                                                                            final hours = showMinutes ~/ 60;
+                                                                            final mins = showMinutes % 60;
                                                                             final label = hours > 0 ? '${hours}h ${mins}m' : '${mins}m';
                                                                             return Padding(
                                                                               padding: const EdgeInsets.only(top: 4.0),
@@ -2325,13 +2330,7 @@ class _HomePageState extends State<HomePage> {
                                                                   decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'time spent'),
                                                                   onTap: () {
                                                                     final ctrl = _workControllers[task.id]!;
-                                                                    if ((ctrl.text.trim().isEmpty) && (task.stopwatchAccumulatedSeconds > 0 || task.stopwatchRunning)) {
-                                                                      final s = _elapsedSecondsFor(task);
-                                                                      final mins = s / 60.0;
-                                                                      final suggested = ((mins / 15).ceil()) * 15;
-                                                                      ctrl.text = suggested.toString();
-                                                                      ctrl.selection = TextSelection.fromPosition(TextPosition(offset: ctrl.text.length));
-                                                                    }
+                                                                    // Manual entry only: do not auto-suggest stopwatch time here.
                                                                   },
                                                                 ),
                                                               ),
