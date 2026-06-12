@@ -1538,7 +1538,7 @@ class _HomePageState extends State<HomePage> {
                                           child: Image.asset(
                                             _showingBacklog
                                                 ? 'assets/icons/backlog.png'
-                                                : (_showingDone ? 'assets/icons/done.png' : 'assets/icons/icon.png'),
+                                                : (_showingDone ? 'assets/icons/done.png' : 'assets/icons/today.png'),
                                             width: iconSize,
                                             height: iconSize,
                                           ),

@@ -92,7 +92,7 @@
 - [x] aufgaben die nicht auf heute liegen, sollen ins backlog
 - [x] icon oben links einblenden
 - [x] buttons enger zusammen
-- [ ] eigene icons für die liste
+- [x] eigene icons für die liste
 - [ ] 
 
 ## notes
