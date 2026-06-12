@@ -79,7 +79,7 @@
     Die Lösung: Card(clipBehavior: Clip.hardEdge) umschließt jetzt ein SizedBox(height: _tileHeight). Damit wird die Zeile auf genau _tileHeight Pixel abgeschnitten — egal was ListTile, Icons oder Padding intern beanspruchen. Die Icons können also in ihrer ursprünglichen Größe bleiben und müssen nicht mitskalieren.
 - [ ] position, Größe und Zoom werden nicht korrekt geladen
 - [x] Subtasks mit Kachel darstellen, händische Sortierung von Subtasks
-- [ ] Done at und Spent bei jeder Done aufgabe anzeigen (nicht nur in der Liste)
+- [x] Done at und Spent bei jeder Done aufgabe anzeigen (nicht nur in der Liste)
 - [ ] Android APK Testen 
 - [x] Automatisches wechseln auf die Today-Ansicht wenn die App länger nicht genutzt wurde (3Minuten)
 - [ ] Statistikseite in der man sich pro Tag Zeiten anzeigen lassen kann

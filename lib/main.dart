@@ -1858,7 +1858,7 @@ class _HomePageState extends State<HomePage> {
                                                                               ),
                                                                             ),
                                                                           ),
-                                                                        if (_showingDone && task.completedAt != null)
+                                                                        if (task.done && task.completedAt != null)
                                                                           Padding(
                                                                             padding: const EdgeInsets.only(top: 4.0),
                                                                             child: Text(
@@ -1869,7 +1869,7 @@ class _HomePageState extends State<HomePage> {
                                                                               ),
                                                                             ),
                                                                           ),
-                                                                        if (_showingDone)
+                                                                        if (task.done)
                                                                           Builder(builder: (ctx) {
                                                                             final accumulatedMinutes = (task.stopwatchAccumulatedSeconds ~/ 60);
                                                                             final manual = task.workMinutes;
@@ -2339,8 +2339,9 @@ class _HomePageState extends State<HomePage> {
                                                           'in progress: ${task.inProgressAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.inProgressAt!) : '-'}'),
                                                         const SizedBox(
                                                             height: 6),
-                                                        Text(
-                                                          'completed: ${task.completedAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.completedAt!) : '-'}'),
+                                                        if (task.done && task.completedAt != null)
+                                                          Text(
+                                                            'completed: ${DateFormat('yyyy-MM-dd HH:mm').format(task.completedAt!)}'),
                                                         const SizedBox(
                                                             height: 6),
                                                         Row(
