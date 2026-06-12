@@ -89,7 +89,7 @@
   - [x] den header ein bisschen runter mit der app, damit platz für die android statusleiste ist
   - [x] spent time feld rutscht rechts aus dem bild
   - [x] app name ist noch simple_present
-  - [ ] backlog icon ist faded (datum entfernen?)
+  - [x] backlog icon ist faded (datum entfernen?)
 - [ ] Swipe Optional machen!
 - [x] Aus in Arbeit setzten soll oben einsortieren
 - [ ] Reihenfolge auch über andere gruppen hinaus und dann optisch einsortieren

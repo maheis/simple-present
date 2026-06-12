@@ -1460,8 +1460,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final dateLabel =
-        DateFormat('EEEE, dd. MMMM yyyy', 'de_DE').format(DateTime.now());
 
     return FutureBuilder<void>(
       future: _initFuture,
@@ -1537,11 +1535,10 @@ class _HomePageState extends State<HomePage> {
                               child: LayoutBuilder(builder: (ctx, constraints) {
                                 // Styles used for measurement and rendering
                                 final titleStyle = const TextStyle(fontSize: 24, fontWeight: FontWeight.w700);
-                                final dateStyle = TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.onSurfaceVariant);
-                                final combined = TextSpan(children: [
-                                  TextSpan(text: _showingBacklog ? 'backlog' : (_showingDone ? 'done' : 'today'), style: titleStyle),
-                                  TextSpan(text: ', $dateLabel', style: dateStyle),
-                                ]);
+                                final combined = TextSpan(
+                                  text: _showingBacklog ? 'backlog' : (_showingDone ? 'done' : 'today'),
+                                  style: titleStyle,
+                                );
 
                                 // Measure required width for the combined text
                                 final tp = TextPainter(text: combined, textDirection: Directionality.of(context), textScaleFactor: MediaQuery.textScaleFactorOf(context));
