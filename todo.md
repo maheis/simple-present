@@ -111,7 +111,7 @@
   - [ ] ende zu ende verschlüsselung mit word-phrasen (qr-code für einfaches pairen)
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [x] Schriftart auswählbar machen
-- [ ] Schriftgröße anpassbar machen (und nicht im Zoom)
+- [x] Schriftgröße anpassbar machen (und nicht im Zoom)
 - [ ] 
 
 ## notes
