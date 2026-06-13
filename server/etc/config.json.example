@@ -5,5 +5,19 @@
     "enabled": false,
     "cert_file": "",
     "key_file": ""
+  },
+  "security": {
+    "require_tls": true,
+    "trust_proxy_headers": true,
+    "jwt_secret": "change-me-in-production",
+    "rate_limit": {
+      "requests_per_minute": 60,
+      "burst": 20
+    },
+    "quotas": {
+      "max_devices": 5,
+      "max_items": 10000,
+      "max_bytes_per_account": 10485760
+    }
   }
 }

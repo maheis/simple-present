@@ -2,6 +2,14 @@
 
 Minimal Go scaffold for a Linux-only headless sync server using SQLite and JSON config.
 
+Security features included in the scaffold:
+
+- HTTPS enforcement via TLS or trusted reverse-proxy headers
+- JWT device tokens returned by `/pair`
+- Device revocation endpoint at `/devices/{id}/revoke`
+- In-memory rate limiting per IP and per account
+- Per-account quotas for devices, active items and stored payload bytes
+
 Quick start:
 
 1. Copy `config.json.example` to `config.json` and edit paths.
