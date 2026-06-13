@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -50,7 +49,7 @@ func main() {
 	}
 	defer st.Close()
 	// reuse DB for handlers
-	var db *sql.DB = st.db
+	db := st.DB()
 	srv := &handlers.Server{DB: db}
 
 	r := mux.NewRouter()

@@ -48,3 +48,7 @@ func (s *Store) initSchema() error {
 func (s *Store) Close() error {
 	return s.db.Close()
 }
+
+func (s *Store) DB() *sql.DB {
+	return s.db
+}

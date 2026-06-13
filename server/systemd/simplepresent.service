@@ -1,13 +1,19 @@
+
 [Unit]
 Description=SimplePresent sync server
 After=network.target
 
 [Service]
 Type=simple
-User=%i
+User=simplepresent
+Group=simplepresent
 WorkingDirectory=/var/lib/simplepresent
 ExecStart=/usr/local/bin/simplepresent -config /etc/simplepresent/config.json
 Restart=on-failure
+RestartSec=5
+Environment=CONFIG=/etc/simplepresent/config.json
+RuntimeDirectory=simplepresent
+RuntimeDirectoryMode=0755
 
 [Install]
 WantedBy=multi-user.target
