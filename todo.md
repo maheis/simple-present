@@ -110,7 +110,7 @@
   - [ ] wenn konto nicht länger als 30(!) tage nicht genutzt wird, soll der account archiviert werden und ein neuer platz frei werden (meldung an den anwender)
   - [ ] ende zu ende verschlüsselung mit word-phrasen (qr-code für einfaches pairen)
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
-- [ ] schriftart auswählbar machen
+- [ ] Schriftart auswählbar machen
 - [ ] Schriftgröße anpassbar machen (und nicht im Zoom)
 - [ ] 
 
