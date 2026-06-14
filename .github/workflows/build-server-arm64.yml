@@ -33,7 +33,7 @@ jobs:
               env:
                   CGO_ENABLED: "1"
                   GOOS: linux
-                  GOARCH: amd64
+                  GOARCH: arm64
               run: go build -v -o simplepresent-server
             - name: Package server binary
               run: |
@@ -45,18 +45,18 @@ jobs:
                   cp server/etc/config.json.example release_dist/simplepresent-server/config.json.example || true
                   cp server/deploy/install.sh release_dist/simplepresent-server/install.sh || true
                   chmod +x release_dist/simplepresent-server/install.sh || true
-                  cd release_dist && zip -r simplepresent-server.zip simplepresent-server
+                  cd release_dist && zip -r simplepresent-server-arm64.zip simplepresent-server
             - name: Upload server artifact
               uses: actions/upload-artifact@v4
               with:
                   name: simplepresent-server
-                  path: release_dist/simplepresent-server.zip
+                  path: release_dist/simplepresent-server-arm64.zip
             - name: Upload server artifact to Release
               uses: actions/upload-release-asset@v1
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
                   upload_url: ${{ github.event.release.upload_url }}
-                  asset_path: release_dist/simplepresent-server.zip
-                  asset_name: simplepresent-server.zip
+                  asset_path: release_dist/simplepresent-server-arm64.zip
+                  asset_name: simplepresent-server-arm64.zip
                   asset_content_type: application/zip
