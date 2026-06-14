@@ -3,6 +3,8 @@ package storage
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -13,6 +15,10 @@ type Store struct {
 }
 
 func NewSQLite(path string) (*Store, error) {
+	if err := ensureDBPath(path); err != nil {
+		return nil, err
+	}
+
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, err
@@ -22,6 +28,32 @@ func NewSQLite(path string) (*Store, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+func ensureDBPath(path string) error {
+	dir := filepath.Dir(path)
+	if dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("create db directory: %w", err)
+		}
+	}
+
+	if _, err := os.Stat(path); err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("stat db file: %w", err)
+		}
+
+		f, createErr := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if createErr != nil {
+			if !os.IsExist(createErr) {
+				return fmt.Errorf("create empty db file: %w", createErr)
+			}
+		} else {
+			_ = f.Close()
+		}
+	}
+
+	return nil
 }
 
 func (s *Store) initSchema() error {
