@@ -126,7 +126,7 @@
   - [x] einfügen von kopierten text-link
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [x] Client Version ausgeben
-- [ ] linux binary namen anpassen (simplepresent)
+- [x] linux binary namen anpassen (simplepresent)
 
 ## notes
 
