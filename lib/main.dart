@@ -4075,24 +4075,18 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// Opens the camera scanner, reads a simplepresent:// pairing URI
   /// and pre-fills server URL + account ID.
-  Future<void> _scanPairingQr() async {
-    final result = await Navigator.of(context).push<String>(
-      MaterialPageRoute<String>(
-        builder: (_) => const _QrScannerPage(),
-      ),
-    );
-    if (result == null || !mounted) return;
+  void _applyPairingUri(String raw, {required String sourceLabel}) {
     try {
-      final uri = Uri.parse(result);
+      final uri = Uri.parse(raw);
       if (uri.scheme != 'simplepresent' || uri.host != 'pair') {
-        setState(() => _cloudStatus = 'Ungültiger QR-Code.');
+        setState(() => _cloudStatus = 'Ungültiger Pairing-Link ($sourceLabel).');
         return;
       }
       final server = uri.queryParameters['server'] ?? '';
       final account = uri.queryParameters['account'] ?? '';
       final phrase = uri.queryParameters['phrase'] ?? '';
       if (server.isEmpty || account.isEmpty || phrase.isEmpty) {
-        setState(() => _cloudStatus = 'QR-Code unvollständig.');
+        setState(() => _cloudStatus = 'Pairing-Link unvollständig ($sourceLabel).');
         return;
       }
       setState(() {
@@ -4100,11 +4094,31 @@ class _SettingsPageState extends State<SettingsPage> {
         cloudAccountId = account;
         cloudWordPhrase = phrase;
         _cloudStatus =
-            'Server-URL, Account ID und 9-Wort-Phrase übernommen. Jetzt "Gerät anbinden" tippen.';
+            'Server-URL, Account ID und 9-Wort-Phrase übernommen ($sourceLabel). Jetzt "Gerät anbinden" tippen.';
       });
     } catch (_) {
-      setState(() => _cloudStatus = 'QR-Code konnte nicht gelesen werden.');
+      setState(() => _cloudStatus = 'Pairing-Link konnte nicht gelesen werden ($sourceLabel).');
     }
+  }
+
+  Future<void> _scanPairingQr() async {
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(
+        builder: (_) => const _QrScannerPage(),
+      ),
+    );
+    if (result == null || !mounted) return;
+    _applyPairingUri(result, sourceLabel: 'QR-Code');
+  }
+
+  Future<void> _pastePairingLink() async {
+    final data = await Clipboard.getData('text/plain');
+    final text = data?.text?.trim() ?? '';
+    if (text.isEmpty) {
+      setState(() => _cloudStatus = 'Zwischenablage ist leer.');
+      return;
+    }
+    _applyPairingUri(text, sourceLabel: 'Zwischenablage');
   }
 
   Future<void> _registerFirstDevice() async {
@@ -4503,6 +4517,18 @@ class _SettingsPageState extends State<SettingsPage> {
                       onPressed: _cloudBusy ? null : _scanPairingQr,
                       icon: const Icon(Icons.qr_code_scanner),
                       label: const Text('QR-Code scannen'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _cloudBusy ? null : _pastePairingLink,
+                      icon: const Icon(Icons.content_paste),
+                      label: const Text('Link einfügen'),
                     ),
                   ),
                 ],

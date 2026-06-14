@@ -120,10 +120,10 @@
   - [x] Server müssen nach ändern / koppeln gespeichert werden! (Es kommt jetzt eine Warnung beim schließen wenn es nicht gespeichert ist)
   - [x] sync stabilisieren! 2 aufgaben gleichzeitig anlegen führt zum verlust einer aufgabe! 
         ich glaube die aufgaben sollten einzeln synchronsiert und in der db gespeichert werden. aktuell sieht es so aus als würde pro client immer ein ganzer block synchronisiert bzw. in einen datensatz gespeichert#
-  - [ ] Cloud-Profil schützen mit einer PIN die der Server auch kennt und die zwischen den geräten geprüft wird beim einfügen neuer clients.
+  - [x] Cloud-Profil schützen mit einer PIN die der Server auch kennt und die zwischen den geräten geprüft wird beim einfügen neuer clients.
   - [x] Server Version ausloggen
   - [ ] Server / CLient Version abgleichen und Warnung ausgeben wenn Client zu alt ist
-  - [ ] einfügen von kopierten text-link
+  - [x] einfügen von kopierten text-link
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [ ] Client Version ausgeben
 - [ ] linux binary namen anpassen (simplepresent)
