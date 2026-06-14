@@ -988,6 +988,10 @@ class _HomePageState extends State<HomePage> {
         if (deviceName is String && deviceName.isNotEmpty) {
           _cloudDeviceName = deviceName;
         }
+        final cloudPin = data['cloudPIN'];
+        if (cloudPin is String) {
+          _cloudPIN = cloudPin;
+        }
         final cloudVersion = data['cloudStateVersion'];
         if (cloudVersion is num) {
           _cloudStateVersion = cloudVersion.toInt();
@@ -1145,6 +1149,7 @@ class _HomePageState extends State<HomePage> {
         'cloudToken': _cloudToken,
         'cloudWordPhrase': _cloudWordPhrase,
         'cloudDeviceName': _cloudDeviceName,
+        'cloudPIN': _cloudPIN,
         'cloudStateVersion': _cloudStateVersion,
         'cloudLastSyncModifiedAt': _cloudLastSyncModifiedAt,
         'cloudKnownTodayIds': _cloudKnownTodayIds.toList(),
@@ -1423,6 +1428,7 @@ class _HomePageState extends State<HomePage> {
             'cloudToken': _cloudToken,
             'cloudWordPhrase': _cloudWordPhrase,
             'cloudDeviceName': _cloudDeviceName,
+            'cloudPIN': _cloudPIN,
           },
         ),
       ),
@@ -1491,6 +1497,9 @@ class _HomePageState extends State<HomePage> {
       if (result['cloudDeviceName'] is String &&
           (result['cloudDeviceName'] as String).isNotEmpty) {
         _cloudDeviceName = result['cloudDeviceName'] as String;
+      }
+      if (result['cloudPIN'] is String) {
+        _cloudPIN = result['cloudPIN'] as String;
       }
     });
 
@@ -3860,6 +3869,7 @@ class _SettingsPageState extends State<SettingsPage> {
     cloudToken = readString('cloudToken', '');
     cloudWordPhrase = readString('cloudWordPhrase', '');
     cloudDeviceName = readString('cloudDeviceName', Platform.localHostname);
+    cloudPIN = readString('cloudPIN', '');
     // Save initial values to detect changes
     _initialIdleMinutes = idleMinutes;
     _initialAttentionMinutes = attentionMinutes;
@@ -3890,7 +3900,6 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialCloudToken = cloudToken;
     _initialCloudWordPhrase = cloudWordPhrase;
     _initialCloudDeviceName = cloudDeviceName;
-    _initialCloudPIN = cloudPIN;
     _initialCloudPIN = cloudPIN;
     _fetchServerVersionInSettings();
   }
