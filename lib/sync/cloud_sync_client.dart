@@ -24,6 +24,18 @@ class CloudAuthResult {
   final String token;
 }
 
+class CloudStatePullResult {
+  CloudStatePullResult({
+    required this.payload,
+    required this.modifiedAt,
+    required this.version,
+  });
+
+  final Map<String, dynamic> payload;
+  final int modifiedAt;
+  final int version;
+}
+
 class CloudSyncClient {
   CloudSyncClient({
     required this.serverBaseUrl,
@@ -201,14 +213,121 @@ class CloudSyncClient {
     String path,
     Map<String, dynamic> payload,
   ) async {
+    return _postJsonAuthorized(path, payload, bearerToken: null);
+  }
+
+  Future<void> pushState({
+    required String accountId,
+    required String deviceId,
+    required String token,
+    required Map<String, dynamic> payload,
+    required int modifiedAt,
+    required int version,
+    String itemId = 'simplepresent_state_v1',
+  }) async {
+    await _postJsonAuthorized(
+      '/push',
+      <String, dynamic>{
+        'account_id': accountId,
+        'items': [
+          <String, dynamic>{
+            'id': itemId,
+            'payload': payload,
+            'modified_at': modifiedAt,
+            'tombstone': false,
+            'origin_device_id': deviceId,
+            'version': version,
+          }
+        ],
+      },
+      bearerToken: token,
+    );
+  }
+
+  Future<CloudStatePullResult?> pullLatestState({
+    required String token,
+    int since = 0,
+    String itemId = 'simplepresent_state_v1',
+  }) async {
+    final response = await _getJsonAuthorized(
+      '/pull?since=$since',
+      bearerToken: token,
+    );
+    final itemsRaw = response['items'];
+    if (itemsRaw is! List) return null;
+
+    Map<String, dynamic>? bestPayload;
+    int bestModifiedAt = -1;
+    int bestVersion = 0;
+
+    for (final raw in itemsRaw) {
+      if (raw is! Map) continue;
+      final id = (raw['id'] ?? '').toString();
+      if (id != itemId) continue;
+      final payloadRaw = raw['payload'];
+      if (payloadRaw is! Map) continue;
+
+      final modifiedAt = (raw['modified_at'] is num)
+          ? (raw['modified_at'] as num).toInt()
+          : int.tryParse(raw['modified_at']?.toString() ?? '') ?? 0;
+      final version = (raw['version'] is num)
+          ? (raw['version'] as num).toInt()
+          : int.tryParse(raw['version']?.toString() ?? '') ?? 0;
+
+      if (modifiedAt > bestModifiedAt) {
+        bestModifiedAt = modifiedAt;
+        bestVersion = version;
+        bestPayload = Map<String, dynamic>.from(payloadRaw.cast<String, dynamic>());
+      }
+    }
+
+    if (bestPayload == null) return null;
+    return CloudStatePullResult(
+      payload: bestPayload,
+      modifiedAt: bestModifiedAt,
+      version: bestVersion,
+    );
+  }
+
+  Future<Map<String, dynamic>> _postJsonAuthorized(
+    String path,
+    Map<String, dynamic> payload, {
+    required String? bearerToken,
+  }) async {
     final uri = Uri.parse('$serverBaseUrl$path');
     final request = await _http.postUrl(uri);
     request.headers.contentType = ContentType.json;
+    if (bearerToken != null && bearerToken.isNotEmpty) {
+      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $bearerToken');
+    }
     request.write(jsonEncode(payload));
 
     final response = await request.close();
     final body = await response.transform(utf8.decoder).join();
 
+    if (response.statusCode < 200 || response.statusCode > 299) {
+      throw CloudSyncException(
+        'Server error ${response.statusCode} on $path: $body',
+      );
+    }
+
+    final decoded = jsonDecode(body);
+    if (decoded is! Map<String, dynamic>) {
+      throw CloudSyncException('Server response is not a JSON object.');
+    }
+    return decoded;
+  }
+
+  Future<Map<String, dynamic>> _getJsonAuthorized(
+    String path, {
+    required String bearerToken,
+  }) async {
+    final uri = Uri.parse('$serverBaseUrl$path');
+    final request = await _http.getUrl(uri);
+    request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $bearerToken');
+
+    final response = await request.close();
+    final body = await response.transform(utf8.decoder).join();
     if (response.statusCode < 200 || response.statusCode > 299) {
       throw CloudSyncException(
         'Server error ${response.statusCode} on $path: $body',

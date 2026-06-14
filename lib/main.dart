@@ -356,6 +356,11 @@ class _HomePageState extends State<HomePage> {
   String _cloudToken = '';
   String _cloudWordPhrase = '';
   String _cloudDeviceName = Platform.localHostname;
+  Timer? _cloudPullTimer;
+  bool _cloudSyncBusy = false;
+  bool _applyingCloudState = false;
+  int _cloudStateVersion = 1;
+  int _cloudLastSyncModifiedAt = 0;
 
   Duration get _idleDuration => Duration(minutes: _idleMinutes.clamp(1, 720));
   Duration get _attentionDuration =>
@@ -389,7 +394,6 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _loadSettings();
     // Start watching window geometry after startup
     _startWindowWatcher();
     _startIdleTimer();
@@ -446,6 +450,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _initializeApp() async {
     // ensure current file respects debug mode
     _currentFile = _storage('simplepresent_today.json');
+    await _loadSettings();
     await _ensureInitialFiles();
 
     // Ensure daily reset: when app is started the first time on a new day,
@@ -520,6 +525,8 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
 
     await _loadToday();
+    await _syncPullFromCloud();
+    _startCloudPullTimer();
   }
 
   Future<void> _loadList(String filename, List<TaskItem> target) async {
@@ -548,12 +555,16 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
   }
 
-  Future<void> _saveList(String filename, List<TaskItem> source) async {
+  Future<void> _saveList(String filename, List<TaskItem> source,
+      {bool triggerCloudSync = true}) async {
     try {
       final f = await _fileFor(filename);
       final encoder = const JsonEncoder.withIndent('  ');
       await f.writeAsString(
           encoder.convert(source.map((e) => e.toJson()).toList()));
+      if (triggerCloudSync) {
+        unawaited(_syncPushToCloud());
+      }
     } catch (_) {}
   }
 
@@ -564,6 +575,115 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _saveToday() async {
     await _saveList(_currentFile, _today);
+  }
+
+  bool get _cloudSyncConfigured {
+    return _cloudServerUrl.trim().isNotEmpty &&
+        _cloudAccountId.trim().isNotEmpty &&
+        _cloudDeviceId.trim().isNotEmpty &&
+        _cloudToken.trim().isNotEmpty;
+  }
+
+  Future<Map<String, dynamic>> _buildCloudStatePayload() async {
+    final today = <TaskItem>[];
+    final backlog = <TaskItem>[];
+    final done = <TaskItem>[];
+    await _loadList(_storage('simplepresent_today.json'), today);
+    await _loadList(_storage('simplepresent_backlog.json'), backlog);
+    await _loadList(_storage('simplepresent_done.json'), done);
+
+    return <String, dynamic>{
+      'today': today.map((e) => e.toJson()).toList(),
+      'backlog': backlog.map((e) => e.toJson()).toList(),
+      'done': done.map((e) => e.toJson()).toList(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+  }
+
+  Future<void> _applyCloudStatePayload(Map<String, dynamic> payload) async {
+    final rawToday = payload['today'];
+    final rawBacklog = payload['backlog'];
+    final rawDone = payload['done'];
+    if (rawToday is! List || rawBacklog is! List || rawDone is! List) {
+      return;
+    }
+
+    final today = rawToday.map(TaskItem.fromJson).toList();
+    final backlog = rawBacklog.map(TaskItem.fromJson).toList();
+    final done = rawDone.map(TaskItem.fromJson).toList();
+
+    _applyingCloudState = true;
+    try {
+      await _saveList(_storage('simplepresent_today.json'), today,
+          triggerCloudSync: false);
+      await _saveList(_storage('simplepresent_backlog.json'), backlog,
+          triggerCloudSync: false);
+      await _saveList(_storage('simplepresent_done.json'), done,
+          triggerCloudSync: false);
+      await _loadToday();
+    } finally {
+      _applyingCloudState = false;
+    }
+  }
+
+  Future<void> _syncPushToCloud() async {
+    if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState) return;
+    _cloudSyncBusy = true;
+    try {
+      final client = CloudSyncClient(
+        serverBaseUrl: _cloudServerUrl.trim(),
+      );
+      final payload = await _buildCloudStatePayload();
+      final modifiedAt = DateTime.now().millisecondsSinceEpoch;
+      _cloudStateVersion += 1;
+      await client.pushState(
+        accountId: _cloudAccountId.trim(),
+        deviceId: _cloudDeviceId.trim(),
+        token: _cloudToken.trim(),
+        payload: payload,
+        modifiedAt: modifiedAt,
+        version: _cloudStateVersion,
+      );
+      _cloudLastSyncModifiedAt = modifiedAt;
+      await _saveSettings();
+    } catch (_) {
+      // Keep app responsive; cloud sync errors are non-fatal.
+    } finally {
+      _cloudSyncBusy = false;
+    }
+  }
+
+  Future<void> _syncPullFromCloud() async {
+    if (!_cloudSyncConfigured || _cloudSyncBusy) return;
+    _cloudSyncBusy = true;
+    try {
+      final client = CloudSyncClient(
+        serverBaseUrl: _cloudServerUrl.trim(),
+      );
+      final result = await client.pullLatestState(
+        token: _cloudToken.trim(),
+        since: _cloudLastSyncModifiedAt,
+      );
+      if (result == null) return;
+
+      if (result.modifiedAt <= _cloudLastSyncModifiedAt) return;
+
+      await _applyCloudStatePayload(result.payload);
+      _cloudLastSyncModifiedAt = result.modifiedAt;
+      _cloudStateVersion = result.version > 0 ? result.version : _cloudStateVersion;
+      await _saveSettings();
+    } catch (_) {
+      // Keep app responsive; cloud sync errors are non-fatal.
+    } finally {
+      _cloudSyncBusy = false;
+    }
+  }
+
+  void _startCloudPullTimer() {
+    _cloudPullTimer?.cancel();
+    _cloudPullTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _syncPullFromCloud();
+    });
   }
 
   Future<void> _switchFile(bool showDone) async {
@@ -722,6 +842,14 @@ class _HomePageState extends State<HomePage> {
         if (deviceName is String && deviceName.isNotEmpty) {
           _cloudDeviceName = deviceName;
         }
+        final cloudVersion = data['cloudStateVersion'];
+        if (cloudVersion is num) {
+          _cloudStateVersion = cloudVersion.toInt();
+        }
+        final cloudModifiedAt = data['cloudLastSyncModifiedAt'];
+        if (cloudModifiedAt is num) {
+          _cloudLastSyncModifiedAt = cloudModifiedAt.toInt();
+        }
       });
       if (data.containsKey('window')) {
         try {
@@ -858,6 +986,8 @@ class _HomePageState extends State<HomePage> {
         'cloudToken': _cloudToken,
         'cloudWordPhrase': _cloudWordPhrase,
         'cloudDeviceName': _cloudDeviceName,
+        'cloudStateVersion': _cloudStateVersion,
+        'cloudLastSyncModifiedAt': _cloudLastSyncModifiedAt,
       };
       // Preserve lastRunDate if present in existing settings so daily-reset runs only once per day
       try {
@@ -904,6 +1034,7 @@ class _HomePageState extends State<HomePage> {
     _urgentTimer?.cancel();
     _autoSwitchTimer?.cancel();
     _scheduledCheckTimer?.cancel();
+    _cloudPullTimer?.cancel();
     for (final c in _editControllers.values) {
       c.dispose();
     }
@@ -1203,6 +1334,8 @@ class _HomePageState extends State<HomePage> {
 
     _registerActivity();
     await _saveSettings();
+    _startCloudPullTimer();
+    unawaited(_syncPullFromCloud());
     _showTopToast('settings saved');
   }
 
