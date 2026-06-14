@@ -1,4 +1,4 @@
-name: CI - Build server arm64
+name: CI - Build server - arm64
 
 on:
     release:

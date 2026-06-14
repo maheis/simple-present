@@ -1,4 +1,4 @@
-name: CI - Build server
+name: CI - Build server - amd64
 
 on:
     release:
