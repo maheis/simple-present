@@ -1,79 +1,56 @@
-name: Build server
+name: CI - Build server
 
 on:
     release:
         types: [published]
     workflow_dispatch: {}
 
+permissions:
+    contents: write
+
 jobs:
-    build:
-        name: Build (linux)
+    server:
+        name: Build server
         runs-on: ubuntu-latest
-        strategy:
-            matrix:
-                arch: [amd64, arm64]
-                go-version: [1.23]
-
         steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-
-            - name: Set up Go
+            - uses: actions/checkout@v4
+            - name: Setup Go
               uses: actions/setup-go@v4
               with:
-                  go-version: ${{ matrix.go-version }}
-
-            - name: Install C toolchain and sqlite dev
+                  go-version: 1.20
+            - name: Install server deps
               run: |
                   sudo apt-get update
-                  sudo apt-get install -y build-essential pkg-config libsqlite3-dev
-
-            - name: Cache Go modules
-              uses: actions/cache@v4
+                  sudo apt-get install -y --no-install-recommends \
+                    build-essential pkg-config libsqlite3-dev
+            - name: Go mod download
+              working-directory: server
+              run: go mod download
+            - name: Build server release
+              working-directory: server
+              env:
+                  CGO_ENABLED: "1"
+                  GOOS: linux
+                  GOARCH: amd64
+              run: go build -v -o simplepresent-server
+            - name: Package server binary
+              run: |
+                  mkdir -p release_dist
+                  echo "Listing server build directories for diagnostics"
+                  ls -la server || true
+                  cp server/simplepresent-server release_dist/simplepresent-server || true
+                  tar -czf release_dist/simplepresent-server.tar.gz -C release_dist simplepresent-server
+            - name: Upload server artifact
+              uses: actions/upload-artifact@v4
               with:
-                  path: ~/go/pkg/mod
-                  key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
-                  restore-keys: |
-                      ${{ runner.os }}-go-${{ matrix.go-version }}-
-
-            - name: Build
-                working-directory: server
-                env:
-                    CGO_ENABLED: '1'
-                    GOARCH: ${{ matrix.arch }}
-                    GOOS: linux
-                run: |
-                    echo "Building for $GOARCH"
-                    go build -v -o simplepresent-${{ matrix.arch }} ./
-
-            - name: Upload artifact
-                uses: actions/upload-artifact@v4
-                with:
-                    name: simplepresent-${{ matrix.arch }}
-                    path: server/simplepresent-${{ matrix.arch }}
-
-    release:
-        name: Create Release (on tag)
-        needs: build
-        if: startsWith(github.ref, 'refs/tags/')
-        runs-on: ubuntu-latest
-        steps:
-            - name: Download amd64 artifact
-                uses: actions/download-artifact@v4
-                with:
-                    name: simplepresent-amd64
-                    path: ./artifacts
-
-            - name: Download arm64 artifact
-                uses: actions/download-artifact@v4
-                with:
-                    name: simplepresent-arm64
-                    path: ./artifacts
-
-            - name: Create GitHub Release
-              id: create_release
-              uses: softprops/action-gh-release@v1
-              with:
-                  files: ./artifacts/*
+                  name: simplepresent-server
+                  path: release_dist/simplepresent-server.tar.gz
+            - name: Upload server artifact to Release
+              uses: actions/upload-release-asset@v1
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              with:
+                  upload_url: ${{ github.event.release.upload_url }}
+                  asset_path: release_dist/simplepresent-server.tar.gz
+                  asset_name: simplepresent-server.tar.gz
+                  asset_content_type: application/gzip
