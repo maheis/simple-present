@@ -3789,6 +3789,7 @@ class _SettingsPageState extends State<SettingsPage> {
       queryParameters: {
         'server': cloudServerUrl,
         'account': cloudAccountId,
+        'phrase': cloudWordPhrase,
       },
     ).toString();
     showDialog<void>(
@@ -3811,7 +3812,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   const SizedBox(height: 12),
                   const Text(
                     'Scanne diesen QR-Code auf dem neuen Gerät, um Server-URL und Account ID zu übertragen. '
-                    'Die 9-Wort-Phrase musst du manuell eingeben.',
+                    'Die 9-Wort-Phrase wird ebenfalls übertragen.',
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
@@ -3880,15 +3881,17 @@ class _SettingsPageState extends State<SettingsPage> {
       }
       final server = uri.queryParameters['server'] ?? '';
       final account = uri.queryParameters['account'] ?? '';
-      if (server.isEmpty || account.isEmpty) {
+      final phrase = uri.queryParameters['phrase'] ?? '';
+      if (server.isEmpty || account.isEmpty || phrase.isEmpty) {
         setState(() => _cloudStatus = 'QR-Code unvollständig.');
         return;
       }
       setState(() {
         cloudServerUrl = server;
         cloudAccountId = account;
+        cloudWordPhrase = phrase;
         _cloudStatus =
-            'Server-URL und Account ID übernommen. Bitte 9-Wort-Phrase eingeben und "Gerät anbinden" tippen.';
+            'Server-URL, Account ID und 9-Wort-Phrase übernommen. Jetzt "Gerät anbinden" tippen.';
       });
     } catch (_) {
       setState(() => _cloudStatus = 'QR-Code konnte nicht gelesen werden.');
