@@ -4425,7 +4425,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       offset: cloudServerUrl.length),
                 decoration: const InputDecoration(
                   labelText: 'Server URL',
-                  hintText: 'https://simplepresent.maheis.de',
+                  hintText: 'https://<simplepresent-cloud-server>',
                   border: OutlineInputBorder(),
                 ),
                 onChanged: (value) => setState(() => cloudServerUrl = value),
