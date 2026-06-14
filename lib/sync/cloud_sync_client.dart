@@ -36,6 +36,24 @@ class CloudStatePullResult {
   final int version;
 }
 
+class CloudPulledItem {
+  CloudPulledItem({
+    required this.id,
+    required this.payload,
+    required this.modifiedAt,
+    required this.version,
+    required this.tombstone,
+    required this.originDeviceId,
+  });
+
+  final String id;
+  final Map<String, dynamic> payload;
+  final int modifiedAt;
+  final int version;
+  final bool tombstone;
+  final String originDeviceId;
+}
+
 class CloudSyncClient {
   CloudSyncClient({
     required this.serverBaseUrl,
@@ -312,6 +330,77 @@ class CloudSyncClient {
       },
       bearerToken: token,
     );
+  }
+
+  Future<void> pushItems({
+    required String accountId,
+    required String token,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    if (items.isEmpty) return;
+    await _postJsonAuthorized(
+      '/push',
+      <String, dynamic>{
+        'account_id': accountId,
+        'items': items,
+      },
+      bearerToken: token,
+    );
+  }
+
+  Future<List<CloudPulledItem>> pullChangedItems({
+    required String token,
+    int since = 0,
+    String idPrefix = 'task:',
+  }) async {
+    final response = await _getJsonAuthorized(
+      '/pull?since=$since',
+      bearerToken: token,
+    );
+    final itemsRaw = response['items'];
+    if (itemsRaw is! List) return const <CloudPulledItem>[];
+
+    final latestById = <String, CloudPulledItem>{};
+
+    for (final raw in itemsRaw) {
+      if (raw is! Map) continue;
+      final id = (raw['id'] ?? '').toString();
+      if (id.isEmpty || !id.startsWith(idPrefix)) continue;
+
+      final modifiedAt = (raw['modified_at'] is num)
+          ? (raw['modified_at'] as num).toInt()
+          : int.tryParse(raw['modified_at']?.toString() ?? '') ?? 0;
+      final version = (raw['version'] is num)
+          ? (raw['version'] as num).toInt()
+          : int.tryParse(raw['version']?.toString() ?? '') ?? 0;
+      final tombstoneRaw = raw['tombstone'];
+      final tombstone = tombstoneRaw == true || tombstoneRaw == 1;
+      final originDeviceId = (raw['origin_device_id'] ?? '').toString();
+
+      Map<String, dynamic> payload = <String, dynamic>{};
+      final payloadRaw = raw['payload'];
+      if (payloadRaw is Map) {
+        payload = Map<String, dynamic>.from(payloadRaw.cast<String, dynamic>());
+      }
+
+      final candidate = CloudPulledItem(
+        id: id,
+        payload: payload,
+        modifiedAt: modifiedAt,
+        version: version,
+        tombstone: tombstone,
+        originDeviceId: originDeviceId,
+      );
+
+      final current = latestById[id];
+      if (current == null || candidate.modifiedAt > current.modifiedAt) {
+        latestById[id] = candidate;
+      }
+    }
+
+    final out = latestById.values.toList();
+    out.sort((a, b) => a.modifiedAt.compareTo(b.modifiedAt));
+    return out;
   }
 
   Future<CloudStatePullResult?> pullLatestState({

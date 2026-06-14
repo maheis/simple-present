@@ -361,6 +361,9 @@ class _HomePageState extends State<HomePage> {
   bool _applyingCloudState = false;
   int _cloudStateVersion = 1;
   int _cloudLastSyncModifiedAt = 0;
+  Set<String> _cloudKnownTodayIds = <String>{};
+  Set<String> _cloudKnownBacklogIds = <String>{};
+  Set<String> _cloudKnownDoneIds = <String>{};
 
   Duration get _idleDuration => Duration(minutes: _idleMinutes.clamp(1, 720));
   Duration get _attentionDuration =>
@@ -563,7 +566,7 @@ class _HomePageState extends State<HomePage> {
       await f.writeAsString(
           encoder.convert(source.map((e) => e.toJson()).toList()));
       if (triggerCloudSync) {
-        unawaited(_syncPushToCloud());
+        unawaited(_syncPushToCloud(filename, source));
       }
     } catch (_) {}
   }
@@ -583,22 +586,6 @@ class _HomePageState extends State<HomePage> {
         _cloudDeviceId.trim().isNotEmpty &&
       _cloudToken.trim().isNotEmpty &&
       _cloudWordPhrase.trim().isNotEmpty;
-  }
-
-  Future<Map<String, dynamic>> _buildCloudStatePayload() async {
-    final today = <TaskItem>[];
-    final backlog = <TaskItem>[];
-    final done = <TaskItem>[];
-    await _loadList(_storage('simplepresent_today.json'), today);
-    await _loadList(_storage('simplepresent_backlog.json'), backlog);
-    await _loadList(_storage('simplepresent_done.json'), done);
-
-    return <String, dynamic>{
-      'today': today.map((e) => e.toJson()).toList(),
-      'backlog': backlog.map((e) => e.toJson()).toList(),
-      'done': done.map((e) => e.toJson()).toList(),
-      'updated_at': DateTime.now().toIso8601String(),
-    };
   }
 
   Future<void> _applyCloudStatePayload(Map<String, dynamic> payload) async {
@@ -627,28 +614,77 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _syncPushToCloud() async {
+  String? _cloudListNameForFilename(String filename) {
+    if (filename.contains('simplepresent_today.json')) return 'today';
+    if (filename.contains('simplepresent_backlog.json')) return 'backlog';
+    if (filename.contains('simplepresent_done.json')) return 'done';
+    return null;
+  }
+
+  Set<String> _knownIdSetForList(String listName) {
+    if (listName == 'today') return _cloudKnownTodayIds;
+    if (listName == 'backlog') return _cloudKnownBacklogIds;
+    return _cloudKnownDoneIds;
+  }
+
+  Future<void> _syncPushToCloud(String filename, List<TaskItem> source) async {
     if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState) return;
+    final listName = _cloudListNameForFilename(filename);
+    if (listName == null) return;
+
     _cloudSyncBusy = true;
     try {
       final client = CloudSyncClient(
         serverBaseUrl: _cloudServerUrl.trim(),
       );
-      final payload = await _buildCloudStatePayload();
-      final encryptedPayload = await CloudSyncClient.encryptStatePayload(
-        payload: payload,
-        phrase: _cloudWordPhrase,
-      );
       final modifiedAt = DateTime.now().millisecondsSinceEpoch;
       _cloudStateVersion += 1;
-      await client.pushState(
+
+      final currentIds = source.map((t) => t.id).toSet();
+      final knownIds = _knownIdSetForList(listName);
+      final removedIds = knownIds.difference(currentIds).toList();
+
+      final items = <Map<String, dynamic>>[];
+      for (var i = 0; i < source.length; i++) {
+        final task = source[i];
+        final encryptedPayload = await CloudSyncClient.encryptStatePayload(
+          payload: <String, dynamic>{
+            'task': task.toJson(),
+            'list': listName,
+            'position': i,
+          },
+          phrase: _cloudWordPhrase,
+        );
+        items.add(<String, dynamic>{
+          'id': 'task:${task.id}',
+          'payload': encryptedPayload,
+          'modified_at': modifiedAt,
+          'tombstone': false,
+          'origin_device_id': _cloudDeviceId.trim(),
+          'version': _cloudStateVersion,
+        });
+      }
+
+      for (final removed in removedIds) {
+        items.add(<String, dynamic>{
+          'id': 'task:$removed',
+          'payload': <String, dynamic>{'reason': 'removed'},
+          'modified_at': modifiedAt,
+          'tombstone': true,
+          'origin_device_id': _cloudDeviceId.trim(),
+          'version': _cloudStateVersion,
+        });
+      }
+
+      await client.pushItems(
         accountId: _cloudAccountId.trim(),
-        deviceId: _cloudDeviceId.trim(),
         token: _cloudToken.trim(),
-        payload: encryptedPayload,
-        modifiedAt: modifiedAt,
-        version: _cloudStateVersion,
+        items: items,
       );
+
+      knownIds
+        ..clear()
+        ..addAll(currentIds);
       _cloudLastSyncModifiedAt = modifiedAt;
       await _saveSettings();
     } catch (_) {
@@ -665,28 +701,102 @@ class _HomePageState extends State<HomePage> {
       final client = CloudSyncClient(
         serverBaseUrl: _cloudServerUrl.trim(),
       );
-      final result = await client.pullLatestState(
+      final pulledItems = await client.pullChangedItems(
         token: _cloudToken.trim(),
         since: _cloudLastSyncModifiedAt,
       );
-      if (result == null) return;
+      if (pulledItems.isEmpty) return;
 
-      if (result.modifiedAt <= _cloudLastSyncModifiedAt) return;
+      final today = <TaskItem>[];
+      final backlog = <TaskItem>[];
+      final done = <TaskItem>[];
+      await _loadList(_storage('simplepresent_today.json'), today);
+      await _loadList(_storage('simplepresent_backlog.json'), backlog);
+      await _loadList(_storage('simplepresent_done.json'), done);
 
-      Map<String, dynamic> decryptedOrPlainPayload;
-      if ((result.payload['enc'] ?? '') == 'v1') {
-        decryptedOrPlainPayload = await CloudSyncClient.decryptStatePayload(
-          encryptedPayload: result.payload,
-          phrase: _cloudWordPhrase,
-        );
-      } else {
-        // Backward compatibility for previously unencrypted payloads.
-        decryptedOrPlainPayload = result.payload;
+      final listMap = <String, List<TaskItem>>{
+        'today': today,
+        'backlog': backlog,
+        'done': done,
+      };
+
+      _applyingCloudState = true;
+      var maxModifiedAt = _cloudLastSyncModifiedAt;
+      var appliedLegacyFullState = false;
+      try {
+        for (final item in pulledItems) {
+          if (item.modifiedAt > maxModifiedAt) maxModifiedAt = item.modifiedAt;
+          if (item.version > _cloudStateVersion) _cloudStateVersion = item.version;
+
+          final taskId = item.id.startsWith('task:') ? item.id.substring(5) : item.id;
+          if (taskId.isEmpty) continue;
+
+          if (item.tombstone) {
+            for (final list in listMap.values) {
+              list.removeWhere((t) => t.id == taskId);
+            }
+            _cloudKnownTodayIds.remove(taskId);
+            _cloudKnownBacklogIds.remove(taskId);
+            _cloudKnownDoneIds.remove(taskId);
+            continue;
+          }
+
+          Map<String, dynamic> payload;
+          if ((item.payload['enc'] ?? '') == 'v1') {
+            payload = await CloudSyncClient.decryptStatePayload(
+              encryptedPayload: item.payload,
+              phrase: _cloudWordPhrase,
+            );
+          } else {
+            payload = item.payload;
+          }
+
+          // Backward compatibility with previous full-state payload format.
+          if (payload.containsKey('today') &&
+              payload.containsKey('backlog') &&
+              payload.containsKey('done')) {
+            await _applyCloudStatePayload(payload);
+            appliedLegacyFullState = true;
+            break;
+          }
+
+          final taskRaw = payload['task'];
+          final listName = (payload['list'] ?? '').toString();
+          final position = (payload['position'] is num)
+              ? (payload['position'] as num).toInt()
+              : int.tryParse(payload['position']?.toString() ?? '') ?? 0;
+          if (taskRaw is! Map || !listMap.containsKey(listName)) continue;
+
+          final task = TaskItem.fromJson(Map<String, dynamic>.from(taskRaw.cast<String, dynamic>()));
+
+          for (final list in listMap.values) {
+            list.removeWhere((t) => t.id == task.id);
+          }
+
+          final target = listMap[listName]!;
+          final insertPos = position.clamp(0, target.length);
+          target.insert(insertPos, task);
+
+          _cloudKnownTodayIds.remove(task.id);
+          _cloudKnownBacklogIds.remove(task.id);
+          _cloudKnownDoneIds.remove(task.id);
+          _knownIdSetForList(listName).add(task.id);
+        }
+
+        if (!appliedLegacyFullState) {
+          await _saveList(_storage('simplepresent_today.json'), today,
+            triggerCloudSync: false);
+          await _saveList(_storage('simplepresent_backlog.json'), backlog,
+            triggerCloudSync: false);
+          await _saveList(_storage('simplepresent_done.json'), done,
+            triggerCloudSync: false);
+          await _loadToday();
+        }
+      } finally {
+        _applyingCloudState = false;
       }
 
-      await _applyCloudStatePayload(decryptedOrPlainPayload);
-      _cloudLastSyncModifiedAt = result.modifiedAt;
-      _cloudStateVersion = result.version > 0 ? result.version : _cloudStateVersion;
+      _cloudLastSyncModifiedAt = maxModifiedAt;
       await _saveSettings();
     } catch (_) {
       // Keep app responsive; cloud sync errors are non-fatal.
@@ -866,6 +976,19 @@ class _HomePageState extends State<HomePage> {
         if (cloudModifiedAt is num) {
           _cloudLastSyncModifiedAt = cloudModifiedAt.toInt();
         }
+        final knownToday = data['cloudKnownTodayIds'];
+        if (knownToday is List) {
+          _cloudKnownTodayIds = knownToday.map((e) => e.toString()).toSet();
+        }
+        final knownBacklog = data['cloudKnownBacklogIds'];
+        if (knownBacklog is List) {
+          _cloudKnownBacklogIds =
+              knownBacklog.map((e) => e.toString()).toSet();
+        }
+        final knownDone = data['cloudKnownDoneIds'];
+        if (knownDone is List) {
+          _cloudKnownDoneIds = knownDone.map((e) => e.toString()).toSet();
+        }
       });
       if (data.containsKey('window')) {
         try {
@@ -1004,6 +1127,9 @@ class _HomePageState extends State<HomePage> {
         'cloudDeviceName': _cloudDeviceName,
         'cloudStateVersion': _cloudStateVersion,
         'cloudLastSyncModifiedAt': _cloudLastSyncModifiedAt,
+        'cloudKnownTodayIds': _cloudKnownTodayIds.toList(),
+        'cloudKnownBacklogIds': _cloudKnownBacklogIds.toList(),
+        'cloudKnownDoneIds': _cloudKnownDoneIds.toList(),
       };
       // Preserve lastRunDate if present in existing settings so daily-reset runs only once per day
       try {
