@@ -3773,7 +3773,7 @@ class _SettingsPageState extends State<SettingsPage> {
           body: ListView(
             padding: const EdgeInsets.all(12),
             children: [
-                const Text('inactivity reminders',
+              const Text('font',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Row(
@@ -3802,6 +3802,101 @@ class _SettingsPageState extends State<SettingsPage> {
                 ],
               ),
               const SizedBox(height: 12),
+              Text(
+                'font size: ${(textScaleFactor * 100).round()}%',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Slider(
+                value: textScaleFactor,
+                min: 0.5,
+                max: 1.6,
+                divisions: 22,
+                label: '${(textScaleFactor * 100).round()}%',
+                onChanged: (value) {
+                  setState(() => textScaleFactor = value);
+                },
+              ),
+              const Text('range: 50% to 160%'),
+              const SizedBox(height: 8),
+              const Divider(),
+              const SizedBox(height: 8),
+              const Text('inactivity reminders',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              _ReminderStageCard(
+                title: '45 min',
+                minutes: idleMinutes,
+                onMinutesChanged: (v) => setState(() => idleMinutes = safe(v)),
+                soundEnabled: idleSoundEnabled,
+                onSoundChanged: (v) => setState(() => idleSoundEnabled = v),
+                flashEnabled: idleFlashEnabled,
+                onFlashChanged: (v) => setState(() => idleFlashEnabled = v),
+                notifyEnabled: idleNotifyEnabled,
+                onNotifyChanged: (v) => setState(() => idleNotifyEnabled = v),
+                bringToFrontEnabled: idleBringToFrontEnabled,
+                onBringToFrontChanged: (v) =>
+                    setState(() => idleBringToFrontEnabled = v),
+              ),
+              _ReminderStageCard(
+                title: '60 min',
+                minutes: attentionMinutes,
+                onMinutesChanged: (v) =>
+                    setState(() => attentionMinutes = safe(v)),
+                soundEnabled: attentionSoundEnabled,
+                onSoundChanged: (v) =>
+                    setState(() => attentionSoundEnabled = v),
+                flashEnabled: attentionFlashEnabled,
+                onFlashChanged: (v) =>
+                    setState(() => attentionFlashEnabled = v),
+                notifyEnabled: attentionNotifyEnabled,
+                onNotifyChanged: (v) =>
+                    setState(() => attentionNotifyEnabled = v),
+                bringToFrontEnabled: attentionBringToFrontEnabled,
+                onBringToFrontChanged: (v) =>
+                    setState(() => attentionBringToFrontEnabled = v),
+              ),
+              _ReminderStageCard(
+                title: '75 min',
+                minutes: reminderMinutes,
+                onMinutesChanged: (v) =>
+                    setState(() => reminderMinutes = safe(v)),
+                soundEnabled: reminderSoundEnabled,
+                onSoundChanged: (v) => setState(() => reminderSoundEnabled = v),
+                flashEnabled: reminderFlashEnabled,
+                onFlashChanged: (v) => setState(() => reminderFlashEnabled = v),
+                notifyEnabled: reminderNotifyEnabled,
+                onNotifyChanged: (v) =>
+                    setState(() => reminderNotifyEnabled = v),
+                bringToFrontEnabled: reminderBringToFrontEnabled,
+                onBringToFrontChanged: (v) =>
+                    setState(() => reminderBringToFrontEnabled = v),
+              ),
+              _ReminderStageCard(
+                title: '90 min',
+                minutes: urgentMinutes,
+                onMinutesChanged: (v) =>
+                    setState(() => urgentMinutes = safe(v)),
+                soundEnabled: urgentSoundEnabled,
+                onSoundChanged: (v) => setState(() => urgentSoundEnabled = v),
+                flashEnabled: urgentFlashEnabled,
+                onFlashChanged: (v) => setState(() => urgentFlashEnabled = v),
+                notifyEnabled: urgentNotifyEnabled,
+                onNotifyChanged: (v) => setState(() => urgentNotifyEnabled = v),
+                bringToFrontEnabled: urgentBringToFrontEnabled,
+                onBringToFrontChanged: (v) =>
+                    setState(() => urgentBringToFrontEnabled = v),
+              ),
+              const SizedBox(height: 8),
+              const Divider(),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                value: swipeEnabled,
+                title: const Text('swipe actions enabled'),
+                subtitle: const Text(
+                    'if disabled, swipe gestures on task rows are turned off.'),
+                onChanged: (v) => setState(() => swipeEnabled = v),
+              ),
+              const SizedBox(height: 8),
               const Divider(),
               const SizedBox(height: 8),
               const Text(
@@ -3903,96 +3998,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
               ],
-              const SizedBox(height: 12),
-              Text(
-                'font size: ${(textScaleFactor * 100).round()}%',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Slider(
-                value: textScaleFactor,
-                min: 0.5,
-                max: 1.6,
-                divisions: 22,
-                label: '${(textScaleFactor * 100).round()}%',
-                onChanged: (value) {
-                  setState(() => textScaleFactor = value);
-                },
-              ),
-              const Text('range: 50% to 160%'),
-              const SizedBox(height: 8),
-              _ReminderStageCard(
-                title: '45 min',
-                minutes: idleMinutes,
-                onMinutesChanged: (v) => setState(() => idleMinutes = safe(v)),
-                soundEnabled: idleSoundEnabled,
-                onSoundChanged: (v) => setState(() => idleSoundEnabled = v),
-                flashEnabled: idleFlashEnabled,
-                onFlashChanged: (v) => setState(() => idleFlashEnabled = v),
-                notifyEnabled: idleNotifyEnabled,
-                onNotifyChanged: (v) => setState(() => idleNotifyEnabled = v),
-                bringToFrontEnabled: idleBringToFrontEnabled,
-                onBringToFrontChanged: (v) =>
-                    setState(() => idleBringToFrontEnabled = v),
-              ),
-              _ReminderStageCard(
-                title: '60 min',
-                minutes: attentionMinutes,
-                onMinutesChanged: (v) =>
-                    setState(() => attentionMinutes = safe(v)),
-                soundEnabled: attentionSoundEnabled,
-                onSoundChanged: (v) =>
-                    setState(() => attentionSoundEnabled = v),
-                flashEnabled: attentionFlashEnabled,
-                onFlashChanged: (v) =>
-                    setState(() => attentionFlashEnabled = v),
-                notifyEnabled: attentionNotifyEnabled,
-                onNotifyChanged: (v) =>
-                    setState(() => attentionNotifyEnabled = v),
-                bringToFrontEnabled: attentionBringToFrontEnabled,
-                onBringToFrontChanged: (v) =>
-                    setState(() => attentionBringToFrontEnabled = v),
-              ),
-              _ReminderStageCard(
-                title: '75 min',
-                minutes: reminderMinutes,
-                onMinutesChanged: (v) =>
-                    setState(() => reminderMinutes = safe(v)),
-                soundEnabled: reminderSoundEnabled,
-                onSoundChanged: (v) => setState(() => reminderSoundEnabled = v),
-                flashEnabled: reminderFlashEnabled,
-                onFlashChanged: (v) => setState(() => reminderFlashEnabled = v),
-                notifyEnabled: reminderNotifyEnabled,
-                onNotifyChanged: (v) =>
-                    setState(() => reminderNotifyEnabled = v),
-                bringToFrontEnabled: reminderBringToFrontEnabled,
-                onBringToFrontChanged: (v) =>
-                    setState(() => reminderBringToFrontEnabled = v),
-              ),
-              _ReminderStageCard(
-                title: '90 min',
-                minutes: urgentMinutes,
-                onMinutesChanged: (v) =>
-                    setState(() => urgentMinutes = safe(v)),
-                soundEnabled: urgentSoundEnabled,
-                onSoundChanged: (v) => setState(() => urgentSoundEnabled = v),
-                flashEnabled: urgentFlashEnabled,
-                onFlashChanged: (v) => setState(() => urgentFlashEnabled = v),
-                notifyEnabled: urgentNotifyEnabled,
-                onNotifyChanged: (v) => setState(() => urgentNotifyEnabled = v),
-                bringToFrontEnabled: urgentBringToFrontEnabled,
-                onBringToFrontChanged: (v) =>
-                    setState(() => urgentBringToFrontEnabled = v),
-              ),
-              const SizedBox(height: 8),
-              const Divider(),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                value: swipeEnabled,
-                title: const Text('swipe actions enabled'),
-                subtitle: const Text(
-                    'if disabled, swipe gestures on task rows are turned off.'),
-                onChanged: (v) => setState(() => swipeEnabled = v),
-              ),
             ],
           ),
         ),
