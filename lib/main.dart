@@ -21,6 +21,43 @@ const _noChange = Object();
 
 const String kClientVersion = '0.1.0';
 
+List<int>? _parseVersionParts(String raw) {
+  var normalized = raw.trim();
+  if (normalized.isEmpty) return null;
+  if (normalized.startsWith('v') || normalized.startsWith('V')) {
+    normalized = normalized.substring(1);
+  }
+  final core = normalized.split('-').first;
+  final parts = core.split('.');
+  if (parts.isEmpty) return null;
+  final out = <int>[];
+  for (final p in parts) {
+    final v = int.tryParse(p);
+    if (v == null) return null;
+    out.add(v);
+  }
+  return out;
+}
+
+int _compareVersions(String a, String b) {
+  final left = _parseVersionParts(a);
+  final right = _parseVersionParts(b);
+  if (left == null || right == null) return 0;
+
+  final maxLen = math.max(left.length, right.length);
+  for (var i = 0; i < maxLen; i++) {
+    final lv = i < left.length ? left[i] : 0;
+    final rv = i < right.length ? right[i] : 0;
+    if (lv < rv) return -1;
+    if (lv > rv) return 1;
+  }
+  return 0;
+}
+
+bool _isClientOlderThanServer(String clientVersion, String serverVersion) {
+  return _compareVersions(clientVersion, serverVersion) < 0;
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('de_DE');
@@ -360,6 +397,7 @@ class _HomePageState extends State<HomePage> {
   String _cloudDeviceName = Platform.localHostname;
   String _cloudPIN = '';
   String _serverVersion = '';
+  bool _versionWarningShown = false;
   Timer? _cloudPullTimer;
   bool _cloudSyncBusy = false;
   bool _applyingCloudState = false;
@@ -707,7 +745,13 @@ class _HomePageState extends State<HomePage> {
       );
       final health = await client.getHealth();
       if (health != null && mounted) {
+        final isOutdated = _isClientOlderThanServer(kClientVersion, health);
         setState(() => _serverVersion = health);
+        if (isOutdated && !_versionWarningShown) {
+          _versionWarningShown = true;
+          _showTopToast(
+              'Warnung: Client-Version $kClientVersion ist älter als Server-Version $health.');
+        }
       }
     } catch (_) {
       // Fehler beim Abrufen der Version ignorieren
@@ -3774,6 +3818,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late String cloudPIN;
   String _cloudStatus = '';
   String _serverVersion = '';
+  String _versionWarning = '';
   bool _cloudBusy = false;
   late int _initialIdleMinutes;
   late int _initialAttentionMinutes;
@@ -3912,7 +3957,12 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       final version = await client.getHealth();
       if (version != null && mounted) {
-        setState(() => _serverVersion = version);
+        setState(() {
+          _serverVersion = version;
+          _versionWarning = _isClientOlderThanServer(kClientVersion, version)
+              ? 'Warnung: Client ist älter als Server. Bitte Client aktualisieren.'
+              : '';
+        });
       }
     } catch (_) {
       // Ignore version fetch errors
@@ -4550,8 +4600,18 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 6),
               SelectableText(
                 'Client: $kClientVersion${_serverVersion.isNotEmpty ? ' | Server: $_serverVersion' : ' | Server: -'}',
-                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: _versionWarning.isEmpty ? Colors.grey : Colors.orangeAccent,
+                ),
               ),
+              if (_versionWarning.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  _versionWarning,
+                  style: const TextStyle(fontSize: 11, color: Colors.orangeAccent),
+                ),
+              ],
               if (_cloudStatus.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text(

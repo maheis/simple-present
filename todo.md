@@ -108,7 +108,7 @@
 - [ ] Reihenfolge auch über andere gruppen hinaus und dann optisch einsortieren
 - [ ] Cloud-Synchronisation: Möglichkeit, Aufgaben über mehrere Geräte hinweg zu synchronisieren
   - [x] eigener api-server (optional hinter Apache Proxy) (linux only applikation in go?)
-  - [ ] registrierung soll automatisch und anonym erfolgen, man kann als server "maheis.de" auswählen oder eigene serveradresse eingeben (selfhosted)
+  - [x] registrierung soll automatisch und anonym erfolgen, man kann als server "maheis.de" auswählen oder eigene serveradresse eingeben (selfhosted)
   - [ ] server registrierung serverseitig beschränkt auf x user (mail an den admin bei erreichen von 75%, 90% und 100% der Kapazität)
   - [ ] wenn konto nicht länger als 30(konfigurierbar) tage nicht genutzt wird, soll der account archiviert werden und ein neuer platz frei werden 
   - [ ] warnung 14/7 tage vor archivierung an den anwender (in app) und info bei registrierung das der account aktiv zu nutzen ist und nach 30 tagen nicht nutztung archiviert wird
@@ -122,10 +122,10 @@
         ich glaube die aufgaben sollten einzeln synchronsiert und in der db gespeichert werden. aktuell sieht es so aus als würde pro client immer ein ganzer block synchronisiert bzw. in einen datensatz gespeichert#
   - [x] Cloud-Profil schützen mit einer PIN die der Server auch kennt und die zwischen den geräten geprüft wird beim einfügen neuer clients.
   - [x] Server Version ausloggen
-  - [ ] Server / CLient Version abgleichen und Warnung ausgeben wenn Client zu alt ist
+  - [x] Server / CLient Version abgleichen und Warnung ausgeben wenn Client zu alt ist
   - [x] einfügen von kopierten text-link
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
-- [ ] Client Version ausgeben
+- [x] Client Version ausgeben
 - [ ] linux binary namen anpassen (simplepresent)
 
 ## notes
