@@ -13,6 +13,8 @@ import (
 	"github.com/simplepresent/server/storage"
 )
 
+const ServerVersion = "0.1.0"
+
 type Config struct {
 	Bind         string `json:"bind"`
 	DatabasePath string `json:"database_path"`
@@ -113,6 +115,10 @@ func main() {
 	r.Handle("/push", srv.SecureOnly(srv.RateLimitByIP(srv.AuthMiddleware(http.HandlerFunc(srv.Push))))).Methods("POST")
 	r.Handle("/pull", srv.SecureOnly(srv.RateLimitByIP(srv.AuthMiddleware(http.HandlerFunc(srv.Pull))))).Methods("GET")
 	r.Handle("/devices/{id}/revoke", srv.SecureOnly(srv.RateLimitByIP(srv.AuthMiddleware(http.HandlerFunc(srv.RevokeDevice))))).Methods("POST")
+	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"version": ServerVersion, "status": "ok"})
+	}).Methods("GET")
 
 	addr := cfg.Bind
 	fmt.Printf("listening on %s\n", addr)

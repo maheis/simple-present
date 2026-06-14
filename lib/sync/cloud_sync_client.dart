@@ -403,6 +403,26 @@ class CloudSyncClient {
     return out;
   }
 
+  Future<String?> getHealth() async {
+    try {
+      final uri = Uri.parse('$serverBaseUrl/health');
+      final request = await _http.getUrl(uri);
+      final response = await request.close();
+      final body = await response.transform(utf8.decoder).join();
+      if (response.statusCode < 200 || response.statusCode > 299) {
+        return null;
+      }
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        final version = decoded['version'];
+        if (version is String) return version;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<CloudStatePullResult?> pullLatestState({
     required String token,
     int since = 0,

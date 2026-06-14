@@ -19,6 +19,8 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 // sentinel to indicate "no change" in copyWith optional parameters
 const _noChange = Object();
 
+const String kClientVersion = '0.1.0';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('de_DE');
@@ -356,6 +358,7 @@ class _HomePageState extends State<HomePage> {
   String _cloudToken = '';
   String _cloudWordPhrase = '';
   String _cloudDeviceName = Platform.localHostname;
+  String _serverVersion = '';
   Timer? _cloudPullTimer;
   bool _cloudSyncBusy = false;
   bool _applyingCloudState = false;
@@ -529,6 +532,7 @@ class _HomePageState extends State<HomePage> {
 
     await _loadToday();
     await _syncPullFromCloud();
+    unawaited(_fetchServerVersion());
     _startCloudPullTimer();
   }
 
@@ -691,6 +695,21 @@ class _HomePageState extends State<HomePage> {
       // Keep app responsive; cloud sync errors are non-fatal.
     } finally {
       _cloudSyncBusy = false;
+    }
+  }
+
+  Future<void> _fetchServerVersion() async {
+    if (_cloudServerUrl.trim().isEmpty) return;
+    try {
+      final client = CloudSyncClient(
+        serverBaseUrl: _cloudServerUrl.trim(),
+      );
+      final health = await client.getHealth();
+      if (health != null && mounted) {
+        setState(() => _serverVersion = health);
+      }
+    } catch (_) {
+      // Fehler beim Abrufen der Version ignorieren
     }
   }
 
@@ -1478,6 +1497,7 @@ class _HomePageState extends State<HomePage> {
     await _saveSettings();
     _startCloudPullTimer();
     unawaited(_syncPullFromCloud());
+    unawaited(_fetchServerVersion());
     _showTopToast('settings saved');
   }
 
@@ -3742,6 +3762,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late String cloudWordPhrase;
   late String cloudDeviceName;
   String _cloudStatus = '';
+  String _serverVersion = '';
   bool _cloudBusy = false;
   late int _initialIdleMinutes;
   late int _initialAttentionMinutes;
@@ -3866,6 +3887,22 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialCloudToken = cloudToken;
     _initialCloudWordPhrase = cloudWordPhrase;
     _initialCloudDeviceName = cloudDeviceName;
+    _fetchServerVersionInSettings();
+  }
+
+  Future<void> _fetchServerVersionInSettings() async {
+    if (cloudServerUrl.trim().isEmpty) return;
+    try {
+      final client = CloudSyncClient(
+        serverBaseUrl: cloudServerUrl.trim(),
+      );
+      final version = await client.getHealth();
+      if (version != null && mounted) {
+        setState(() => _serverVersion = version);
+      }
+    } catch (_) {
+      // Ignore version fetch errors
+    }
   }
 
   bool _hasChanges() {
@@ -4406,6 +4443,11 @@ class _SettingsPageState extends State<SettingsPage> {
               SelectableText(
                 'Device ID: $cloudDeviceId\nToken: ${cloudToken.isEmpty ? '-' : cloudToken}',
                 style: const TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 6),
+              SelectableText(
+                'Client: $kClientVersion${_serverVersion.isNotEmpty ? ' | Server: $_serverVersion' : ' | Server: -'}',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
               ),
               if (_cloudStatus.isNotEmpty) ...[
                 const SizedBox(height: 6),
