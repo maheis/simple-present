@@ -131,7 +131,6 @@ class CloudSyncClient {
   Future<CloudAuthResult> registerFirstClient({
     required String deviceName,
     required String phrase,
-    String? accountId,
   }) async {
     final keyPair = await derivePairingKeyPair(phrase);
     final publicKey = await keyPair.extractPublicKey();
@@ -140,9 +139,6 @@ class CloudSyncClient {
       'name': deviceName,
       'pairing_public_key': base64Encode(publicKey.bytes),
     };
-    if (accountId != null && accountId.isNotEmpty) {
-      payload['account_id'] = accountId;
-    }
 
     final response = await _postJson('/register', payload);
 

@@ -3652,7 +3652,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ? Platform.localHostname
             : cloudDeviceName.trim(),
         phrase: cloudWordPhrase,
-        accountId: cloudAccountId.trim().isEmpty ? null : cloudAccountId.trim(),
       );
       setState(() {
         cloudAccountId = result.accountId;

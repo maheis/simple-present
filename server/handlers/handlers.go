@@ -50,15 +50,16 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name and pairing_public_key are required", http.StatusBadRequest)
 		return
 	}
+	if req.AccountID != "" {
+		http.Error(w, "account_id must not be provided on register", http.StatusBadRequest)
+		return
+	}
 	pairingPub, err := base64.StdEncoding.DecodeString(req.PairingPublicKey)
 	if err != nil || len(pairingPub) != ed25519.PublicKeySize {
 		http.Error(w, "invalid pairing_public_key", http.StatusBadRequest)
 		return
 	}
-	id := req.AccountID
-	if id == "" {
-		id = uuid.New().String()
-	}
+	id := uuid.New().String()
 	now := time.Now().Unix()
 	_, err = s.DB.Exec(
 		"INSERT INTO accounts (id, created_at, max_devices, max_items, max_bytes, pairing_public_key) VALUES (?, ?, ?, ?, ?, ?)",
