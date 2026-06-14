@@ -1,4 +1,4 @@
-name: CI - Build server
+name: CI - Build server arm64
 
 on:
     release:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
     server:
-        name: Build server
+        name: Build server arm64
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4

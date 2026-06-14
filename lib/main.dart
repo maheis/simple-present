@@ -3909,7 +3909,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       offset: cloudServerUrl.length),
                 decoration: const InputDecoration(
                   labelText: 'Server URL',
-                  hintText: 'https://maheis.de',
+                  hintText: 'https://simplepresent.maheis.de',
                   border: OutlineInputBorder(),
                 ),
                 onChanged: (value) => setState(() => cloudServerUrl = value),
