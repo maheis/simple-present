@@ -3793,36 +3793,72 @@ class _SettingsPageState extends State<SettingsPage> {
     ).toString();
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Weiteres Gerät anbinden'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Scanne diesen QR-Code auf dem neuen Gerät, um Server-URL und Account ID zu übertragen. '
-              'Die 9-Wort-Phrase musst du manuell eingeben.',
-              textAlign: TextAlign.center,
+      builder: (ctx) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 380),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Weiteres Gerät anbinden',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Scanne diesen QR-Code auf dem neuen Gerät, um Server-URL und Account ID zu übertragen. '
+                    'Die 9-Wort-Phrase musst du manuell eingeben.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: SizedBox(
+                      width: 220,
+                      height: 220,
+                      child: QrImageView(
+                        data: uri,
+                        version: QrVersions.auto,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SelectableText(
+                    uri,
+                    style: const TextStyle(fontSize: 10),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () async {
+                          await Clipboard.setData(ClipboardData(text: uri));
+                          if (!mounted) return;
+                          setState(() {
+                            _cloudStatus =
+                                'Pairing-Link in Zwischenablage kopiert.';
+                          });
+                        },
+                        icon: const Icon(Icons.copy, size: 18),
+                        label: const Text('Link kopieren'),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: const Text('Schließen'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
-            QrImageView(
-              data: uri,
-              version: QrVersions.auto,
-              size: 220,
-            ),
-            const SizedBox(height: 8),
-            SelectableText(
-              uri,
-              style: const TextStyle(fontSize: 10),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Schließen'),
           ),
-        ],
+        ),
       ),
     );
   }
