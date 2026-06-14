@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"crypto/ed25519"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +22,13 @@ type Server struct {
 	DefaultQuotas     Quotas
 	IPLimiters        *limiterStore
 	AccountLimiters   *limiterStore
+	PairingChallenges map[string]pairingChallenge
+	ChallengeMu       sync.Mutex
+}
+
+type pairingChallenge struct {
+	AccountID string
+	ExpiresAt time.Time
 }
 
 func writeJSON(w http.ResponseWriter, v interface{}) {
@@ -27,39 +37,159 @@ func writeJSON(w http.ResponseWriter, v interface{}) {
 }
 
 func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
-	id := uuid.New().String()
+	var req struct {
+		AccountID        string `json:"account_id"`
+		Name             string `json:"name"`
+		PairingPublicKey string `json:"pairing_public_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	if req.Name == "" || req.PairingPublicKey == "" {
+		http.Error(w, "name and pairing_public_key are required", http.StatusBadRequest)
+		return
+	}
+	pairingPub, err := base64.StdEncoding.DecodeString(req.PairingPublicKey)
+	if err != nil || len(pairingPub) != ed25519.PublicKeySize {
+		http.Error(w, "invalid pairing_public_key", http.StatusBadRequest)
+		return
+	}
+	id := req.AccountID
+	if id == "" {
+		id = uuid.New().String()
+	}
 	now := time.Now().Unix()
-	_, err := s.DB.Exec(
-		"INSERT INTO accounts (id, created_at, max_devices, max_items, max_bytes) VALUES (?, ?, ?, ?, ?)",
+	_, err = s.DB.Exec(
+		"INSERT INTO accounts (id, created_at, max_devices, max_items, max_bytes, pairing_public_key) VALUES (?, ?, ?, ?, ?, ?)",
 		id,
 		now,
 		s.DefaultQuotas.MaxDevices,
 		s.DefaultQuotas.MaxItems,
 		s.DefaultQuotas.MaxBytesPerAccount,
+		req.PairingPublicKey,
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, map[string]string{"account_id": id})
+
+	deviceID := uuid.New().String()
+	_, err = s.DB.Exec(
+		"INSERT INTO devices (id, account_id, name, created_at, revoked, token_version) VALUES (?, ?, ?, ?, 0, 1)",
+		deviceID,
+		id,
+		req.Name,
+		now,
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	token, err := s.issueToken(id, deviceID, 1)
+	if err != nil {
+		http.Error(w, "token issue failed", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, map[string]string{"account_id": id, "device_id": deviceID, "token": token})
+}
+
+func (s *Server) PairChallenge(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		AccountID string `json:"account_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	if req.AccountID == "" {
+		http.Error(w, "account_id is required", http.StatusBadRequest)
+		return
+	}
+
+	var exists int
+	err := s.DB.QueryRow("SELECT COUNT(*) FROM accounts WHERE id = ?", req.AccountID).Scan(&exists)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if exists == 0 {
+		http.Error(w, "unknown account", http.StatusNotFound)
+		return
+	}
+
+	challengeID := uuid.New().String()
+	s.ChallengeMu.Lock()
+	if s.PairingChallenges == nil {
+		s.PairingChallenges = make(map[string]pairingChallenge)
+	}
+	s.PairingChallenges[challengeID] = pairingChallenge{
+		AccountID: req.AccountID,
+		ExpiresAt: time.Now().Add(5 * time.Minute),
+	}
+	s.ChallengeMu.Unlock()
+
+	writeJSON(w, map[string]string{"challenge_id": challengeID})
 }
 
 func (s *Server) Pair(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		AccountID string `json:"account_id"`
 		Name      string `json:"name"`
+		Challenge string `json:"challenge_id"`
+		Signature string `json:"signature"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	if req.AccountID == "" || req.Name == "" {
-		http.Error(w, "account_id and name are required", http.StatusBadRequest)
+	if req.AccountID == "" || req.Name == "" || req.Challenge == "" || req.Signature == "" {
+		http.Error(w, "account_id, name, challenge_id and signature are required", http.StatusBadRequest)
+		return
+	}
+
+	s.ChallengeMu.Lock()
+	ch, ok := s.PairingChallenges[req.Challenge]
+	if ok {
+		delete(s.PairingChallenges, req.Challenge)
+	}
+	s.ChallengeMu.Unlock()
+	if !ok || ch.AccountID != req.AccountID || time.Now().After(ch.ExpiresAt) {
+		http.Error(w, "invalid or expired challenge", http.StatusUnauthorized)
+		return
+	}
+
+	var pairingPubB64 string
+	err := s.DB.QueryRow("SELECT pairing_public_key FROM accounts WHERE id = ?", req.AccountID).Scan(&pairingPubB64)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "unknown account", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	pairingPub, err := base64.StdEncoding.DecodeString(pairingPubB64)
+	if err != nil || len(pairingPub) != ed25519.PublicKeySize {
+		http.Error(w, "invalid account pairing key", http.StatusInternalServerError)
+		return
+	}
+
+	sig, err := base64.StdEncoding.DecodeString(req.Signature)
+	if err != nil || len(sig) != ed25519.SignatureSize {
+		http.Error(w, "invalid signature", http.StatusBadRequest)
+		return
+	}
+
+	message := []byte("simplepresent-pair|" + req.AccountID + "|" + req.Challenge + "|" + req.Name)
+	if !ed25519.Verify(ed25519.PublicKey(pairingPub), message, sig) {
+		http.Error(w, "pair signature verification failed", http.StatusUnauthorized)
 		return
 	}
 
 	var maxDevices int
-	err := s.DB.QueryRow("SELECT max_devices FROM accounts WHERE id = ?", req.AccountID).Scan(&maxDevices)
+	err = s.DB.QueryRow("SELECT max_devices FROM accounts WHERE id = ?", req.AccountID).Scan(&maxDevices)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "unknown account", http.StatusNotFound)

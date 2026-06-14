@@ -108,6 +108,7 @@ func main() {
 
 	r := mux.NewRouter()
 	r.Handle("/register", srv.SecureOnly(srv.RateLimitByIP(http.HandlerFunc(srv.Register)))).Methods("POST")
+	r.Handle("/pair/challenge", srv.SecureOnly(srv.RateLimitByIP(http.HandlerFunc(srv.PairChallenge)))).Methods("POST")
 	r.Handle("/pair", srv.SecureOnly(srv.RateLimitByIP(http.HandlerFunc(srv.Pair)))).Methods("POST")
 	r.Handle("/push", srv.SecureOnly(srv.RateLimitByIP(srv.AuthMiddleware(http.HandlerFunc(srv.Push))))).Methods("POST")
 	r.Handle("/pull", srv.SecureOnly(srv.RateLimitByIP(srv.AuthMiddleware(http.HandlerFunc(srv.Pull))))).Methods("GET")
