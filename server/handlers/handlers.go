@@ -2,8 +2,11 @@ package handlers
 
 import (
 	"crypto/ed25519"
+	"crypto/hmac"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -31,6 +34,16 @@ type pairingChallenge struct {
 	ExpiresAt time.Time
 }
 
+func hashPIN(accountID, pin string) string {
+	h := hmac.New(sha256.New, []byte(accountID))
+	h.Write([]byte(pin))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func verifyPIN(accountID, pin, storedHash string) bool {
+	return hmac.Equal([]byte(hashPIN(accountID, pin)), []byte(storedHash))
+}
+
 func writeJSON(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
@@ -41,17 +54,22 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 		AccountID        string `json:"account_id"`
 		Name             string `json:"name"`
 		PairingPublicKey string `json:"pairing_public_key"`
+		PIN              string `json:"pin"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	if req.Name == "" || req.PairingPublicKey == "" {
-		http.Error(w, "name and pairing_public_key are required", http.StatusBadRequest)
+	if req.Name == "" || req.PairingPublicKey == "" || req.PIN == "" {
+		http.Error(w, "name, pairing_public_key and pin are required", http.StatusBadRequest)
 		return
 	}
 	if req.AccountID != "" {
 		http.Error(w, "account_id must not be provided on register", http.StatusBadRequest)
+		return
+	}
+	if len(req.PIN) < 4 || len(req.PIN) > 32 {
+		http.Error(w, "pin must be between 4 and 32 characters", http.StatusBadRequest)
 		return
 	}
 	pairingPub, err := base64.StdEncoding.DecodeString(req.PairingPublicKey)
@@ -61,14 +79,16 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 	}
 	id := uuid.New().String()
 	now := time.Now().Unix()
+	pinHash := hashPIN(id, req.PIN)
 	_, err = s.DB.Exec(
-		"INSERT INTO accounts (id, created_at, max_devices, max_items, max_bytes, pairing_public_key) VALUES (?, ?, ?, ?, ?, ?)",
+		"INSERT INTO accounts (id, created_at, max_devices, max_items, max_bytes, pairing_public_key, pin_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		id,
 		now,
 		s.DefaultQuotas.MaxDevices,
 		s.DefaultQuotas.MaxItems,
 		s.DefaultQuotas.MaxBytesPerAccount,
 		req.PairingPublicKey,
+		pinHash,
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -139,13 +159,14 @@ func (s *Server) Pair(w http.ResponseWriter, r *http.Request) {
 		Name      string `json:"name"`
 		Challenge string `json:"challenge_id"`
 		Signature string `json:"signature"`
+		PIN       string `json:"pin"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	if req.AccountID == "" || req.Name == "" || req.Challenge == "" || req.Signature == "" {
-		http.Error(w, "account_id, name, challenge_id and signature are required", http.StatusBadRequest)
+	if req.AccountID == "" || req.Name == "" || req.Challenge == "" || req.Signature == "" || req.PIN == "" {
+		http.Error(w, "account_id, name, challenge_id, signature and pin are required", http.StatusBadRequest)
 		return
 	}
 
@@ -160,14 +181,19 @@ func (s *Server) Pair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var pairingPubB64 string
-	err := s.DB.QueryRow("SELECT pairing_public_key FROM accounts WHERE id = ?", req.AccountID).Scan(&pairingPubB64)
+	var pairingPubB64, pinHash string
+	err := s.DB.QueryRow("SELECT pairing_public_key, pin_hash FROM accounts WHERE id = ?", req.AccountID).Scan(&pairingPubB64, &pinHash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "unknown account", http.StatusNotFound)
 			return
 		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if !verifyPIN(req.AccountID, req.PIN, pinHash) {
+		http.Error(w, "invalid pin", http.StatusUnauthorized)
 		return
 	}
 

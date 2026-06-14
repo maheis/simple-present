@@ -63,7 +63,7 @@ func (s *Store) initSchema() error {
 
 	stmts := []string{
 		`PRAGMA foreign_keys = ON;`,
-		`CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, created_at INTEGER, max_devices INTEGER DEFAULT 5, max_items INTEGER DEFAULT 10000, max_bytes INTEGER DEFAULT 10485760, pairing_public_key TEXT DEFAULT '');`,
+		`CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, created_at INTEGER, max_devices INTEGER DEFAULT 5, max_items INTEGER DEFAULT 10000, max_bytes INTEGER DEFAULT 10485760, pairing_public_key TEXT DEFAULT '', pin_hash TEXT DEFAULT '');`,
 		`CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, account_id TEXT, name TEXT, created_at INTEGER, revoked INTEGER DEFAULT 0, token_version INTEGER DEFAULT 1, FOREIGN KEY(account_id) REFERENCES accounts(id));`,
 		`CREATE TABLE IF NOT EXISTS items (id TEXT PRIMARY KEY, account_id TEXT, payload TEXT, modified_at INTEGER, tombstone INTEGER DEFAULT 0, origin_device_id TEXT, version INTEGER, FOREIGN KEY(account_id) REFERENCES accounts(id));`,
 		`CREATE INDEX IF NOT EXISTS idx_devices_account_active ON devices(account_id, revoked);`,
@@ -72,6 +72,7 @@ func (s *Store) initSchema() error {
 		`ALTER TABLE accounts ADD COLUMN max_items INTEGER DEFAULT 10000;`,
 		`ALTER TABLE accounts ADD COLUMN max_bytes INTEGER DEFAULT 10485760;`,
 		`ALTER TABLE accounts ADD COLUMN pairing_public_key TEXT DEFAULT '';`,
+		`ALTER TABLE accounts ADD COLUMN pin_hash TEXT DEFAULT '';`,
 		`ALTER TABLE devices ADD COLUMN revoked INTEGER DEFAULT 0;`,
 		`ALTER TABLE devices ADD COLUMN token_version INTEGER DEFAULT 1;`,
 	}

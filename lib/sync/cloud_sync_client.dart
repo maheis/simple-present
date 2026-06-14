@@ -231,6 +231,7 @@ class CloudSyncClient {
   Future<CloudAuthResult> registerFirstClient({
     required String deviceName,
     required String phrase,
+    required String pin,
   }) async {
     final keyPair = await derivePairingKeyPair(phrase);
     final publicKey = await keyPair.extractPublicKey();
@@ -238,6 +239,7 @@ class CloudSyncClient {
     final payload = <String, dynamic>{
       'name': deviceName,
       'pairing_public_key': base64Encode(publicKey.bytes),
+      'pin': pin,
     };
 
     final response = await _postJson('/register', payload);
@@ -261,6 +263,7 @@ class CloudSyncClient {
     required String accountId,
     required String deviceName,
     required String phrase,
+    required String pin,
   }) async {
     final challengeResponse = await _postJson('/pair/challenge', <String, dynamic>{
       'account_id': accountId,
@@ -282,6 +285,7 @@ class CloudSyncClient {
       'name': deviceName,
       'challenge_id': challengeId,
       'signature': base64Encode(signature.bytes),
+      'pin': pin,
     });
 
     final createdDeviceId = (pairResponse['device_id'] ?? '').toString();

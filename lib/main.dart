@@ -358,6 +358,7 @@ class _HomePageState extends State<HomePage> {
   String _cloudToken = '';
   String _cloudWordPhrase = '';
   String _cloudDeviceName = Platform.localHostname;
+  String _cloudPIN = '';
   String _serverVersion = '';
   Timer? _cloudPullTimer;
   bool _cloudSyncBusy = false;
@@ -3761,6 +3762,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late String cloudToken;
   late String cloudWordPhrase;
   late String cloudDeviceName;
+  late String cloudPIN;
   String _cloudStatus = '';
   String _serverVersion = '';
   bool _cloudBusy = false;
@@ -3793,6 +3795,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late String _initialCloudToken;
   late String _initialCloudWordPhrase;
   late String _initialCloudDeviceName;
+  late String _initialCloudPIN;
 
   @override
   void initState() {
@@ -3887,6 +3890,8 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialCloudToken = cloudToken;
     _initialCloudWordPhrase = cloudWordPhrase;
     _initialCloudDeviceName = cloudDeviceName;
+    _initialCloudPIN = cloudPIN;
+    _initialCloudPIN = cloudPIN;
     _fetchServerVersionInSettings();
   }
 
@@ -3958,7 +3963,8 @@ class _SettingsPageState extends State<SettingsPage> {
         cloudDeviceId != _initialCloudDeviceId ||
         cloudToken != _initialCloudToken ||
         cloudWordPhrase != _initialCloudWordPhrase ||
-        cloudDeviceName != _initialCloudDeviceName;
+        cloudDeviceName != _initialCloudDeviceName ||
+        cloudPIN != _initialCloudPIN;
   }
 
   String _normalizedServerUrl() {
@@ -4107,12 +4113,20 @@ class _SettingsPageState extends State<SettingsPage> {
         _cloudBusy = true;
         _cloudStatus = '';
       });
+      if (cloudPIN.isEmpty || cloudPIN.length < 4) {
+        setState(() {
+          _cloudStatus = 'PIN muss mindestens 4 Zeichen lang sein.';
+          _cloudBusy = false;
+        });
+        return;
+      }
       final client = CloudSyncClient(serverBaseUrl: _normalizedServerUrl());
       final result = await client.registerFirstClient(
         deviceName: cloudDeviceName.trim().isEmpty
             ? Platform.localHostname
             : cloudDeviceName.trim(),
         phrase: cloudWordPhrase,
+        pin: cloudPIN,
       );
       setState(() {
         cloudAccountId = result.accountId;
@@ -4139,6 +4153,13 @@ class _SettingsPageState extends State<SettingsPage> {
         _cloudBusy = true;
         _cloudStatus = '';
       });
+      if (cloudPIN.isEmpty) {
+        setState(() {
+          _cloudStatus = 'PIN erforderlich zum Pairing.';
+          _cloudBusy = false;
+        });
+        return;
+      }
       final client = CloudSyncClient(serverBaseUrl: _normalizedServerUrl());
       final result = await client.pairClient(
         accountId: cloudAccountId.trim(),
@@ -4146,6 +4167,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ? Platform.localHostname
             : cloudDeviceName.trim(),
         phrase: cloudWordPhrase,
+        pin: cloudPIN,
       );
       setState(() {
         cloudDeviceId = result.deviceId;
@@ -4226,6 +4248,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     'cloudToken': cloudToken,
                     'cloudWordPhrase': cloudWordPhrase,
                     'cloudDeviceName': cloudDeviceName,
+                    'cloudPIN': cloudPIN,
                   });
                 },
                 child: Text(
@@ -4394,6 +4417,18 @@ class _SettingsPageState extends State<SettingsPage> {
                   border: OutlineInputBorder(),
                 ),
                 onChanged: (value) => setState(() => cloudDeviceName = value),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: TextEditingController(text: cloudPIN)
+                  ..selection = TextSelection.collapsed(
+                      offset: cloudPIN.length),
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'PIN (4-32 Zeichen)',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) => setState(() => cloudPIN = value),
               ),
               const SizedBox(height: 8),
               TextField(

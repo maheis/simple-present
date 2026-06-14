@@ -113,16 +113,17 @@
   - [ ] wenn konto nicht länger als 30(konfigurierbar) tage nicht genutzt wird, soll der account archiviert werden und ein neuer platz frei werden 
   - [ ] warnung 14/7 tage vor archivierung an den anwender (in app) und info bei registrierung das der account aktiv zu nutzen ist und nach 30 tagen nicht nutztung archiviert wird
   - [ ] bei registrierung wird für den account eine word-phrasen erstellt und im account gespeichert (in app für den anwender sichtbar+qr-code). mit dieser wird der accoutn identifiziert, synchronisiert und verschlüsselt (ende-zu-ende verschlüsselung, server speichert nur die verschlüsselten daten)
-  - [ ] andere clients können mit word-phrase angebunden werden und synchronisieren (z.B. über QR-Code scannen oder manuell eingeben) 
+  - [x] andere clients können mit word-phrase angebunden werden und synchronisieren (z.B. über QR-Code scannen oder manuell eingeben) 
   - [ ] Sicherheit: TLS mandatory, JWT or HMAC device tokens, device revocation endpoint, rate limits, per-account quotas.
-  - [ ] Sync protocol: push (client → server with item diffs) and pull (since timestamp/version); include tombstones and idempotency keys.
-  - [ ] Conflict strategy: LWW default + expose conflict list endpoint for manual merge; record original timestamps + origin device for diagnostics.
-  - [ ] Server müssen nach ändern / koppeln gespeichert werden! (Es kommt jetzt eine Warnung beim schließen wenn es nicht gespeichert ist)
+  - [x] Sync protocol: push (client → server with item diffs) and pull (since timestamp/version); include tombstones and idempotency keys.
+  - [x] Conflict strategy: LWW default + expose conflict list endpoint for manual merge; record original timestamps + origin device for diagnostics.
+  - [x] Server müssen nach ändern / koppeln gespeichert werden! (Es kommt jetzt eine Warnung beim schließen wenn es nicht gespeichert ist)
   - [x] sync stabilisieren! 2 aufgaben gleichzeitig anlegen führt zum verlust einer aufgabe! 
         ich glaube die aufgaben sollten einzeln synchronsiert und in der db gespeichert werden. aktuell sieht es so aus als würde pro client immer ein ganzer block synchronisiert bzw. in einen datensatz gespeichert#
   - [ ] Cloud-Profil schützen mit einer PIN die der Server auch kennt und die zwischen den geräten geprüft wird beim einfügen neuer clients.
-  - [ ] Server Version ausloggen
+  - [x] Server Version ausloggen
   - [ ] Server / CLient Version abgleichen und Warnung ausgeben wenn Client zu alt ist
+  - [ ] einfügen von kopierten text-link
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [ ] Client Version ausgeben
 - [ ] linux binary namen anpassen (simplepresent)
