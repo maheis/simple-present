@@ -57,8 +57,11 @@ func ensureDBPath(path string) error {
 }
 
 func (s *Store) initSchema() error {
+	if _, err := s.db.Exec(`PRAGMA journal_mode = WAL;`); err != nil {
+		return fmt.Errorf("set wal mode: %w", err)
+	}
+
 	stmts := []string{
-		`PRAGMA journal_mode = WAL;`,
 		`PRAGMA foreign_keys = ON;`,
 		`CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, created_at INTEGER, max_devices INTEGER DEFAULT 5, max_items INTEGER DEFAULT 10000, max_bytes INTEGER DEFAULT 10485760, pairing_public_key TEXT DEFAULT '');`,
 		`CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, account_id TEXT, name TEXT, created_at INTEGER, revoked INTEGER DEFAULT 0, token_version INTEGER DEFAULT 1, FOREIGN KEY(account_id) REFERENCES accounts(id));`,
