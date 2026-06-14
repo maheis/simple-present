@@ -4,10 +4,10 @@ set -euo pipefail
 # Simple install script for SimplePresent server (requires sudo)
 # Installs binary to /usr/local/bin, config to /etc/simplepresent, creates data dir and systemd unit.
 
-BIN=./simplepresent
-INSTALL_BIN=/usr/local/bin/simplepresent
-SYSTEMD_UNIT=./systemd/simplepresent.service
-SYSTEMD_TARGET=/etc/systemd/system/simplepresent.service
+BIN=./simplepresent-server
+INSTALL_BIN=/usr/local/bin/simplepresent-server
+SYSTEMD_UNIT=./systemd/simplepresent-server.service
+SYSTEMD_TARGET=/etc/systemd/system/simplepresent-server.service
 ETC_DIR=/etc/simplepresent
 ETC_CONFIG=${ETC_DIR}/config.json
 DATA_DIR=/var/lib/simplepresent
@@ -18,7 +18,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 if [ ! -f "$BIN" ]; then
-  echo "Binary $BIN not found. Build first: cd server && go build -o simplepresent" >&2
+  echo "Binary $BIN not found. Build first: cd server && go build -o simplepresent-server" >&2
   exit 1
 fi
 

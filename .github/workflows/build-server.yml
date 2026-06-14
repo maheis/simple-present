@@ -38,14 +38,18 @@ jobs:
             - name: Package server binary
               run: |
                   mkdir -p release_dist
-                                    mkdir -p release_dist/simplepresent-server
+                  mkdir -p release_dist/simplepresent-server
                   echo "Listing server build directories for diagnostics"
                   ls -la server || true
-                                    cp server/simplepresent-server release_dist/simplepresent-server/simplepresent-server || true
-                                    cp server/config.json.example release_dist/simplepresent-server/config.json.example || true
-                                    cp server/install.sh release_dist/simplepresent-server/install.sh || true
-                                    chmod +x release_dist/simplepresent-server/install.sh || true
-                                    cd release_dist && zip -r simplepresent-server.zip simplepresent-server
+                  cp server/simplepresent-server release_dist/simplepresent-server/simplepresent-server || true
+                  cp server/config.json.example release_dist/simplepresent-server/config.json.example || true
+                  cp server/install.sh release_dist/simplepresent-server/install.sh || true
+                  chmod +x release_dist/simplepresent-server/install.sh || true
+                  # include the deploy installer (actual system installer) inside a deploy/ subdir
+                  mkdir -p release_dist/simplepresent-server/deploy
+                  cp server/deploy/install.sh release_dist/simplepresent-server/deploy/install.sh || true
+                  chmod +x release_dist/simplepresent-server/deploy/install.sh || true
+                  cd release_dist && zip -r simplepresent-server.zip simplepresent-server
             - name: Upload server artifact
               uses: actions/upload-artifact@v4
               with:

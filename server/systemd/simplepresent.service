@@ -8,7 +8,7 @@ Type=simple
 User=simplepresent
 Group=simplepresent
 WorkingDirectory=/var/lib/simplepresent
-ExecStart=/usr/local/bin/simplepresent -config /etc/simplepresent/config.json
+ExecStart=/usr/local/bin/simplepresent-server -config /etc/simplepresent/config.json
 Restart=on-failure
 RestartSec=5
 Environment=CONFIG=/etc/simplepresent/config.json

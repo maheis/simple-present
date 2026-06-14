@@ -8,3 +8,5 @@ build/
 .flutter-plugins-dependencies
 .pub-cache/
 *.log
+*.json
+*.db
