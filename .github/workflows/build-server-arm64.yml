@@ -14,27 +14,29 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
+
             - name: Setup Go
               uses: actions/setup-go@v5
               with:
                   go-version-file: server/go.mod
                   cache: true
+
             - name: Verify Go toolchain
               run: |
                   which go
                   go version
-            - name: Install server deps
-              run: |
-                  sudo apt-get update
-                  sudo apt-get install -y --no-install-recommends \
-                    build-essential pkg-config libsqlite3-dev
+
             - name: Build server release
               working-directory: server
               env:
-                  CGO_ENABLED: "1"
+                  CGO_ENABLED: "0"
                   GOOS: linux
                   GOARCH: arm64
-              run: go build -v -o simplepresent-server
+              run: |
+                  go env -w GO111MODULE=on
+                  go version
+                  go build -v -o simplepresent-server
+
             - name: Package server binary
               run: |
                   mkdir -p release_dist
@@ -46,11 +48,13 @@ jobs:
                   cp server/deploy/install.sh release_dist/simplepresent-server/install.sh || true
                   chmod +x release_dist/simplepresent-server/install.sh || true
                   cd release_dist && zip -r simplepresent-server-arm64.zip simplepresent-server
+
             - name: Upload server artifact
               uses: actions/upload-artifact@v4
               with:
-                  name: simplepresent-server
+                  name: simplepresent-server-arm64
                   path: release_dist/simplepresent-server-arm64.zip
+
             - name: Upload server artifact to Release
               uses: actions/upload-release-asset@v1
               env:
