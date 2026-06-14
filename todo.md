@@ -117,7 +117,7 @@
   - [ ] Sicherheit: TLS mandatory, JWT or HMAC device tokens, device revocation endpoint, rate limits, per-account quotas.
   - [ ] Sync protocol: push (client → server with item diffs) and pull (since timestamp/version); include tombstones and idempotency keys.
   - [ ] Conflict strategy: LWW default + expose conflict list endpoint for manual merge; record original timestamps + origin device for diagnostics.
-  - [ ] Server müssen nach ändern / koppeln gespeichert werden!
+  - [ ] Server müssen nach ändern / koppeln gespeichert werden! (Es kommt jetzt eine Warnung beim schließen wenn es nicht gespeichert ist)
   - [x] sync stabilisieren! 2 aufgaben gleichzeitig anlegen führt zum verlust einer aufgabe! 
         ich glaube die aufgaben sollten einzeln synchronsiert und in der db gespeichert werden. aktuell sieht es so aus als würde pro client immer ein ganzer block synchronisiert bzw. in einen datensatz gespeichert#
   - [ ] Cloud-Profil schützen mit einer PIN die der Server auch kennt und die zwischen den geräten geprüft wird beim einfügen neuer clients.

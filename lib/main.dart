@@ -3905,6 +3905,30 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<bool> _onWillPop() async {
+    if (!_hasChanges()) {
+      return true;
+    }
+    final shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Änderungen nicht gespeichert'),
+        content: const Text('Es gibt ungespeicherte Einstellungen. Wirklich verlassen?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Abbrechen'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Verwerfen'),
+          ),
+        ],
+      ),
+    );
+    return shouldLeave ?? false;
+  }
+
   bool _hasChanges() {
     return idleMinutes != _initialIdleMinutes ||
         attentionMinutes != _initialAttentionMinutes ||
@@ -4156,7 +4180,16 @@ class _SettingsPageState extends State<SettingsPage> {
           primaryTextTheme:
               baseTheme.primaryTextTheme.apply(fontFamily: fontFamily),
         ),
-        child: Scaffold(
+        child: PopScope(
+          canPop: !_hasChanges(),
+          onPopInvoked: (didPop) async {
+            if (didPop) return;
+            final shouldLeave = await _onWillPop();
+            if (shouldLeave && mounted) {
+              Navigator.of(context).pop();
+            }
+          },
+          child: Scaffold(
           appBar: AppBar(
             title: const Text('settings'),
             actions: [
@@ -4461,6 +4494,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ],
             ],
+          ),
           ),
         ),
       ),
