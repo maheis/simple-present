@@ -581,7 +581,8 @@ class _HomePageState extends State<HomePage> {
     return _cloudServerUrl.trim().isNotEmpty &&
         _cloudAccountId.trim().isNotEmpty &&
         _cloudDeviceId.trim().isNotEmpty &&
-        _cloudToken.trim().isNotEmpty;
+      _cloudToken.trim().isNotEmpty &&
+      _cloudWordPhrase.trim().isNotEmpty;
   }
 
   Future<Map<String, dynamic>> _buildCloudStatePayload() async {
@@ -634,13 +635,17 @@ class _HomePageState extends State<HomePage> {
         serverBaseUrl: _cloudServerUrl.trim(),
       );
       final payload = await _buildCloudStatePayload();
+      final encryptedPayload = await CloudSyncClient.encryptStatePayload(
+        payload: payload,
+        phrase: _cloudWordPhrase,
+      );
       final modifiedAt = DateTime.now().millisecondsSinceEpoch;
       _cloudStateVersion += 1;
       await client.pushState(
         accountId: _cloudAccountId.trim(),
         deviceId: _cloudDeviceId.trim(),
         token: _cloudToken.trim(),
-        payload: payload,
+        payload: encryptedPayload,
         modifiedAt: modifiedAt,
         version: _cloudStateVersion,
       );
@@ -668,7 +673,18 @@ class _HomePageState extends State<HomePage> {
 
       if (result.modifiedAt <= _cloudLastSyncModifiedAt) return;
 
-      await _applyCloudStatePayload(result.payload);
+      Map<String, dynamic> decryptedOrPlainPayload;
+      if ((result.payload['enc'] ?? '') == 'v1') {
+        decryptedOrPlainPayload = await CloudSyncClient.decryptStatePayload(
+          encryptedPayload: result.payload,
+          phrase: _cloudWordPhrase,
+        );
+      } else {
+        // Backward compatibility for previously unencrypted payloads.
+        decryptedOrPlainPayload = result.payload;
+      }
+
+      await _applyCloudStatePayload(decryptedOrPlainPayload);
       _cloudLastSyncModifiedAt = result.modifiedAt;
       _cloudStateVersion = result.version > 0 ? result.version : _cloudStateVersion;
       await _saveSettings();

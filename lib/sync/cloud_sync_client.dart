@@ -47,6 +47,7 @@ class CloudSyncClient {
 
   static final Ed25519 _ed25519 = Ed25519();
   static final Sha256 _sha256 = Sha256();
+  static final AesGcm _aesGcm = AesGcm.with256bits();
 
   static const List<String> _suggestionWords = <String>[
     'apfel',
@@ -138,6 +139,75 @@ class CloudSyncClient {
     final seedMaterial = utf8.encode('simplepresent-pairing-seed|$normalized');
     final hash = await _sha256.hash(seedMaterial);
     return _ed25519.newKeyPairFromSeed(hash.bytes);
+  }
+
+  static Future<Map<String, dynamic>> encryptStatePayload({
+    required Map<String, dynamic> payload,
+    required String phrase,
+  }) async {
+    final normalized = normalizeWordPhrase(phrase);
+    final keyMaterial = utf8.encode('simplepresent-e2e-state-key|$normalized');
+    final hash = await _sha256.hash(keyMaterial);
+    final secretKey = SecretKey(hash.bytes);
+
+    final nonce = List<int>.generate(12, (_) => Random.secure().nextInt(256));
+    final clearBytes = utf8.encode(jsonEncode(payload));
+    final box = await _aesGcm.encrypt(
+      clearBytes,
+      secretKey: secretKey,
+      nonce: nonce,
+    );
+
+    return <String, dynamic>{
+      'enc': 'v1',
+      'alg': 'aes-gcm-256',
+      'nonce': base64Encode(box.nonce),
+      'ciphertext': base64Encode(box.cipherText),
+      'mac': base64Encode(box.mac.bytes),
+    };
+  }
+
+  static Future<Map<String, dynamic>> decryptStatePayload({
+    required Map<String, dynamic> encryptedPayload,
+    required String phrase,
+  }) async {
+    if ((encryptedPayload['enc'] ?? '') != 'v1') {
+      throw CloudSyncException('Unsupported encrypted payload format.');
+    }
+
+    final nonceB64 = (encryptedPayload['nonce'] ?? '').toString();
+    final cipherB64 = (encryptedPayload['ciphertext'] ?? '').toString();
+    final macB64 = (encryptedPayload['mac'] ?? '').toString();
+    if (nonceB64.isEmpty || cipherB64.isEmpty || macB64.isEmpty) {
+      throw CloudSyncException('Encrypted payload is incomplete.');
+    }
+
+    final normalized = normalizeWordPhrase(phrase);
+    final keyMaterial = utf8.encode('simplepresent-e2e-state-key|$normalized');
+    final hash = await _sha256.hash(keyMaterial);
+    final secretKey = SecretKey(hash.bytes);
+
+    final secretBox = SecretBox(
+      base64Decode(cipherB64),
+      nonce: base64Decode(nonceB64),
+      mac: Mac(base64Decode(macB64)),
+    );
+
+    List<int> clearBytes;
+    try {
+      clearBytes = await _aesGcm.decrypt(
+        secretBox,
+        secretKey: secretKey,
+      );
+    } catch (_) {
+      throw CloudSyncException('Decryption failed (wrong phrase or corrupted data).');
+    }
+
+    final decoded = jsonDecode(utf8.decode(clearBytes));
+    if (decoded is! Map<String, dynamic>) {
+      throw CloudSyncException('Decrypted state is not a JSON object.');
+    }
+    return decoded;
   }
 
   Future<CloudAuthResult> registerFirstClient({
