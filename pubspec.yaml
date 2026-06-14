@@ -14,6 +14,8 @@ dependencies:
   flutter_svg: ^1.1.1
   audioplayers: ^6.7.1
   cryptography: ^2.7.0
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^5.0.0
 
 dev_dependencies:
   flutter_test:

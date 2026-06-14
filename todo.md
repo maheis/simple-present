@@ -107,7 +107,7 @@
 - [ ] position, Größe und Zoom werden nicht korrekt geladen
 - [ ] Reihenfolge auch über andere gruppen hinaus und dann optisch einsortieren
 - [ ] Cloud-Synchronisation: Möglichkeit, Aufgaben über mehrere Geräte hinweg zu synchronisieren
-  - [ ] eigener api-server (optional hinter Apache Proxy) (linux only applikation in go?)
+  - [x] eigener api-server (optional hinter Apache Proxy) (linux only applikation in go?)
   - [ ] registrierung soll automatisch und anonym erfolgen, man kann als server "maheis.de" auswählen oder eigene serveradresse eingeben (selfhosted)
   - [ ] server registrierung serverseitig beschränkt auf x user (mail an den admin bei erreichen von 75%, 90% und 100% der Kapazität)
   - [ ] wenn konto nicht länger als 30(konfigurierbar) tage nicht genutzt wird, soll der account archiviert werden und ein neuer platz frei werden 
@@ -117,6 +117,7 @@
   - [ ] Sicherheit: TLS mandatory, JWT or HMAC device tokens, device revocation endpoint, rate limits, per-account quotas.
   - [ ] Sync protocol: push (client → server with item diffs) and pull (since timestamp/version); include tombstones and idempotency keys.
   - [ ] Conflict strategy: LWW default + expose conflict list endpoint for manual merge; record original timestamps + origin device for diagnostics.
+  - [ ] Server müssen nach ändern / koppeln gespeichert werden!
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 
 ## notes

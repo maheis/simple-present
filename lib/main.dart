@@ -13,6 +13,8 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:path_provider/path_provider.dart';
 import 'package:simple_present/sync/cloud_sync_client.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 // sentinel to indicate "no change" in copyWith optional parameters
 const _noChange = Object();
@@ -3640,6 +3642,90 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
+  /// Shows a dialog with a QR code that encodes the pairing URI.
+  /// Other devices can scan this to get server URL + account ID pre-filled.
+  void _showPairingQr() {
+    if (cloudServerUrl.isEmpty || cloudAccountId.isEmpty) {
+      setState(() => _cloudStatus =
+          'Bitte zuerst Gerät registrieren (Server-URL + Account ID werden benötigt).');
+      return;
+    }
+    final uri = Uri(
+      scheme: 'simplepresent',
+      host: 'pair',
+      queryParameters: {
+        'server': cloudServerUrl,
+        'account': cloudAccountId,
+      },
+    ).toString();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Weiteres Gerät anbinden'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Scanne diesen QR-Code auf dem neuen Gerät, um Server-URL und Account ID zu übertragen. '
+              'Die 9-Wort-Phrase musst du manuell eingeben.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            QrImageView(
+              data: uri,
+              version: QrVersions.auto,
+              size: 220,
+            ),
+            const SizedBox(height: 8),
+            SelectableText(
+              uri,
+              style: const TextStyle(fontSize: 10),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Schließen'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Opens the camera scanner, reads a simplepresent:// pairing URI
+  /// and pre-fills server URL + account ID.
+  Future<void> _scanPairingQr() async {
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(
+        builder: (_) => const _QrScannerPage(),
+      ),
+    );
+    if (result == null || !mounted) return;
+    try {
+      final uri = Uri.parse(result);
+      if (uri.scheme != 'simplepresent' || uri.host != 'pair') {
+        setState(() => _cloudStatus = 'Ungültiger QR-Code.');
+        return;
+      }
+      final server = uri.queryParameters['server'] ?? '';
+      final account = uri.queryParameters['account'] ?? '';
+      if (server.isEmpty || account.isEmpty) {
+        setState(() => _cloudStatus = 'QR-Code unvollständig.');
+        return;
+      }
+      setState(() {
+        cloudServerUrl = server;
+        cloudAccountId = account;
+        _cloudStatus =
+            'Server-URL und Account ID übernommen. Bitte 9-Wort-Phrase eingeben und "Gerät anbinden" tippen.';
+      });
+    } catch (_) {
+      setState(() => _cloudStatus = 'QR-Code konnte nicht gelesen werden.');
+    }
+  }
+
   Future<void> _registerFirstDevice() async {
     try {
       setState(() {
@@ -3982,6 +4068,27 @@ class _SettingsPageState extends State<SettingsPage> {
                 ],
               ),
               const SizedBox(height: 8),
+              // QR-Code buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _cloudBusy ? null : _showPairingQr,
+                      icon: const Icon(Icons.qr_code),
+                      label: const Text('QR-Code anzeigen'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _cloudBusy ? null : _scanPairingQr,
+                      icon: const Icon(Icons.qr_code_scanner),
+                      label: const Text('QR-Code scannen'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               SelectableText(
                 'Device ID: $cloudDeviceId\nToken: ${cloudToken.isEmpty ? '-' : cloudToken}',
                 style: const TextStyle(fontSize: 12),
@@ -4191,6 +4298,41 @@ class _StatsPageState extends State<StatsPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Full-screen QR scanner page. Returns the scanned string or null.
+class _QrScannerPage extends StatefulWidget {
+  const _QrScannerPage();
+
+  @override
+  State<_QrScannerPage> createState() => _QrScannerPageState();
+}
+
+class _QrScannerPageState extends State<_QrScannerPage> {
+  bool _handled = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('QR-Code scannen'),
+      ),
+      body: MobileScanner(
+        onDetect: (capture) {
+          if (_handled) return;
+          final barcodes = capture.barcodes;
+          for (final barcode in barcodes) {
+            final value = barcode.rawValue;
+            if (value != null && value.isNotEmpty) {
+              _handled = true;
+              Navigator.of(context).pop(value);
+              return;
+            }
+          }
+        },
       ),
     );
   }
