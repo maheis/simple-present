@@ -95,6 +95,15 @@
 - [x] kleiner zoomen / Schrift wird in den Einstellungen seperat eingestellt!
     Ich verstehe jetzt die Ursache vollständig. Das Problem ist nicht die Icongröße, sondern ListTile selbst: Flutter's ListTile hat eine interne Mindesthöhe (~56/36dp) die sich nicht wegdiskutieren lässt. Die sauberste Lösung: Card + ListTile in ein SizedBox(height: _tileHeight) + ClipRect einwickeln. Icons können dabei so groß bleiben wie sie wollen — sie werden einfach abgeschnitten.
     Die Lösung: Card(clipBehavior: Clip.hardEdge) umschließt jetzt ein SizedBox(height: _tileHeight). Damit wird die Zeile auf genau _tileHeight Pixel abgeschnitten — egal was ListTile, Icons oder Padding intern beanspruchen. Die Icons können also in ihrer ursprünglichen Größe bleiben und müssen nicht mitskalieren.
+- [x] Client Version ausgeben
+- [x] linux binary namen anpassen (simplepresent)
+- [x] times spent und stopuhr sollten doch aufaddiert werden.
+- [x] buttons näher zusammen
+- [x] schrift in der statistik skalieren
+- [x] an bildschrimrand kleben (optional) (Desktop)
+- [x] umstellung von json auf sqlite (bessere performance, weniger fehleranfällig, einfacher zu synchronisieren)
+- [x] miniaturansicht wenn kein fokus drauf ist (per button!)
+- [x] breite auch kleiner werden
 - [ ] Android APK Testen
   - [x] icon
   - [x] den header ein bisschen runter mit der app, damit platz für die android statusleiste ist
@@ -128,19 +137,10 @@
   - [ ] Synchronisierungsstatus anzeigen (z.B. "Zuletzt synchronisiert um 14:35", "Synchronisierung fehlgeschlagen", etc.)
   - [ ] Manuelle Synchronisierungsmöglichkeit (z.B. "Jetzt synchronisieren" Button)
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
-- [x] Client Version ausgeben
-- [x] linux binary namen anpassen (simplepresent)
-- [x] times spent und stopuhr sollten doch aufaddiert werden.
-- [x] buttons näher zusammen
 - [ ] buttons in burgermenü wenn platz zu klein wird
-- [x] schrift in der statistik skalieren
 - [ ] speichern übernimmt schonmal texte von anderen aufgaben?
-- [x] an bildschrimrand kleben (optional) (Desktop)
 - [ ] web applikation
-- [x] umstellung von json auf sqlite (bessere performance, weniger fehleranfällig, einfacher zu synchronisieren)
-- [x] miniaturansicht wenn kein fokus drauf ist (per button!)
 - [ ] miniaturansicht soll je nach lage auf dem bildschirm nach unten oder oben expandieren (und minbandieren). bei der breite das gleiche.
-- [x] breite auch kleiner werden
 - [ ] ankleben klappt in windows nicht, bzw. fenster springt.
 
 ## notes
