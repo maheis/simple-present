@@ -507,7 +507,7 @@ class _HomePageState extends State<HomePage> {
     _currentFile = _storage('simplepresent_today.json');
     // initialize sqlite storage and migrate JSON files if needed
     try {
-      await _sqliteStorage.init();
+      await _sqliteStorage.init(debugMode: kDebugMode);
       _useSqlite = true;
     } catch (_) {
       _useSqlite = false;

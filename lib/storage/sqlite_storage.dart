@@ -7,10 +7,13 @@ import 'package:sqlite3/sqlite3.dart';
 class SqliteStorage {
   Database? _db;
   late final String _dbPath;
+  bool _debugMode = false;
 
-  Future<void> init() async {
+  Future<void> init({required bool debugMode}) async {
+    _debugMode = debugMode;
     final dir = await getApplicationDocumentsDirectory();
-    _dbPath = '${dir.path}/simplepresent.db';
+    final dbFileName = _debugMode ? 'debug_simplepresent.db' : 'simplepresent.db';
+    _dbPath = '${dir.path}/$dbFileName';
 
     final dbFile = File(_dbPath);
     final bool existed = await dbFile.exists();
@@ -59,12 +62,13 @@ class SqliteStorage {
   }
 
   Future<void> _migrateJsonFiles(Directory dir) async {
+    final prefix = _debugMode ? 'debug_' : '';
     final candidates = [
-      'simplepresent_today.json',
-      'simplepresent_done.json',
-      'simplepresent_backlog.json',
-      'simplepresent_trash.json',
-      'simplepresent_settings.json',
+      '${prefix}simplepresent_today.json',
+      '${prefix}simplepresent_done.json',
+      '${prefix}simplepresent_backlog.json',
+      '${prefix}simplepresent_trash.json',
+      '${prefix}simplepresent_settings.json',
     ];
 
     for (final name in candidates) {
@@ -94,15 +98,12 @@ class SqliteStorage {
     final existingCount = (countRs.first['c'] as int?) ?? 0;
     if (existingCount > 0) return;
 
+    final prefix = _debugMode ? 'debug_' : '';
     final listNames = <String>{
-      'simplepresent_today.json',
-      'simplepresent_done.json',
-      'simplepresent_backlog.json',
-      'simplepresent_trash.json',
-      'debug_simplepresent_today.json',
-      'debug_simplepresent_done.json',
-      'debug_simplepresent_backlog.json',
-      'debug_simplepresent_trash.json',
+      '${prefix}simplepresent_today.json',
+      '${prefix}simplepresent_done.json',
+      '${prefix}simplepresent_backlog.json',
+      '${prefix}simplepresent_trash.json',
     };
 
     for (final listName in listNames) {
