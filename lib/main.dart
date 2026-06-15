@@ -378,6 +378,8 @@ class _HomePageState extends State<HomePage> {
   final Set<String> _notified15 = <String>{};
   final Set<String> _notifiedDue = <String>{};
   final Set<int> _swiping = <int>{};
+  bool _minimalViewMode = false;
+  Map<String, int>? _windowBeforeMinimal;
 
   // When debugging, prepend filenames with 'debug_' so test data doesn't mix
   String _storage(String name) => kDebugMode ? 'debug_$name' : name;
@@ -1341,6 +1343,65 @@ class _HomePageState extends State<HomePage> {
     _stopwatchTicker?.cancel();
     _sqliteStorage.dispose();
     super.dispose();
+  }
+
+  Future<void> _setMinimalViewMode(bool enable) async {
+    if (_minimalViewMode == enable) return;
+
+    if (enable) {
+      try {
+        final geom =
+            await _nativeWindowChannel.invokeMethod('getWindowGeometry');
+        if (geom is Map) {
+          final norm = <String, int>{};
+          for (final e in geom.entries) {
+            final k = e.key.toString();
+            final v = e.value;
+            if (v is int) {
+              norm[k] = v;
+            } else if (v is double) {
+              norm[k] = v.toInt();
+            } else {
+              norm[k] = int.tryParse(v.toString()) ?? 0;
+            }
+          }
+          _windowBeforeMinimal = norm;
+
+          final inProgressCount = _today
+              .where((t) => t.inProgress && !t.done)
+              .length
+              .clamp(1, 8);
+          final targetHeight = (70 + (inProgressCount * 56)).clamp(120, 560);
+          await _nativeWindowChannel.invokeMethod('setWindowGeometry', {
+            'x': norm['x'] ?? 0,
+            'y': norm['y'] ?? 0,
+            'width': norm['width'] ?? 700,
+            'height': targetHeight,
+          });
+        }
+      } catch (_) {}
+    } else {
+      try {
+        final restore = _windowBeforeMinimal;
+        if (restore != null) {
+          await _nativeWindowChannel.invokeMethod('setWindowGeometry', {
+            'x': restore['x'] ?? 0,
+            'y': restore['y'] ?? 0,
+            'width': restore['width'] ?? 700,
+            'height': restore['height'] ?? 500,
+          });
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _minimalViewMode = enable;
+    });
+  }
+
+  Future<void> _toggleMinimalViewMode() async {
+    await _setMinimalViewMode(!_minimalViewMode);
   }
 
   String _taskNotifyKey(TaskItem t) {
@@ -2424,7 +2485,9 @@ class _HomePageState extends State<HomePage> {
           future: _initFuture,
           builder: (context, snap) {
             return Scaffold(
-              body: Listener(
+              body: Stack(
+                children: [
+                  Listener(
                 onPointerDown: (_) => _registerActivity(),
                 onPointerSignal: (ps) {
                   if (ps is PointerScrollEvent) {
@@ -2475,17 +2538,32 @@ class _HomePageState extends State<HomePage> {
                   },
                   child: Column(
                     children: [
-                      SizedBox(
-                          height: Platform.isAndroid
-                              ? MediaQuery.of(context).padding.top
-                              : 0.0),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        height: (!_minimalViewMode && Platform.isAndroid)
+                            ? MediaQuery.of(context).padding.top
+                            : 0.0,
+                      ),
                       Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 22, 6, 8),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
+                          padding: _minimalViewMode
+                              ? const EdgeInsets.fromLTRB(8, 8, 6, 8)
+                              : const EdgeInsets.fromLTRB(12, 22, 6, 8),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 220),
+                                switchInCurve: Curves.easeOutCubic,
+                                switchOutCurve: Curves.easeInCubic,
+                                child: _minimalViewMode
+                                    ? const SizedBox.shrink(
+                                        key: ValueKey('header_hidden'))
+                                    : Row(
+                                        key: const ValueKey('header_visible'),
                                 children: [
                                   // Left arrow moved to the far left of the header row
                                   IconButton(
@@ -2658,8 +2736,13 @@ class _HomePageState extends State<HomePage> {
                                     ],
                                   ),
                                 ],
+                                      ),
                               ),
-                              const SizedBox(height: 8),
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 220),
+                                curve: Curves.easeOutCubic,
+                                height: _minimalViewMode ? 0.0 : 8.0,
+                              ),
                               Expanded(
                                 child: _today.isEmpty
                                     ? Center(
@@ -2686,7 +2769,13 @@ class _HomePageState extends State<HomePage> {
                                             TaskItem>>[]; // done tasks (always bottom)
 
                                         final now = DateTime.now();
-                                        final entries = _today.asMap().entries;
+                                        final entries = _today
+                                          .asMap()
+                                          .entries
+                                          .where((e) =>
+                                            !_minimalViewMode ||
+                                            (e.value.inProgress &&
+                                              !e.value.done));
                                         for (final e in entries) {
                                           final t = e.value;
                                           if (t.done) {
@@ -2860,6 +2949,40 @@ class _HomePageState extends State<HomePage> {
                                             final totalSubtasks =
                                                 task.subtasks.length;
                                             final i = originalIndex;
+                                            if (_minimalViewMode) {
+                                              return Card(
+                                                key: ValueKey(
+                                                    'mini_${i}_${task.id}'),
+                                                color: task.inProgress
+                                                    ? Colors.green
+                                                        .withOpacity(0.10)
+                                                    : null,
+                                                child: ListTile(
+                                                  contentPadding:
+                                                      EdgeInsets.symmetric(
+                                                          vertical: ((_tileHeight -
+                                                                          _baseFontSize) /
+                                                                      2)
+                                                                  .clamp(
+                                                                      0.0,
+                                                                      40.0),
+                                                          horizontal: 12),
+                                                  title: Text(
+                                                    task.text,
+                                                    style: _fontTextStyle(
+                                                      TextStyle(
+                                                        fontSize: _baseFontSize,
+                                                        fontWeight:
+                                                            FontWeight.normal,
+                                                        color: Theme.of(context)
+                                                            .colorScheme
+                                                            .onSurface,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            }
                                             return Dismissible(
                                               key: ValueKey(
                                                   'today_${i}_${task.text}_${task.done}'),
@@ -3803,47 +3926,97 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                       ),
-                      SafeArea(
-                        top: false,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _controller,
-                                  focusNode: _inputFocus,
-                                  autofocus: !_showingDone,
-                                  enabled: !_showingDone,
-                                  textInputAction: TextInputAction.done,
-                                  decoration: InputDecoration(
-                                    hintText: _showingDone
-                                        ? null
-                                        : (_showingBacklog
-                                            ? 'new task for later'
-                                            : 'new task for today'),
-                                    border: const OutlineInputBorder(),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        child: _minimalViewMode
+                            ? const SizedBox.shrink(
+                                key: ValueKey('composer_hidden'))
+                            : SafeArea(
+                                key: const ValueKey('composer_visible'),
+                                top: false,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: TextField(
+                                          controller: _controller,
+                                          focusNode: _inputFocus,
+                                          autofocus: !_showingDone,
+                                          enabled: !_showingDone,
+                                          textInputAction: TextInputAction.done,
+                                          decoration: InputDecoration(
+                                            hintText: _showingDone
+                                                ? null
+                                                : (_showingBacklog
+                                                    ? 'new task for later'
+                                                    : 'new task for today'),
+                                            border: const OutlineInputBorder(),
+                                          ),
+                                          onSubmitted:
+                                              _showingDone ? null : _addToToday,
+                                          onTapOutside: (_) =>
+                                              _inputFocus.requestFocus(),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      ElevatedButton(
+                                        onPressed: _showingDone
+                                            ? null
+                                            : () => _addToToday(_controller.text),
+                                        child: const Icon(Icons.add),
+                                      ),
+                                    ],
                                   ),
-                                  onSubmitted:
-                                      _showingDone ? null : _addToToday,
-                                  onTapOutside: (_) =>
-                                      _inputFocus.requestFocus(),
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              ElevatedButton(
-                                onPressed: _showingDone
-                                    ? null
-                                    : () => _addToToday(_controller.text),
-                                child: const Icon(Icons.add),
-                              ),
-                            ],
-                          ),
-                        ),
                       ),
                     ],
                   ),
                 ),
+              ),
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) => ScaleTransition(
+                        scale: animation,
+                        child: FadeTransition(opacity: animation, child: child),
+                      ),
+                      child: Tooltip(
+                        key: ValueKey<bool>(_minimalViewMode),
+                        message: _minimalViewMode
+                            ? 'Minimal mode off'
+                            : 'Minimal mode on',
+                        child: Material(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: _toggleMinimalViewMode,
+                            child: SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: Icon(
+                                _minimalViewMode
+                                    ? Icons.fullscreen_exit
+                                    : Icons.fullscreen,
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             );
           },

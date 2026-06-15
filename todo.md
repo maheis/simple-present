@@ -138,7 +138,7 @@
 - [x] an bildschrimrand kleben (optional) (Desktop)
 - [ ] web applikation
 - [x] umstellung von json auf sqlite (bessere performance, weniger fehleranfällig, einfacher zu synchronisieren)
-- [ ] mini app wenn kein fokus drauf ist
+- [x] miniaturansicht wenn kein fokus drauf ist (per button!)
 
 ## notes
 
