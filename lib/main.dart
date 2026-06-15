@@ -1284,10 +1284,17 @@ class _HomePageState extends State<HomePage> {
         if (geom != null) {
           useGeom = geom.cast<String, dynamic>();
         } else {
-          final g =
-              await _nativeWindowChannel.invokeMethod('getWindowGeometry');
-          if (g is Map)
-            useGeom = Map<String, dynamic>.from(g.cast<String, dynamic>());
+          // Only capture the window geometry when the HomePage is the
+          // currently visible main route. This prevents saving sizes from
+          // transient dialogs (settings, stats, etc.). If HomePage is not
+          // current, keep the previously persisted window geometry intact.
+          final isMainRoute = ModalRoute.of(context)?.isCurrent ?? true;
+          if (isMainRoute) {
+            final g =
+                await _nativeWindowChannel.invokeMethod('getWindowGeometry');
+            if (g is Map)
+              useGeom = Map<String, dynamic>.from(g.cast<String, dynamic>());
+          }
         }
         if (useGeom != null) out['window'] = useGeom;
       } catch (_) {}
@@ -1373,15 +1380,20 @@ class _HomePageState extends State<HomePage> {
               : norm;
           _windowBeforeMinimal = Map<String, int>.from(orig);
 
-          final inProgressCount = _today
+          // Determine how many tasks will be shown in the minimal view and
+          // size the window accordingly. Use a per-item height and a small
+          // base so the window fits the content without wasted space.
+          final visibleCount = _today
               .where((t) => t.inProgress && !t.done)
               .length
-              .clamp(1, 8);
-          final targetHeight = (70 + (inProgressCount * 56)).clamp(120, 560);
-          // Shrink width to a compact size while keeping it no smaller than
-          // a sensible minimum and never wider than the original width.
+              .clamp(1, 20);
+          const int perItemHeight = 56;
+          final targetHeight = (13 + (visibleCount * perItemHeight)).clamp(120, 1200);
+          // Compute a compact width informed by the number of visible items
+          // but never larger than the original width. Start from a sensible
+          // minimum and grow moderately with more items.
           final int origWidth = orig['width'] ?? 700;
-          int targetWidth = (origWidth * 0.6).toInt();
+          int targetWidth = 320 + (visibleCount * 20);
           targetWidth = math.max(320, targetWidth);
           targetWidth = math.min(origWidth, targetWidth);
           await _nativeWindowChannel.invokeMethod('setWindowGeometry', {
@@ -1556,10 +1568,16 @@ class _HomePageState extends State<HomePage> {
             norm.addAll(applied);
           } catch (_) {}
           }
-          if (_lastSavedWindowGeom == null ||
-              !mapEquals(_lastSavedWindowGeom, norm)) {
-            _lastSavedWindowGeom = Map<String, int>.from(norm);
-            await _saveSettingsWithGeom(_lastSavedWindowGeom);
+          // Only update the saved main-window geometry when the HomePage
+          // route is the current (main) route. This avoids capturing
+          // transient dialog/settings window sizes.
+          final isMainRoute = ModalRoute.of(context)?.isCurrent ?? true;
+          if (isMainRoute) {
+            if (_lastSavedWindowGeom == null ||
+                !mapEquals(_lastSavedWindowGeom, norm)) {
+              _lastSavedWindowGeom = Map<String, int>.from(norm);
+              await _saveSettingsWithGeom(_lastSavedWindowGeom);
+            }
           }
         }
       } catch (_) {}
