@@ -2987,37 +2987,21 @@ class _HomePageState extends State<HomePage> {
                                                                           .done)
                                                                         Builder(builder:
                                                                             (ctx) {
-                                                                          final accumulatedMinutes =
-                                                                              (_elapsedSecondsFor(task) ~/ 60);
-                                                                          final manual =
-                                                                              task.workMinutes;
-                                                                          int?
-                                                                              showMinutes;
-                                                                          if (manual != null &&
-                                                                              manual >
-                                                                                  0) {
-                                                                            showMinutes =
-                                                                                manual;
-                                                                          } else if (accumulatedMinutes >
-                                                                              0) {
-                                                                            showMinutes =
-                                                                                accumulatedMinutes;
-                                                                          }
-                                                                          if (showMinutes == null ||
-                                                                              showMinutes <= 0)
-                                                                            return const SizedBox.shrink();
-                                                                          final hours =
-                                                                              showMinutes ~/ 60;
-                                                                          final mins =
-                                                                              showMinutes % 60;
-                                                                          final label = hours > 0
-                                                                              ? '${hours}h ${mins}m'
-                                                                              : '${mins}m';
+                                                                          // Sum manual "workMinutes" and stopwatch elapsed minutes,
+                                                                          // rounding stopwatch up to 15-minute blocks.
+                                                                          final secs = _elapsedSecondsFor(task);
+                                                                          const blockSec = 15 * 60;
+                                                                          final blocks = secs > 0 ? ((secs + blockSec - 1) ~/ blockSec) : 0;
+                                                                          final accumulatedMinutes = blocks * 15;
+                                                                          final manual = task.workMinutes ?? 0;
+                                                                          final totalMinutes = manual + accumulatedMinutes;
+                                                                          if (totalMinutes <= 0) return const SizedBox.shrink();
+                                                                          final hours = totalMinutes ~/ 60;
+                                                                          final mins = totalMinutes % 60;
+                                                                          final label = hours > 0 ? '${hours}h ${mins}m' : '${mins}m';
                                                                           return Padding(
-                                                                            padding:
-                                                                                const EdgeInsets.only(top: 4.0),
-                                                                            child:
-                                                                                Text(
+                                                                            padding: const EdgeInsets.only(top: 4.0),
+                                                                            child: Text(
                                                                               'spent: $label',
                                                                               style: TextStyle(
                                                                                 fontSize: 12,
@@ -4753,10 +4737,21 @@ class _StatsPageState extends State<StatsPage> {
     }).toList();
   }
 
+  int _elapsedSecondsFor(TaskItem t) {
+    var acc = t.stopwatchAccumulatedSeconds;
+    if (t.stopwatchRunning && t.stopwatchStartedAt != null) {
+      acc += DateTime.now().difference(t.stopwatchStartedAt!).inSeconds;
+    }
+    return acc;
+  }
+
   int _minutesForTask(TaskItem t) {
-    if (t.workMinutes > 0) return t.workMinutes;
-    final secs = t.stopwatchAccumulatedSeconds;
-    return (secs / 60).round();
+    final secs = _elapsedSecondsFor(t);
+    const blockSec = 15 * 60;
+    final blocks = secs > 0 ? ((secs + blockSec - 1) ~/ blockSec) : 0;
+    final stopwatchMinutes = blocks * 15;
+    final manual = t.workMinutes ?? 0;
+    return manual + stopwatchMinutes;
   }
 
   @override

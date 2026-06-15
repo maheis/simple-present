@@ -124,9 +124,17 @@
   - [x] Server Version ausloggen
   - [x] Server / CLient Version abgleichen und Warnung ausgeben wenn Client zu alt ist
   - [x] einfügen von kopierten text-link
+  - [ ] info wenn nicht synchronisiert werden konnte (z.B. Server nicht erreichbar, ungültige Antwort, etc.)
+  - [ ] Synchronisierungsstatus anzeigen (z.B. "Zuletzt synchronisiert um 14:35", "Synchronisierung fehlgeschlagen", etc.)
+  - [ ] Manuelle Synchronisierungsmöglichkeit (z.B. "Jetzt synchronisieren" Button)
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [x] Client Version ausgeben
 - [x] linux binary namen anpassen (simplepresent)
+- [ ] times spent und stopuhr sollten doch aufaddiert werden.
+- [ ] buttons näher zusammen
+- [ ] buttons in burgermenü wenn platz zu klein wird
+- [ ] schrift in der statistik skalieren
+- [ ] 
 
 ## notes
 
