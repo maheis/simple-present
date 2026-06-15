@@ -131,9 +131,9 @@
 - [x] Client Version ausgeben
 - [x] linux binary namen anpassen (simplepresent)
 - [x] times spent und stopuhr sollten doch aufaddiert werden.
-- [ ] buttons näher zusammen
+- [x] buttons näher zusammen
 - [ ] buttons in burgermenü wenn platz zu klein wird
-- [ ] schrift in der statistik skalieren
+- [x] schrift in der statistik skalieren
 - [ ] 
 
 ## notes

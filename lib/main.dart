@@ -4717,11 +4717,12 @@ class _StatsPageState extends State<StatsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Total completed: ${tasks.length}',
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              style: TextStyle(
+                fontSize: 16 * MediaQuery.textScaleFactorOf(context),
+                fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
             Text('Total time (minutes): $totalMinutes',
-                style: const TextStyle(fontSize: 16)),
+              style: TextStyle(fontSize: 16 * MediaQuery.textScaleFactorOf(context))),
             const SizedBox(height: 12),
             Expanded(
               child: tasks.isEmpty
@@ -4739,9 +4740,9 @@ class _StatsPageState extends State<StatsPage> {
                             ? DateFormat('HH:mm').format(t.completedAt!)
                             : '-';
                         return ListTile(
-                          title: Text(t.text),
-                          subtitle: Text('completed: $completed'),
-                          trailing: Text('$minutes min'),
+                          title: Text(t.text, style: TextStyle(fontSize: 14 * MediaQuery.textScaleFactorOf(context))),
+                          subtitle: Text('completed: $completed', style: TextStyle(fontSize: 12 * MediaQuery.textScaleFactorOf(context))),
+                          trailing: Text('$minutes min', style: TextStyle(fontSize: 12 * MediaQuery.textScaleFactorOf(context))),
                         );
                       },
                     ),
