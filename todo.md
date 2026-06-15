@@ -135,9 +135,10 @@
 - [ ] buttons in burgermenü wenn platz zu klein wird
 - [x] schrift in der statistik skalieren
 - [ ] speichern übernimmt schonmal texte von anderen aufgaben?
-- [ ] an bildschrimrand kleben optional machen (Desktop)
+- [x] an bildschrimrand kleben (optional) (Desktop)
 - [ ] web applikation
 - [x] umstellung von json auf sqlite (bessere performance, weniger fehleranfällig, einfacher zu synchronisieren)
+- [ ] mini app wenn kein fokus drauf ist
 
 ## notes
 
