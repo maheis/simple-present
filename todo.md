@@ -130,7 +130,7 @@
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [x] Client Version ausgeben
 - [x] linux binary namen anpassen (simplepresent)
-- [ ] times spent und stopuhr sollten doch aufaddiert werden.
+- [x] times spent und stopuhr sollten doch aufaddiert werden.
 - [ ] buttons näher zusammen
 - [ ] buttons in burgermenü wenn platz zu klein wird
 - [ ] schrift in der statistik skalieren

@@ -83,6 +83,12 @@ class SimplePresentApp extends StatelessWidget {
   }
 }
 
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
 class TaskStep {
   TaskStep({
     required this.id,
@@ -129,12 +135,6 @@ class TaskStep {
       done: map['done'] == true,
     );
   }
-}
-
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
-  @override
-  State<HomePage> createState() => _HomePageState();
 }
 
 class TaskItem {
@@ -3013,8 +3013,7 @@ class _HomePageState extends State<HomePage> {
                                                                     ],
                                                                   ),
                                                           ),
-                                                          const SizedBox(
-                                                              width: 4),
+                                                            const SizedBox(width: 2),
                                                           // Right aligned icons: scheduled+time, in-progress, save (when expanded), star (far right)
                                                           Opacity(
                                                             opacity: _swiping
@@ -3062,113 +3061,63 @@ class _HomePageState extends State<HomePage> {
                                                                         'simplepresent_backlog.json' ||
                                                                     _showingBacklog)
                                                                   Padding(
-                                                                    padding: const EdgeInsets
-                                                                        .only(
-                                                                        left:
-                                                                            8.0,
-                                                                        right:
-                                                                            6.0),
-                                                                    child:
-                                                                        IconButton(
-                                                                      tooltip:
-                                                                          'move to today',
-                                                                      icon: const Icon(
-                                                                          Icons
-                                                                              .arrow_circle_left,
-                                                                          size:
-                                                                              20),
-                                                                      onPressed:
-                                                                          () async {
-                                                                        await _moveFromBacklog(
-                                                                            i);
+                                                                    padding: const EdgeInsets.only(left: 4.0, right: 2.0),
+                                                                    child: IconButton(
+                                                                      padding: const EdgeInsets.all(4),
+                                                                      constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                                                                      tooltip: 'move to today',
+                                                                      icon: const Icon(Icons.arrow_circle_left, size: 20),
+                                                                      onPressed: () async {
+                                                                        await _moveFromBacklog(i);
                                                                       },
                                                                     ),
                                                                   ),
                                                                 if (!_showingBacklog &&
                                                                     !_showingDone)
                                                                   Padding(
-                                                                    padding: const EdgeInsets
-                                                                        .only(
-                                                                        left:
-                                                                            6.0,
-                                                                        right:
-                                                                            6.0),
-                                                                    child:
-                                                                        Tooltip(
-                                                                      message: task
-                                                                              .stopwatchRunning
-                                                                          ? 'stopwatch running'
-                                                                          : 'stopwatch',
-                                                                      child:
-                                                                          IconButton(
-                                                                        padding:
-                                                                            EdgeInsets.zero,
-                                                                        constraints:
-                                                                            const BoxConstraints(),
-                                                                        iconSize:
-                                                                            18,
-                                                                        onPressed:
-                                                                            () async {
-                                                                          if (task
-                                                                              .stopwatchRunning) {
+                                                                    padding: const EdgeInsets.only(left: 2.0, right: 2.0),
+                                                                    child: Tooltip(
+                                                                      message: task.stopwatchRunning ? 'stopwatch running' : 'stopwatch',
+                                                                      child: IconButton(
+                                                                        padding: const EdgeInsets.all(4),
+                                                                        constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                                                                        iconSize: 18,
+                                                                        onPressed: () async {
+                                                                          if (task.stopwatchRunning) {
                                                                             await _stopStopwatch(i);
                                                                           } else {
                                                                             await _startStopwatch(i);
                                                                           }
                                                                         },
-                                                                        icon:
-                                                                            Icon(
-                                                                          Icons
-                                                                              .timer,
-                                                                          color: task.stopwatchRunning
-                                                                              ? Colors.redAccent
-                                                                              : Theme.of(context).colorScheme.onSurfaceVariant,
-                                                                          size:
-                                                                              18,
+                                                                        icon: Icon(
+                                                                          Icons.timer,
+                                                                          color: task.stopwatchRunning ? Colors.redAccent : Theme.of(context).colorScheme.onSurfaceVariant,
+                                                                          size: 18,
                                                                         ),
                                                                       ),
                                                                     ),
                                                                   ),
                                                                 Padding(
-                                                                  padding: const EdgeInsets
-                                                                      .only(
-                                                                      left: 8.0,
-                                                                      right:
-                                                                          6.0),
-                                                                  child:
-                                                                      IconButton(
-                                                                    tooltip: task.inProgress &&
-                                                                            !task.done
-                                                                        ? 'remove in progress'
-                                                                        : 'mark in progress',
+                                                                  padding: const EdgeInsets.only(left: 2.0, right: 2.0),
+                                                                  child: IconButton(
+                                                                    padding: const EdgeInsets.all(4),
+                                                                    constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                                                                    tooltip: task.inProgress && !task.done ? 'remove in progress' : 'mark in progress',
                                                                     icon: Icon(
-                                                                        Icons
-                                                                            .construction,
-                                                                        color: (task.inProgress && !task.done)
-                                                                            ? Colors
-                                                                                .greenAccent.shade200
-                                                                            : Theme.of(context)
-                                                                                .colorScheme
-                                                                                .onSurfaceVariant,
-                                                                        size:
-                                                                            18),
-                                                                    onPressed: task
-                                                                            .done
+                                                                      Icons.construction,
+                                                                      color: (task.inProgress && !task.done) ? Colors.greenAccent.shade200 : Theme.of(context).colorScheme.onSurfaceVariant,
+                                                                      size: 18,
+                                                                    ),
+                                                                    onPressed: task.done
                                                                         ? null
                                                                         : () {
-                                                                            final wasInProgress =
-                                                                                _today[i].inProgress;
-                                                                            final now = !wasInProgress
-                                                                                ? DateTime.now()
-                                                                                : null;
+                                                                            final wasInProgress = _today[i].inProgress;
+                                                                            final now = !wasInProgress ? DateTime.now() : null;
                                                                             setState(() {
                                                                               _today[i] = _today[i].copyWith(inProgress: !wasInProgress, inProgressAt: now);
 
-                                                                              // If we just unset inProgress (was true, now false), move the task
-                                                                              // to the top position after the buckets: overdue, important+inProgress, inProgress, important
                                                                               if (wasInProgress && !_today[i].inProgress) {
                                                                                 final moved = _today.removeAt(i);
-                                                                                // compute insertion index: count tasks that belong to the earlier buckets
                                                                                 int insertAt = 0;
                                                                                 final now2 = DateTime.now();
                                                                                 for (final t in _today) {
@@ -3193,7 +3142,6 @@ class _HomePageState extends State<HomePage> {
                                                                                     insertAt++;
                                                                                     continue;
                                                                                   }
-                                                                                  // first item that is not in the above buckets: stop here
                                                                                   break;
                                                                                 }
                                                                                 _today.insert(insertAt, moved);
@@ -3272,27 +3220,14 @@ class _HomePageState extends State<HomePage> {
                                                                     _saveToday();
                                                                   },
                                                                 ),
-                                                                // Custom D&D handle (5px shifted to the right)
+                                                                // Custom D&D handle (reduced left padding)
                                                                 Padding(
-                                                                  padding:
-                                                                      const EdgeInsets
-                                                                          .only(
-                                                                          left:
-                                                                              5.0),
-                                                                  child:
-                                                                      Opacity(
-                                                                    opacity: _swiping
-                                                                            .contains(i)
-                                                                        ? 0.0
-                                                                        : 1.0,
-                                                                    child:
-                                                                        ReorderableDragStartListener(
+                                                                  padding: const EdgeInsets.only(left: 2.0),
+                                                                  child: Opacity(
+                                                                    opacity: _swiping.contains(i) ? 0.0 : 1.0,
+                                                                    child: ReorderableDragStartListener(
                                                                       index: vi,
-                                                                      child: const Icon(
-                                                                          Icons
-                                                                              .drag_handle,
-                                                                          size:
-                                                                              18),
+                                                                      child: const Icon(Icons.drag_handle, size: 18),
                                                                     ),
                                                                   ),
                                                                 ),
