@@ -15,6 +15,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:simple_present/sync/cloud_sync_client.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:simple_present/storage/sqlite_storage.dart';
 
 // sentinel to indicate "no change" in copyWith optional parameters
 const _noChange = Object();
@@ -329,6 +330,9 @@ class _HomePageState extends State<HomePage> {
   final Map<String, FocusNode> _subtaskFocusNodes = {};
   final Map<String, TextEditingController> _workControllers = {};
   final AudioPlayer _audioPlayer = AudioPlayer();
+  // SQLite storage (migrates JSON files on first init)
+  final _sqliteStorage = SqliteStorage();
+  bool _useSqlite = false;
   Timer? _idleTimer;
   Timer? _attentionTimer;
   int _idleMinutes = 45;
@@ -478,6 +482,12 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _ensureListFile(String filename) async {
     try {
+      if (_useSqlite) {
+        if (!_sqliteStorage.taskListExists(filename)) {
+          _sqliteStorage.writeTaskList(filename, const <Map<String, dynamic>>[]);
+        }
+        return;
+      }
       final f = await _fileFor(filename);
       if (!await f.exists()) {
         await f.writeAsString('[]');
@@ -495,6 +505,13 @@ class _HomePageState extends State<HomePage> {
   Future<void> _initializeApp() async {
     // ensure current file respects debug mode
     _currentFile = _storage('simplepresent_today.json');
+    // initialize sqlite storage and migrate JSON files if needed
+    try {
+      await _sqliteStorage.init();
+      _useSqlite = true;
+    } catch (_) {
+      _useSqlite = false;
+    }
     await _loadSettings();
     await _ensureInitialFiles();
 
@@ -502,16 +519,23 @@ class _HomePageState extends State<HomePage> {
     // move all open (not done) tasks from Today into Backlog (bottom->top),
     // leave Done tasks in their file. Persist a lastRunDate in settings.
     try {
-      final settingsFile =
-          await _fileFor(_storage('simplepresent_settings.json'));
       Map<String, dynamic> settings = {};
-      if (await settingsFile.exists()) {
-        try {
-          settings = jsonDecode(await settingsFile.readAsString())
-              as Map<String, dynamic>;
-        } catch (_) {
-          settings = {};
+      try {
+        if (_useSqlite) {
+          final txt = _sqliteStorage.read(_storage('simplepresent_settings.json'));
+          if (txt != null) settings = jsonDecode(txt) as Map<String, dynamic>;
+        } else {
+          final settingsFile = await _fileFor(_storage('simplepresent_settings.json'));
+          if (await settingsFile.exists()) {
+            try {
+              settings = jsonDecode(await settingsFile.readAsString()) as Map<String, dynamic>;
+            } catch (_) {
+              settings = {};
+            }
+          }
         }
+      } catch (_) {
+        settings = {};
       }
       final todayKey = DateFormat('yyyy-MM-dd').format(DateTime.now());
       final lastRun = settings['lastRunDate'] as String?;
@@ -553,7 +577,14 @@ class _HomePageState extends State<HomePage> {
         try {
           // reload current view to ensure UI reflects changes
           await _loadToday();
-          await settingsFile.writeAsString(enc.convert(settings));
+          final encoded = enc.convert(settings);
+          if (_useSqlite) {
+            _sqliteStorage.write(_storage('simplepresent_settings.json'), encoded);
+          } else {
+            final settingsFile =
+                await _fileFor(_storage('simplepresent_settings.json'));
+            await settingsFile.writeAsString(encoded);
+          }
         } catch (_) {}
         // Show a short summary toast after first frame if any tasks were moved
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -578,6 +609,11 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadList(String filename, List<TaskItem> target) async {
     target.clear();
     try {
+      if (_useSqlite) {
+        final rows = _sqliteStorage.readTaskList(filename);
+        target.addAll(rows.map(TaskItem.fromJson));
+        return;
+      }
       final f = await _fileFor(filename);
       if (await f.exists()) {
         final text = await f.readAsString();
@@ -604,10 +640,17 @@ class _HomePageState extends State<HomePage> {
   Future<void> _saveList(String filename, List<TaskItem> source,
       {bool triggerCloudSync = true}) async {
     try {
-      final f = await _fileFor(filename);
       final encoder = const JsonEncoder.withIndent('  ');
-      await f.writeAsString(
-          encoder.convert(source.map((e) => e.toJson()).toList()));
+      final text = encoder.convert(source.map((e) => e.toJson()).toList());
+      if (_useSqlite) {
+        _sqliteStorage.writeTaskList(
+          filename,
+          source.map((e) => e.toJson()).toList(),
+        );
+      } else {
+        final f = await _fileFor(filename);
+        await f.writeAsString(text);
+      }
       if (triggerCloudSync) {
         unawaited(_syncPushToCloud(filename, source));
       }
@@ -928,9 +971,16 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadSettings() async {
     try {
-      final f = await _fileFor(_storage('simplepresent_settings.json'));
-      if (!await f.exists()) return;
-      final data = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
+      Map<String, dynamic> data = {};
+      if (_useSqlite) {
+        final txt = _sqliteStorage.read(_storage('simplepresent_settings.json'));
+        if (txt == null) return;
+        data = jsonDecode(txt) as Map<String, dynamic>;
+      } else {
+        final f = await _fileFor(_storage('simplepresent_settings.json'));
+        if (!await f.exists()) return;
+        data = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
+      }
       int readInt(String key, int fallback) {
         final v = data[key];
         if (v is int) return v;
@@ -1200,15 +1250,28 @@ class _HomePageState extends State<HomePage> {
         'cloudKnownBacklogIds': _cloudKnownBacklogIds.toList(),
         'cloudKnownDoneIds': _cloudKnownDoneIds.toList(),
       };
+
       // Preserve lastRunDate if present in existing settings so daily-reset runs only once per day
       try {
-        if (await f.exists()) {
-          final existing = jsonDecode(await f.readAsString());
-          if (existing is Map && existing.containsKey('lastRunDate')) {
-            out['lastRunDate'] = existing['lastRunDate'];
+        if (_useSqlite) {
+          final existingText =
+              _sqliteStorage.read(_storage('simplepresent_settings.json'));
+          if (existingText != null) {
+            final existing = jsonDecode(existingText);
+            if (existing is Map && existing.containsKey('lastRunDate')) {
+              out['lastRunDate'] = existing['lastRunDate'];
+            }
+          }
+        } else {
+          if (await f.exists()) {
+            final existing = jsonDecode(await f.readAsString());
+            if (existing is Map && existing.containsKey('lastRunDate')) {
+              out['lastRunDate'] = existing['lastRunDate'];
+            }
           }
         }
       } catch (_) {}
+
       try {
         Map<String, dynamic>? useGeom;
         if (geom != null) {
@@ -1225,7 +1288,12 @@ class _HomePageState extends State<HomePage> {
       out['notified15'] = _notified15.toList();
       out['notifiedDue'] = _notifiedDue.toList();
       final encoder = const JsonEncoder.withIndent('  ');
-      await f.writeAsString(encoder.convert(out));
+      final encoded = encoder.convert(out);
+      if (_useSqlite) {
+        _sqliteStorage.write(_storage('simplepresent_settings.json'), encoded);
+      } else {
+        await f.writeAsString(encoded);
+      }
     } catch (_) {}
   }
 
@@ -1266,6 +1334,7 @@ class _HomePageState extends State<HomePage> {
     _toastTimer?.cancel();
     _toastEntry?.remove();
     _stopwatchTicker?.cancel();
+    _sqliteStorage.dispose();
     super.dispose();
   }
 
@@ -1827,9 +1896,16 @@ class _HomePageState extends State<HomePage> {
           changedFiles.add(f);
           // read back the saved file and capture the task snippet for debugging
           try {
-            final savedFile = await _fileFor(f);
-            if (await savedFile.exists()) {
-              final savedText = await savedFile.readAsString();
+            String? savedText;
+            if (_useSqlite) {
+              savedText = _sqliteStorage.read(f);
+            } else {
+              final savedFile = await _fileFor(f);
+              if (await savedFile.exists()) {
+                savedText = await savedFile.readAsString();
+              }
+            }
+            if (savedText != null) {
               // try to extract the JSON object for this id
               final idIndex = savedText.indexOf('"id": "${id}"');
               String snippet = '';

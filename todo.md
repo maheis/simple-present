@@ -119,7 +119,7 @@
   - [x] Conflict strategy: LWW default + expose conflict list endpoint for manual merge; record original timestamps + origin device for diagnostics.
   - [x] Server müssen nach ändern / koppeln gespeichert werden! (Es kommt jetzt eine Warnung beim schließen wenn es nicht gespeichert ist)
   - [x] sync stabilisieren! 2 aufgaben gleichzeitig anlegen führt zum verlust einer aufgabe! 
-        ich glaube die aufgaben sollten einzeln synchronsiert und in der db gespeichert werden. aktuell sieht es so aus als würde pro client immer ein ganzer block synchronisiert bzw. in einen datensatz gespeichert#
+        ich glaube die aufgaben sollten einzeln synchronsiert und in der db gespeichert werden. aktuell sieht es so aus als würde pro client immer ein ganzer block synchronisiert bzw. in einen datensatz gespeichert#https://www.amazon.de/gp/video/detail/B0BYZ93SHM/ref=atv_hm_hom_c_pEHQ18_5_1?jic=8%7CEgNhbGw%3D
   - [x] Cloud-Profil schützen mit einer PIN die der Server auch kennt und die zwischen den geräten geprüft wird beim einfügen neuer clients.
   - [x] Server Version ausloggen
   - [x] Server / CLient Version abgleichen und Warnung ausgeben wenn Client zu alt ist
@@ -134,7 +134,10 @@
 - [x] buttons näher zusammen
 - [ ] buttons in burgermenü wenn platz zu klein wird
 - [x] schrift in der statistik skalieren
-- [ ] 
+- [ ] speichern übernimmt schonmal texte von anderen aufgaben?
+- [ ] an bildschrimrand kleben optional machen (Desktop)
+- [ ] web applikation
+- [x] umstellung von json auf sqlite (bessere performance, weniger fehleranfällig, einfacher zu synchronisieren)
 
 ## notes
 
