@@ -139,6 +139,9 @@
 - [ ] web applikation
 - [x] umstellung von json auf sqlite (bessere performance, weniger fehleranfällig, einfacher zu synchronisieren)
 - [x] miniaturansicht wenn kein fokus drauf ist (per button!)
+- [ ] miniaturansicht soll je nach lage auf dem bildschirm nach unten oder oben expandieren (und minbandieren). bei der breite das gleiche.
+- [x] breite auch kleiner werden
+- [ ] ankleben klappt in windows nicht, bzw. fenster springt.
 
 ## notes
 

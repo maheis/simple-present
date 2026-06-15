@@ -1365,17 +1365,29 @@ class _HomePageState extends State<HomePage> {
               norm[k] = int.tryParse(v.toString()) ?? 0;
             }
           }
-          _windowBeforeMinimal = norm;
+          // Prefer the last saved user geometry if available (this reflects the
+          // last user-drawn size); fall back to the immediate geometry we just
+          // queried.
+          final Map<String, int> orig = _lastSavedWindowGeom != null
+              ? Map<String, int>.from(_lastSavedWindowGeom!)
+              : norm;
+          _windowBeforeMinimal = Map<String, int>.from(orig);
 
           final inProgressCount = _today
               .where((t) => t.inProgress && !t.done)
               .length
               .clamp(1, 8);
           final targetHeight = (70 + (inProgressCount * 56)).clamp(120, 560);
+          // Shrink width to a compact size while keeping it no smaller than
+          // a sensible minimum and never wider than the original width.
+          final int origWidth = orig['width'] ?? 700;
+          int targetWidth = (origWidth * 0.6).toInt();
+          targetWidth = math.max(320, targetWidth);
+          targetWidth = math.min(origWidth, targetWidth);
           await _nativeWindowChannel.invokeMethod('setWindowGeometry', {
-            'x': norm['x'] ?? 0,
-            'y': norm['y'] ?? 0,
-            'width': norm['width'] ?? 700,
+            'x': orig['x'] ?? norm['x'] ?? 0,
+            'y': orig['y'] ?? norm['y'] ?? 0,
+            'width': targetWidth,
             'height': targetHeight,
           });
         }
@@ -4010,8 +4022,8 @@ class _HomePageState extends State<HomePage> {
                       child: Tooltip(
                         key: ValueKey<bool>(_minimalViewMode),
                         message: _minimalViewMode
-                            ? 'Minimal mode off'
-                            : 'Minimal mode on',
+                            ? 'minimal mode off'
+                            : 'minimal mode on',
                         child: Material(
                           color: Theme.of(context)
                               .colorScheme
