@@ -2683,43 +2683,6 @@ class _HomePageState extends State<HomePage> {
                                           await _openSettings();
                                         },
                                       ),
-                                      (Platform.isWindows)
-                                          ? IconButton(
-                                              icon: Icon(
-                                                _alwaysOnTop
-                                                    ? Icons.push_pin
-                                                    : Icons.push_pin_outlined,
-                                                size: 20,
-                                              ),
-                                              tooltip: _alwaysOnTop
-                                                  ? 'Unpin window'
-                                                  : 'Pin window on top',
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 6.0),
-                                              constraints: const BoxConstraints(
-                                                  minWidth: 28, minHeight: 28),
-                                              visualDensity:
-                                                  VisualDensity.compact,
-                                              onPressed: () async {
-                                                final newVal = !_alwaysOnTop;
-                                                try {
-                                                  await _nativeWindowChannel
-                                                      .invokeMethod(
-                                                          'setWindowGeometry',
-                                                          <String, dynamic>{
-                                                        'always_on_top': newVal
-                                                      });
-                                                  setState(() =>
-                                                      _alwaysOnTop = newVal);
-                                                  await _saveSettings();
-                                                  _showTopToast(newVal
-                                                      ? 'Window pinned'
-                                                      : 'Window unpinned');
-                                                } catch (_) {}
-                                              },
-                                            )
-                                          : const SizedBox.shrink(),
                                       IconButton(
                                         icon:
                                             const Icon(Icons.arrow_forward_ios),
@@ -3977,9 +3940,65 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
+                  if (Platform.isWindows)
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder: (child, animation) => ScaleTransition(
+                          scale: animation,
+                          child: FadeTransition(opacity: animation, child: child),
+                        ),
+                        child: Tooltip(
+                          key: ValueKey<bool>(_alwaysOnTop),
+                          message: _alwaysOnTop
+                              ? 'Unpin window'
+                              : 'Pin window on top',
+                          child: Material(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () async {
+                                final newVal = !_alwaysOnTop;
+                                try {
+                                  await _nativeWindowChannel
+                                      .invokeMethod(
+                                          'setWindowGeometry',
+                                          <String, dynamic>{
+                                        'always_on_top': newVal
+                                      });
+                                  setState(() =>
+                                      _alwaysOnTop = newVal);
+                                  await _saveSettings();
+                                  _showTopToast(newVal
+                                      ? 'Window pinned'
+                                      : 'Window unpinned');
+                                } catch (_) {}
+                              },
+                              child: SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: Icon(
+                                  _alwaysOnTop
+                                      ? Icons.push_pin
+                                      : Icons.push_pin_outlined,
+                                  size: 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   Positioned(
                     top: 2,
-                    right: 2,
+                    right: Platform.isWindows ? 34 : 2,
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 220),
                       switchInCurve: Curves.easeOutCubic,
