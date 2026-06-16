@@ -306,8 +306,9 @@ class SqliteStorage {
     required bool taskInProgress,
     required int stopwatchSeconds,
     required int workMinutes,
+    int? recordedAt,
   }) {
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final now = recordedAt ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
     _db!.execute(
       '''
       INSERT INTO time_entries(task_id, date, task_text, task_done, task_in_progress, stopwatch_seconds, work_minutes, recorded_at)
@@ -342,7 +343,7 @@ class SqliteStorage {
   /// Returns all time-entry rows for [date] (YYYY-MM-DD), ordered by recorded_at.
   List<Map<String, dynamic>> getTimeEntriesForDate(String date) {
     final rows = _db!.select(
-      'SELECT task_id, task_text, stopwatch_seconds, work_minutes, recorded_at '
+      'SELECT task_id, task_text, task_done, task_in_progress, stopwatch_seconds, work_minutes, recorded_at '
       'FROM time_entries WHERE date = ? ORDER BY recorded_at ASC;',
       [date],
     );

@@ -457,6 +457,7 @@ class _HomePageState extends State<HomePage> {
   bool _applyingCloudState = false;
   int _cloudStateVersion = 1;
   int _cloudLastSyncModifiedAt = 0;
+  final Map<String, TaskItem> _cloudPendingTimeEntrySync = <String, TaskItem>{};
   Set<String> _cloudKnownTodayIds = <String>{};
   Set<String> _cloudKnownBacklogIds = <String>{};
   Set<String> _cloudKnownDoneIds = <String>{};
@@ -828,6 +829,93 @@ class _HomePageState extends State<HomePage> {
       _onCloudSyncError(e);
     } finally {
       _cloudSyncBusy = false;
+      _flushPendingCloudTimeEntrySync();
+    }
+  }
+
+  void _queueCloudTimeEntrySync(TaskItem task) {
+    if (!_cloudSyncConfigured || _applyingCloudState) return;
+
+    final date = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    _cloudPendingTimeEntrySync['$date:${task.id}'] = task;
+    _flushPendingCloudTimeEntrySync();
+  }
+
+  void _flushPendingCloudTimeEntrySync() {
+    if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState) return;
+    if (_cloudPendingTimeEntrySync.isEmpty) return;
+    unawaited(_runPendingCloudTimeEntrySync());
+  }
+
+  Future<void> _runPendingCloudTimeEntrySync() async {
+    while (_cloudPendingTimeEntrySync.isNotEmpty &&
+        _cloudSyncConfigured &&
+        !_cloudSyncBusy &&
+        !_applyingCloudState) {
+      final entry = _cloudPendingTimeEntrySync.entries.first;
+      _cloudPendingTimeEntrySync.remove(entry.key);
+      final ok = await _syncPushTimeEntryToCloud(entry.value);
+      if (!ok) {
+        _cloudPendingTimeEntrySync[entry.key] = entry.value;
+        break;
+      }
+    }
+  }
+
+  Future<bool> _syncPushTimeEntryToCloud(TaskItem task) async {
+    if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState) return false;
+
+    _cloudSyncBusy = true;
+    try {
+      final client = CloudSyncClient(
+        serverBaseUrl: _cloudServerUrl.trim(),
+      );
+      final date = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final modifiedAt = DateTime.now().millisecondsSinceEpoch;
+      _cloudStateVersion += 1;
+
+      final encryptedPayload = await CloudSyncClient.encryptStatePayload(
+        payload: <String, dynamic>{
+          'kind': 'time_entry',
+          'date': date,
+          'entry': <String, dynamic>{
+            'task_id': task.id,
+            'task_text': task.text,
+            'task_done': task.done,
+            'task_in_progress': task.inProgress,
+            'stopwatch_seconds': task.stopwatchAccumulatedSeconds,
+            'work_minutes': task.workMinutes ?? 0,
+            'recorded_at': modifiedAt,
+          },
+        },
+        phrase: _cloudWordPhrase,
+      );
+
+      await client.pushItems(
+        accountId: _cloudAccountId.trim(),
+        token: _cloudToken.trim(),
+        items: <Map<String, dynamic>>[
+          <String, dynamic>{
+            'id': 'time:$date:${task.id}',
+            'payload': encryptedPayload,
+            'modified_at': modifiedAt,
+            'tombstone': false,
+            'origin_device_id': _cloudDeviceId.trim(),
+            'version': _cloudStateVersion,
+          }
+        ],
+      );
+
+      _cloudLastSyncModifiedAt = modifiedAt;
+      await _saveSettings();
+      _onCloudSyncSuccess();
+      return true;
+    } catch (e) {
+      _onCloudSyncError(e);
+      return false;
+    } finally {
+      _cloudSyncBusy = false;
+      _flushPendingCloudTimeEntrySync();
     }
   }
 
@@ -966,6 +1054,7 @@ class _HomePageState extends State<HomePage> {
       final pulledItems = await client.pullChangedItems(
         token: _cloudToken.trim(),
         since: _cloudLastSyncModifiedAt,
+        idPrefix: '',
       );
       await _refreshCloudAccountStatus(showToastIfWarning: true);
       if (pulledItems.isEmpty) return;
@@ -995,12 +1084,14 @@ class _HomePageState extends State<HomePage> {
           if (taskId.isEmpty) continue;
 
           if (item.tombstone) {
-            for (final list in listMap.values) {
-              list.removeWhere((t) => t.id == taskId);
+            if (item.id.startsWith('task:')) {
+              for (final list in listMap.values) {
+                list.removeWhere((t) => t.id == taskId);
+              }
+              _cloudKnownTodayIds.remove(taskId);
+              _cloudKnownBacklogIds.remove(taskId);
+              _cloudKnownDoneIds.remove(taskId);
             }
-            _cloudKnownTodayIds.remove(taskId);
-            _cloudKnownBacklogIds.remove(taskId);
-            _cloudKnownDoneIds.remove(taskId);
             continue;
           }
 
@@ -1021,6 +1112,35 @@ class _HomePageState extends State<HomePage> {
             await _applyCloudStatePayload(payload);
             appliedLegacyFullState = true;
             break;
+          }
+
+          final kind = (payload['kind'] ?? '').toString();
+          if (item.id.startsWith('time:') || kind == 'time_entry') {
+            final entryRaw = payload['entry'];
+            final entry = entryRaw is Map
+                ? Map<String, dynamic>.from(entryRaw.cast<String, dynamic>())
+                : payload;
+            final date = (payload['date'] ?? entry['date'] ?? '').toString();
+            final entryTaskId = (entry['task_id'] ?? '').toString();
+            final entryTaskText = (entry['task_text'] ?? '').toString();
+            if (date.isEmpty || entryTaskId.isEmpty) continue;
+            _sqliteStorage.upsertTimeEntry(
+              taskId: entryTaskId,
+              taskText: entryTaskText,
+              date: date,
+              taskDone: entry['task_done'] == true || entry['task_done'] == 1,
+              taskInProgress: entry['task_in_progress'] == true || entry['task_in_progress'] == 1,
+              stopwatchSeconds: (entry['stopwatch_seconds'] is num)
+                  ? (entry['stopwatch_seconds'] as num).toInt()
+                  : int.tryParse(entry['stopwatch_seconds']?.toString() ?? '') ?? 0,
+              workMinutes: (entry['work_minutes'] is num)
+                  ? (entry['work_minutes'] as num).toInt()
+                  : int.tryParse(entry['work_minutes']?.toString() ?? '') ?? 0,
+                recordedAt: (entry['recorded_at'] is num)
+                  ? (entry['recorded_at'] as num).toInt()
+                  : int.tryParse(entry['recorded_at']?.toString() ?? ''),
+            );
+            continue;
           }
 
           final taskRaw = payload['task'];
@@ -1066,6 +1186,7 @@ class _HomePageState extends State<HomePage> {
       _onCloudSyncError(e);
     } finally {
       _cloudSyncBusy = false;
+      _flushPendingCloudTimeEntrySync();
     }
   }
 
@@ -2118,6 +2239,7 @@ class _HomePageState extends State<HomePage> {
         stopwatchSeconds: task.stopwatchAccumulatedSeconds,
         workMinutes: task.workMinutes ?? 0,
       );
+      _queueCloudTimeEntrySync(task);
     } catch (_) {}
   }
 

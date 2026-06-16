@@ -377,7 +377,7 @@ class CloudSyncClient {
   Future<List<CloudPulledItem>> pullChangedItems({
     required String token,
     int since = 0,
-    String idPrefix = 'task:',
+    String idPrefix = '',
   }) async {
     final response = await _getJsonAuthorized(
       '/pull?since=$since',
@@ -391,7 +391,8 @@ class CloudSyncClient {
     for (final raw in itemsRaw) {
       if (raw is! Map) continue;
       final id = (raw['id'] ?? '').toString();
-      if (id.isEmpty || !id.startsWith(idPrefix)) continue;
+      if (id.isEmpty) continue;
+      if (idPrefix.isNotEmpty && !id.startsWith(idPrefix)) continue;
 
       final modifiedAt = (raw['modified_at'] is num)
           ? (raw['modified_at'] as num).toInt()
