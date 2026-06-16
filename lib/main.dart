@@ -1523,9 +1523,14 @@ class _HomePageState extends State<HomePage> {
           int targetWidth = 320 + (visibleCount * 20);
           targetWidth = math.max(320, targetWidth);
           targetWidth = math.min(origWidth, targetWidth);
+
+          // Keep top-right corner fixed: move x right by how much width shrinks.
+          final int origX = orig['x'] ?? norm['x'] ?? 0;
+          final int origY = orig['y'] ?? norm['y'] ?? 0;
+          final int targetX = origX + (origWidth - targetWidth);
           await _nativeWindowChannel.invokeMethod('setWindowGeometry', {
-            'x': orig['x'] ?? norm['x'] ?? 0,
-            'y': orig['y'] ?? norm['y'] ?? 0,
+            'x': targetX,
+            'y': origY,
             'width': targetWidth,
             'height': targetHeight,
           });
