@@ -409,6 +409,7 @@ class _HomePageState extends State<HomePage> {
   String _cloudPIN = '';
   String _serverVersion = '';
   bool _versionWarningShown = false;
+  bool _cloudSyncFailed = false;
   Timer? _cloudPullTimer;
   bool _cloudSyncBusy = false;
   bool _applyingCloudState = false;
@@ -780,10 +781,33 @@ class _HomePageState extends State<HomePage> {
         ..addAll(currentIds);
       _cloudLastSyncModifiedAt = modifiedAt;
       await _saveSettings();
-    } catch (_) {
-      // Keep app responsive; cloud sync errors are non-fatal.
+      _onCloudSyncSuccess();
+    } catch (e) {
+      _onCloudSyncError(e);
     } finally {
       _cloudSyncBusy = false;
+    }
+  }
+
+  void _onCloudSyncSuccess() {
+    if (_cloudSyncFailed && mounted) {
+      _cloudSyncFailed = false;
+      _showTopToast('☁ Sync wiederhergestellt.');
+    }
+  }
+
+  void _onCloudSyncError(Object e) {
+    if (!_cloudSyncFailed && mounted) {
+      _cloudSyncFailed = true;
+      final msg = e.toString();
+      final short = msg.contains('SocketException') || msg.contains('Connection refused') || msg.contains('Failed host lookup')
+          ? 'Server nicht erreichbar.'
+          : msg.contains('401') || msg.contains('403')
+              ? 'Sync: Authentifizierung fehlgeschlagen.'
+              : msg.contains('Server error')
+                  ? 'Sync: Server-Fehler.'
+                  : 'Sync fehlgeschlagen.';
+      _showTopToast('☁ $short');
     }
   }
 
@@ -912,8 +936,9 @@ class _HomePageState extends State<HomePage> {
 
       _cloudLastSyncModifiedAt = maxModifiedAt;
       await _saveSettings();
-    } catch (_) {
-      // Keep app responsive; cloud sync errors are non-fatal.
+      _onCloudSyncSuccess();
+    } catch (e) {
+      _onCloudSyncError(e);
     } finally {
       _cloudSyncBusy = false;
     }
