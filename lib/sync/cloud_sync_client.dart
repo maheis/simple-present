@@ -17,11 +17,31 @@ class CloudAuthResult {
     required this.accountId,
     required this.deviceId,
     required this.token,
+    this.notice,
   });
 
   final String accountId;
   final String deviceId;
   final String token;
+  final String? notice;
+}
+
+class CloudAccountStatus {
+  CloudAccountStatus({
+    required this.archived,
+    required this.lastActiveAt,
+    required this.archiveAfterDays,
+    required this.warningDays,
+    required this.daysUntilArchive,
+    required this.warning,
+  });
+
+  final bool archived;
+  final int lastActiveAt;
+  final int archiveAfterDays;
+  final List<int> warningDays;
+  final int daysUntilArchive;
+  final bool warning;
 }
 
 class CloudStatePullResult {
@@ -247,6 +267,7 @@ class CloudSyncClient {
     final createdAccountId = (response['account_id'] ?? '').toString();
     final createdDeviceId = (response['device_id'] ?? '').toString();
     final token = (response['token'] ?? '').toString();
+    final notice = (response['notice'] ?? '').toString();
 
     if (createdAccountId.isEmpty || createdDeviceId.isEmpty || token.isEmpty) {
       throw CloudSyncException('Server returned incomplete register response.');
@@ -256,6 +277,7 @@ class CloudSyncClient {
       accountId: createdAccountId,
       deviceId: createdDeviceId,
       token: token,
+      notice: notice.isEmpty ? null : notice,
     );
   }
 
@@ -425,6 +447,43 @@ class CloudSyncClient {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<CloudAccountStatus> getAccountStatus({
+    required String token,
+  }) async {
+    final response = await _getJsonAuthorized(
+      '/account/status',
+      bearerToken: token,
+    );
+
+    final archived = response['archived'] == true;
+    final lastActiveAt = (response['last_active_at'] is num)
+        ? (response['last_active_at'] as num).toInt()
+        : int.tryParse(response['last_active_at']?.toString() ?? '') ?? 0;
+    final archiveAfterDays = (response['archive_after_days'] is num)
+        ? (response['archive_after_days'] as num).toInt()
+        : int.tryParse(response['archive_after_days']?.toString() ?? '') ?? 0;
+    final warningDaysRaw = response['warning_days'];
+    final warningDays = warningDaysRaw is List
+        ? warningDaysRaw
+            .map((e) => int.tryParse(e.toString()) ?? 0)
+            .where((e) => e > 0)
+            .toList()
+        : const <int>[];
+    final daysUntilArchive = (response['days_until_archive'] is num)
+        ? (response['days_until_archive'] as num).toInt()
+        : int.tryParse(response['days_until_archive']?.toString() ?? '') ?? -1;
+    final warning = response['warning'] == true;
+
+    return CloudAccountStatus(
+      archived: archived,
+      lastActiveAt: lastActiveAt,
+      archiveAfterDays: archiveAfterDays,
+      warningDays: warningDays,
+      daysUntilArchive: daysUntilArchive,
+      warning: warning,
+    );
   }
 
   Future<CloudStatePullResult?> pullLatestState({

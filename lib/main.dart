@@ -412,6 +412,7 @@ class _HomePageState extends State<HomePage> {
   bool _cloudSyncFailed = false;
   int _cloudLastSyncSuccessAt = 0;
   String _cloudSyncLastError = '';
+  int _cloudArchiveLastWarnedDays = -1;
   Timer? _cloudPullTimer;
   bool _cloudSyncBusy = false;
   bool _applyingCloudState = false;
@@ -891,6 +892,31 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _refreshCloudAccountStatus({
+    bool showToastIfWarning = false,
+  }) async {
+    if (!_cloudSyncConfigured) return;
+    try {
+      final client = CloudSyncClient(
+        serverBaseUrl: _cloudServerUrl.trim(),
+      );
+      final status = await client.getAccountStatus(token: _cloudToken.trim());
+      final days = status.daysUntilArchive;
+
+      if (showToastIfWarning && status.warning && days >= 0 &&
+          _cloudArchiveLastWarnedDays != days) {
+        _cloudArchiveLastWarnedDays = days;
+        _showTopToast(
+            'Cloud-Hinweis: Archivierung in $days Tagen ohne Aktivität.');
+      }
+      if (showToastIfWarning && status.archived) {
+        _showTopToast('Cloud-Account ist archiviert.');
+      }
+    } catch (_) {
+      // Optionaler Status-Endpunkt, Fehler hier sollen normalen Sync nicht blockieren.
+    }
+  }
+
   Future<void> _syncPullFromCloud() async {
     if (!_cloudSyncConfigured || _cloudSyncBusy) return;
     _cloudSyncBusy = true;
@@ -902,6 +928,7 @@ class _HomePageState extends State<HomePage> {
         token: _cloudToken.trim(),
         since: _cloudLastSyncModifiedAt,
       );
+      await _refreshCloudAccountStatus(showToastIfWarning: true);
       if (pulledItems.isEmpty) return;
 
       final today = <TaskItem>[];
@@ -4315,6 +4342,9 @@ class _SettingsPageState extends State<SettingsPage> {
   String _cloudStatus = '';
   String _serverVersion = '';
   String _versionWarning = '';
+  String _cloudArchiveInfo = '';
+  bool _cloudArchiveWarning = false;
+  int _cloudArchiveLastWarnedDays = -1;
   bool _cloudBusy = false;
   late int _initialIdleMinutes;
   late int _initialAttentionMinutes;
@@ -4452,6 +4482,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialCloudDeviceName = cloudDeviceName;
     _initialCloudPIN = cloudPIN;
     _fetchServerVersionInSettings();
+    unawaited(_refreshCloudAccountStatus());
   }
 
   Future<void> _fetchServerVersionInSettings() async {
@@ -4471,6 +4502,46 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } catch (_) {
       // Ignore version fetch errors
+    }
+  }
+
+  Future<void> _refreshCloudAccountStatus({
+    bool showToastIfWarning = false,
+  }) async {
+    if (cloudServerUrl.trim().isEmpty || cloudToken.trim().isEmpty) return;
+    try {
+      final client = CloudSyncClient(
+        serverBaseUrl: cloudServerUrl.trim(),
+      );
+      final status = await client.getAccountStatus(token: cloudToken.trim());
+      final days = status.daysUntilArchive;
+      final warningText = status.archived
+          ? 'Cloud-Account wurde archiviert. Bitte neu registrieren oder Admin kontaktieren.'
+          : (status.warning && days >= 0
+              ? 'Warnung: Cloud-Account wird in $days Tagen archiviert, wenn keine Nutzung erfolgt.'
+              : '');
+
+      if (!mounted) return;
+      setState(() {
+        _cloudArchiveWarning = status.warning;
+        _cloudArchiveInfo = warningText;
+      });
+
+      if (showToastIfWarning && status.warning && days >= 0 &&
+          _cloudArchiveLastWarnedDays != days) {
+        _cloudArchiveLastWarnedDays = days;
+        setState(() {
+          _cloudStatus =
+              'Cloud-Hinweis: Archivierung in $days Tagen ohne Aktivitaet.';
+        });
+      }
+      if (showToastIfWarning && status.archived) {
+        setState(() {
+          _cloudStatus = 'Cloud-Account ist archiviert.';
+        });
+      }
+    } catch (_) {
+      // Optional endpoint, ignore temporary failures.
     }
   }
 
@@ -4712,8 +4783,11 @@ class _SettingsPageState extends State<SettingsPage> {
         cloudAccountId = result.accountId;
         cloudDeviceId = result.deviceId;
         cloudToken = result.token;
-        _cloudStatus = 'Erstgerät registriert.';
+        _cloudStatus = result.notice == null || result.notice!.isEmpty
+            ? 'Erstgerät registriert.'
+            : 'Erstgerät registriert. ${result.notice!}';
       });
+      await _refreshCloudAccountStatus(showToastIfWarning: true);
     } catch (e) {
       setState(() {
         _cloudStatus = 'Register fehlgeschlagen: $e';
@@ -4754,6 +4828,7 @@ class _SettingsPageState extends State<SettingsPage> {
         cloudToken = result.token;
         _cloudStatus = 'Gerät erfolgreich angebunden.';
       });
+      await _refreshCloudAccountStatus(showToastIfWarning: true);
     } catch (e) {
       setState(() {
         _cloudStatus = 'Pairing fehlgeschlagen: $e';
@@ -4994,6 +5069,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
+              const Text(
+                'Hinweis: Cloud-Accounts muessen aktiv genutzt werden. Ohne Aktivitaet wird der Account standardmaessig nach 30 Tagen archiviert.',
+                style: TextStyle(fontSize: 11, color: Colors.orangeAccent),
+              ),
+              const SizedBox(height: 8),
               TextField(
                 controller: TextEditingController(text: cloudServerUrl)
                   ..selection = TextSelection.collapsed(
@@ -5154,6 +5234,16 @@ class _SettingsPageState extends State<SettingsPage> {
                 Text(
                   cloudSyncLastError,
                   style: const TextStyle(fontSize: 11, color: Colors.redAccent),
+                ),
+              ],
+              if (_cloudArchiveInfo.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  _cloudArchiveInfo,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _cloudArchiveWarning ? Colors.orangeAccent : Colors.grey,
+                  ),
                 ),
               ],
               if (_versionWarning.isNotEmpty) ...[

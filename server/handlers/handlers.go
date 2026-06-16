@@ -23,6 +23,7 @@ type Server struct {
 	RequireTLS        bool
 	TrustProxyHeaders bool
 	DefaultQuotas     Quotas
+	AccountPolicy     AccountPolicy
 	IPLimiters        *limiterStore
 	AccountLimiters   *limiterStore
 	PairingChallenges map[string]pairingChallenge
@@ -72,6 +73,10 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "pin must be between 4 and 32 characters", http.StatusBadRequest)
 		return
 	}
+	if err := s.checkRegistrationCapacity(); err != nil {
+		http.Error(w, "registration capacity reached", http.StatusForbidden)
+		return
+	}
 	pairingPub, err := base64.StdEncoding.DecodeString(req.PairingPublicKey)
 	if err != nil || len(pairingPub) != ed25519.PublicKeySize {
 		http.Error(w, "invalid pairing_public_key", http.StatusBadRequest)
@@ -81,7 +86,7 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().Unix()
 	pinHash := hashPIN(id, req.PIN)
 	_, err = s.DB.Exec(
-		"INSERT INTO accounts (id, created_at, max_devices, max_items, max_bytes, pairing_public_key, pin_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO accounts (id, created_at, max_devices, max_items, max_bytes, pairing_public_key, pin_hash, last_active_at, archived, archived_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0)",
 		id,
 		now,
 		s.DefaultQuotas.MaxDevices,
@@ -89,6 +94,7 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 		s.DefaultQuotas.MaxBytesPerAccount,
 		req.PairingPublicKey,
 		pinHash,
+		now,
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -112,7 +118,13 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "token issue failed", http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, map[string]string{"account_id": id, "device_id": deviceID, "token": token})
+	s.maybeSendCapacityAlerts()
+	writeJSON(w, map[string]string{
+		"account_id": id,
+		"device_id":  deviceID,
+		"token":      token,
+		"notice":     s.registrationNotice(),
+	})
 }
 
 func (s *Server) PairChallenge(w http.ResponseWriter, r *http.Request) {
@@ -129,7 +141,7 @@ func (s *Server) PairChallenge(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var exists int
-	err := s.DB.QueryRow("SELECT COUNT(*) FROM accounts WHERE id = ?", req.AccountID).Scan(&exists)
+	err := s.DB.QueryRow("SELECT COUNT(*) FROM accounts WHERE id = ? AND archived = 0", req.AccountID).Scan(&exists)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -182,13 +194,18 @@ func (s *Server) Pair(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var pairingPubB64, pinHash string
-	err := s.DB.QueryRow("SELECT pairing_public_key, pin_hash FROM accounts WHERE id = ?", req.AccountID).Scan(&pairingPubB64, &pinHash)
+	var archived int
+	err := s.DB.QueryRow("SELECT pairing_public_key, pin_hash, archived FROM accounts WHERE id = ?", req.AccountID).Scan(&pairingPubB64, &pinHash, &archived)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "unknown account", http.StatusNotFound)
 			return
 		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if archived != 0 {
+		http.Error(w, "account archived", http.StatusForbidden)
 		return
 	}
 
@@ -255,6 +272,7 @@ func (s *Server) Pair(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "token issue failed", http.StatusInternalServerError)
 		return
 	}
+	s.touchAccountActivity(req.AccountID)
 	writeJSON(w, map[string]string{"device_id": id, "token": token})
 }
 
@@ -290,6 +308,7 @@ func (s *Server) Pull(w http.ResponseWriter, r *http.Request) {
 		json.Unmarshal([]byte(payload), &payloadObj)
 		out = append(out, map[string]interface{}{"id": id, "payload": payloadObj, "modified_at": modified, "tombstone": tomb, "origin_device_id": origin, "version": version})
 	}
+	s.touchAccountActivity(auth.AccountID)
 	writeJSON(w, map[string]interface{}{"items": out})
 }
 
@@ -354,7 +373,26 @@ func (s *Server) Push(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.touchAccountActivity(auth.AccountID)
 	writeJSON(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) AccountStatus(w http.ResponseWriter, r *http.Request) {
+	auth, ok := authFromContext(r.Context())
+	if !ok {
+		http.Error(w, "missing auth context", http.StatusUnauthorized)
+		return
+	}
+	status, err := s.accountStatus(auth.AccountID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "unknown account", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, status)
 }
 
 func (s *Server) RevokeDevice(w http.ResponseWriter, r *http.Request) {

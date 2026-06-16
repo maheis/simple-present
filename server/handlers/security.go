@@ -123,17 +123,22 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 
 		var revoked int
 		var tokenVersion int
+		var archived int
 		err = s.DB.QueryRow(
-			"SELECT revoked, token_version FROM devices WHERE id = ? AND account_id = ?",
+			"SELECT d.revoked, d.token_version, a.archived FROM devices d JOIN accounts a ON a.id = d.account_id WHERE d.id = ? AND d.account_id = ?",
 			claims.DeviceID,
 			claims.AccountID,
-		).Scan(&revoked, &tokenVersion)
+		).Scan(&revoked, &tokenVersion, &archived)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "unknown device", http.StatusUnauthorized)
 				return
 			}
 			http.Error(w, "auth lookup failed", http.StatusInternalServerError)
+			return
+		}
+		if archived != 0 {
+			http.Error(w, "account archived", http.StatusForbidden)
 			return
 		}
 		if revoked != 0 || tokenVersion != claims.TokenVersion {

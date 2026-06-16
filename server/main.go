@@ -27,7 +27,21 @@ type Config struct {
 		RequireTLS        bool   `json:"require_tls"`
 		TrustProxyHeaders bool   `json:"trust_proxy_headers"`
 		JWTSecret         string `json:"jwt_secret"`
-		RateLimit         struct {
+		AccountPolicy     struct {
+			MaxAccounts          int    `json:"max_accounts"`
+			AdminEmail           string `json:"admin_email"`
+			ArchiveAfterDays     int    `json:"archive_after_days"`
+			WarningDays          []int  `json:"warning_days"`
+			SweepIntervalMinutes int    `json:"sweep_interval_minutes"`
+			SMTP                 struct {
+				Host     string `json:"host"`
+				Port     int    `json:"port"`
+				Username string `json:"username"`
+				Password string `json:"password"`
+				From     string `json:"from"`
+			} `json:"smtp"`
+		} `json:"account_policy"`
+		RateLimit struct {
 			RequestsPerMinute int `json:"requests_per_minute"`
 			Burst             int `json:"burst"`
 		} `json:"rate_limit"`
@@ -70,6 +84,15 @@ func loadConfig(path string) (*Config, error) {
 	if c.Security.Quotas.MaxBytesPerAccount == 0 {
 		c.Security.Quotas.MaxBytesPerAccount = 10 * 1024 * 1024
 	}
+	if c.Security.AccountPolicy.ArchiveAfterDays == 0 {
+		c.Security.AccountPolicy.ArchiveAfterDays = 30
+	}
+	if len(c.Security.AccountPolicy.WarningDays) == 0 {
+		c.Security.AccountPolicy.WarningDays = []int{14, 7}
+	}
+	if c.Security.AccountPolicy.SweepIntervalMinutes == 0 {
+		c.Security.AccountPolicy.SweepIntervalMinutes = 60
+	}
 	if !c.TLS.Enabled && c.Security.RequireTLS == false {
 		// explicit insecure local mode remains possible
 	} else if !c.TLS.Enabled && c.Security.RequireTLS == false {
@@ -99,6 +122,20 @@ func main() {
 		JWTSecret:         []byte(cfg.Security.JWTSecret),
 		RequireTLS:        cfg.Security.RequireTLS,
 		TrustProxyHeaders: cfg.Security.TrustProxyHeaders,
+		AccountPolicy: handlers.AccountPolicy{
+			MaxAccounts:          cfg.Security.AccountPolicy.MaxAccounts,
+			AdminEmail:           cfg.Security.AccountPolicy.AdminEmail,
+			ArchiveAfterDays:     cfg.Security.AccountPolicy.ArchiveAfterDays,
+			WarningDays:          handlers.NormalizeWarningDays(cfg.Security.AccountPolicy.WarningDays),
+			SweepIntervalMinutes: cfg.Security.AccountPolicy.SweepIntervalMinutes,
+			SMTP: handlers.SMTPConfig{
+				Host:     cfg.Security.AccountPolicy.SMTP.Host,
+				Port:     cfg.Security.AccountPolicy.SMTP.Port,
+				Username: cfg.Security.AccountPolicy.SMTP.Username,
+				Password: cfg.Security.AccountPolicy.SMTP.Password,
+				From:     cfg.Security.AccountPolicy.SMTP.From,
+			},
+		},
 		DefaultQuotas: handlers.Quotas{
 			MaxDevices:         cfg.Security.Quotas.MaxDevices,
 			MaxItems:           cfg.Security.Quotas.MaxItems,
@@ -114,6 +151,7 @@ func main() {
 	r.Handle("/pair", srv.SecureOnly(srv.RateLimitByIP(http.HandlerFunc(srv.Pair)))).Methods("POST")
 	r.Handle("/push", srv.SecureOnly(srv.RateLimitByIP(srv.AuthMiddleware(http.HandlerFunc(srv.Push))))).Methods("POST")
 	r.Handle("/pull", srv.SecureOnly(srv.RateLimitByIP(srv.AuthMiddleware(http.HandlerFunc(srv.Pull))))).Methods("GET")
+	r.Handle("/account/status", srv.SecureOnly(srv.RateLimitByIP(srv.AuthMiddleware(http.HandlerFunc(srv.AccountStatus))))).Methods("GET")
 	r.Handle("/devices/{id}/revoke", srv.SecureOnly(srv.RateLimitByIP(srv.AuthMiddleware(http.HandlerFunc(srv.RevokeDevice))))).Methods("POST")
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -121,6 +159,7 @@ func main() {
 	}).Methods("GET")
 
 	addr := cfg.Bind
+	srv.StartMaintenanceLoop()
 	fmt.Printf("listening on %s\n", addr)
 	if cfg.TLS.Enabled {
 		log.Fatal(http.ListenAndServeTLS(addr, cfg.TLS.CertFile, cfg.TLS.KeyFile, r))
