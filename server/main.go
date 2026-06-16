@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/simplepresent/server/handlers"
@@ -54,6 +56,51 @@ type Config struct {
 }
 
 func loadConfig(path string) (*Config, error) {
+	readEnvString := func(key, current string) string {
+		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+			return v
+		}
+		return current
+	}
+	readEnvInt := func(key string, current int) int {
+		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+			if parsed, err := strconv.Atoi(v); err == nil {
+				return parsed
+			}
+		}
+		return current
+	}
+	readEnvInt64 := func(key string, current int64) int64 {
+		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+			if parsed, err := strconv.ParseInt(v, 10, 64); err == nil {
+				return parsed
+			}
+		}
+		return current
+	}
+	readEnvIntList := func(key string, fallback []int) []int {
+		raw := strings.TrimSpace(os.Getenv(key))
+		if raw == "" {
+			return fallback
+		}
+		parts := strings.Split(raw, ",")
+		out := make([]int, 0, len(parts))
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			v, err := strconv.Atoi(p)
+			if err == nil {
+				out = append(out, v)
+			}
+		}
+		if len(out) == 0 {
+			return fallback
+		}
+		return out
+	}
+
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -69,30 +116,91 @@ func loadConfig(path string) (*Config, error) {
 	if c.Security.JWTSecret == "" {
 		c.Security.JWTSecret = os.Getenv("SIMPLEPRESENT_JWT_SECRET")
 	}
+	c.Security.JWTSecret = readEnvString("SIMPLEPRESENT_JWT_SECRET", c.Security.JWTSecret)
 	if c.Security.RateLimit.RequestsPerMinute == 0 {
 		c.Security.RateLimit.RequestsPerMinute = 60
 	}
+	c.Security.RateLimit.RequestsPerMinute = readEnvInt(
+		"SIMPLEPRESENT_RATE_LIMIT_RPM",
+		c.Security.RateLimit.RequestsPerMinute,
+	)
 	if c.Security.RateLimit.Burst == 0 {
 		c.Security.RateLimit.Burst = 20
 	}
+	c.Security.RateLimit.Burst = readEnvInt(
+		"SIMPLEPRESENT_RATE_LIMIT_BURST",
+		c.Security.RateLimit.Burst,
+	)
 	if c.Security.Quotas.MaxDevices == 0 {
 		c.Security.Quotas.MaxDevices = 5
 	}
+	c.Security.Quotas.MaxDevices = readEnvInt(
+		"SIMPLEPRESENT_QUOTA_MAX_DEVICES",
+		c.Security.Quotas.MaxDevices,
+	)
 	if c.Security.Quotas.MaxItems == 0 {
 		c.Security.Quotas.MaxItems = 10000
 	}
+	c.Security.Quotas.MaxItems = readEnvInt(
+		"SIMPLEPRESENT_QUOTA_MAX_ITEMS",
+		c.Security.Quotas.MaxItems,
+	)
 	if c.Security.Quotas.MaxBytesPerAccount == 0 {
 		c.Security.Quotas.MaxBytesPerAccount = 10 * 1024 * 1024
 	}
+	c.Security.Quotas.MaxBytesPerAccount = readEnvInt64(
+		"SIMPLEPRESENT_QUOTA_MAX_BYTES",
+		c.Security.Quotas.MaxBytesPerAccount,
+	)
 	if c.Security.AccountPolicy.ArchiveAfterDays == 0 {
 		c.Security.AccountPolicy.ArchiveAfterDays = 30
 	}
+	c.Security.AccountPolicy.ArchiveAfterDays = readEnvInt(
+		"SIMPLEPRESENT_ARCHIVE_AFTER_DAYS",
+		c.Security.AccountPolicy.ArchiveAfterDays,
+	)
 	if len(c.Security.AccountPolicy.WarningDays) == 0 {
 		c.Security.AccountPolicy.WarningDays = []int{14, 7}
 	}
+	c.Security.AccountPolicy.WarningDays = readEnvIntList(
+		"SIMPLEPRESENT_ARCHIVE_WARNING_DAYS",
+		c.Security.AccountPolicy.WarningDays,
+	)
 	if c.Security.AccountPolicy.SweepIntervalMinutes == 0 {
 		c.Security.AccountPolicy.SweepIntervalMinutes = 60
 	}
+	c.Security.AccountPolicy.SweepIntervalMinutes = readEnvInt(
+		"SIMPLEPRESENT_SWEEP_INTERVAL_MINUTES",
+		c.Security.AccountPolicy.SweepIntervalMinutes,
+	)
+	c.Security.AccountPolicy.MaxAccounts = readEnvInt(
+		"SIMPLEPRESENT_MAX_ACCOUNTS",
+		c.Security.AccountPolicy.MaxAccounts,
+	)
+	c.Security.AccountPolicy.AdminEmail = readEnvString(
+		"SIMPLEPRESENT_ADMIN_EMAIL",
+		c.Security.AccountPolicy.AdminEmail,
+	)
+	c.Security.AccountPolicy.SMTP.Host = readEnvString(
+		"SIMPLEPRESENT_SMTP_HOST",
+		c.Security.AccountPolicy.SMTP.Host,
+	)
+	c.Security.AccountPolicy.SMTP.Port = readEnvInt(
+		"SIMPLEPRESENT_SMTP_PORT",
+		c.Security.AccountPolicy.SMTP.Port,
+	)
+	c.Security.AccountPolicy.SMTP.Username = readEnvString(
+		"SIMPLEPRESENT_SMTP_USERNAME",
+		c.Security.AccountPolicy.SMTP.Username,
+	)
+	c.Security.AccountPolicy.SMTP.Password = readEnvString(
+		"SIMPLEPRESENT_SMTP_PASSWORD",
+		c.Security.AccountPolicy.SMTP.Password,
+	)
+	c.Security.AccountPolicy.SMTP.From = readEnvString(
+		"SIMPLEPRESENT_SMTP_FROM",
+		c.Security.AccountPolicy.SMTP.From,
+	)
 	if !c.TLS.Enabled && c.Security.RequireTLS == false {
 		// explicit insecure local mode remains possible
 	} else if !c.TLS.Enabled && c.Security.RequireTLS == false {

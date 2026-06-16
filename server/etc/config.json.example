@@ -10,6 +10,23 @@
     "require_tls": true,
     "trust_proxy_headers": true,
     "jwt_secret": "change-me-in-production",
+    "account_policy": {
+      "max_accounts": 200,
+      "admin_email": "admin@example.com",
+      "archive_after_days": 30,
+      "warning_days": [
+        14,
+        7
+      ],
+      "sweep_interval_minutes": 60,
+      "smtp": {
+        "host": "smtp.example.com",
+        "port": 587,
+        "username": "simplepresent@example.com",
+        "password": "change-me",
+        "from": "simplepresent@example.com"
+      }
+    },
     "rate_limit": {
       "requests_per_minute": 60,
       "burst": 20

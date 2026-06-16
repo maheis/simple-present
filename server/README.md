@@ -60,4 +60,29 @@ Example `config.json` for this setup:
 }
 ```
 
+## Account policy and admin alerts
+
+`security.account_policy` controls registration capacity, inactivity archive policy,
+and alert mails:
+
+- `max_accounts`: maximum number of active (not archived) accounts
+- `admin_email`: recipient for capacity alerts (75/90/100%)
+- `archive_after_days`: archive account after this many inactive days
+- `warning_days`: app warning thresholds (default 14/7)
+- `sweep_interval_minutes`: archive sweep interval
+- `smtp`: SMTP settings used for admin mails
+
+Environment variables can override these values at runtime:
+
+- `SIMPLEPRESENT_MAX_ACCOUNTS`
+- `SIMPLEPRESENT_ADMIN_EMAIL`
+- `SIMPLEPRESENT_ARCHIVE_AFTER_DAYS`
+- `SIMPLEPRESENT_ARCHIVE_WARNING_DAYS` (comma separated, e.g. `14,7`)
+- `SIMPLEPRESENT_SWEEP_INTERVAL_MINUTES`
+- `SIMPLEPRESENT_SMTP_HOST`
+- `SIMPLEPRESENT_SMTP_PORT`
+- `SIMPLEPRESENT_SMTP_USERNAME`
+- `SIMPLEPRESENT_SMTP_PASSWORD`
+- `SIMPLEPRESENT_SMTP_FROM`
+
 Quick start:
