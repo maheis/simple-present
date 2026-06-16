@@ -410,6 +410,8 @@ class _HomePageState extends State<HomePage> {
   String _serverVersion = '';
   bool _versionWarningShown = false;
   bool _cloudSyncFailed = false;
+  int _cloudLastSyncSuccessAt = 0;
+  String _cloudSyncLastError = '';
   Timer? _cloudPullTimer;
   bool _cloudSyncBusy = false;
   bool _applyingCloudState = false;
@@ -790,6 +792,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _onCloudSyncSuccess() {
+    _cloudLastSyncSuccessAt = DateTime.now().millisecondsSinceEpoch;
+    _cloudSyncLastError = '';
     if (_cloudSyncFailed && mounted) {
       _cloudSyncFailed = false;
       _showTopToast('☁ Sync wiederhergestellt.');
@@ -797,18 +801,54 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _onCloudSyncError(Object e) {
+    final msg = e.toString();
+    final short = msg.contains('SocketException') || msg.contains('Connection refused') || msg.contains('Failed host lookup')
+        ? 'Server nicht erreichbar.'
+        : msg.contains('401') || msg.contains('403')
+            ? 'Sync: Authentifizierung fehlgeschlagen.'
+            : msg.contains('Server error')
+                ? 'Sync: Server-Fehler.'
+                : 'Sync fehlgeschlagen.';
+    _cloudSyncLastError = short;
     if (!_cloudSyncFailed && mounted) {
       _cloudSyncFailed = true;
-      final msg = e.toString();
-      final short = msg.contains('SocketException') || msg.contains('Connection refused') || msg.contains('Failed host lookup')
-          ? 'Server nicht erreichbar.'
-          : msg.contains('401') || msg.contains('403')
-              ? 'Sync: Authentifizierung fehlgeschlagen.'
-              : msg.contains('Server error')
-                  ? 'Sync: Server-Fehler.'
-                  : 'Sync fehlgeschlagen.';
       _showTopToast('☁ $short');
     }
+  }
+
+  String _cloudSyncStatusTooltip() {
+    if (!_cloudSyncConfigured) {
+      return 'Cloud-Sync nicht konfiguriert.';
+    }
+    if (_cloudSyncBusy) {
+      return 'Synchronisierung läuft...';
+    }
+    final lastSuccess = _cloudLastSyncSuccessAt > 0
+        ? DateFormat('yyyy-MM-dd HH:mm:ss').format(
+            DateTime.fromMillisecondsSinceEpoch(_cloudLastSyncSuccessAt),
+          )
+        : null;
+    if (_cloudSyncFailed) {
+      final reason = _cloudSyncLastError.isNotEmpty
+          ? _cloudSyncLastError
+          : 'Unbekannter Fehler';
+      if (lastSuccess != null) {
+        return 'Synchronisierung fehlgeschlagen\n$reason\nZuletzt erfolgreich: $lastSuccess';
+      }
+      return 'Synchronisierung fehlgeschlagen\n$reason';
+    }
+    if (lastSuccess != null) {
+      return 'Synchronisierung ok\nZuletzt synchronisiert: $lastSuccess';
+    }
+    return 'Noch nicht synchronisiert.';
+  }
+
+  Color _cloudSyncStatusColor(ColorScheme scheme) {
+    if (!_cloudSyncConfigured) return scheme.outline;
+    if (_cloudSyncBusy) return Colors.amberAccent;
+    if (_cloudSyncFailed) return Colors.redAccent;
+    if (_cloudLastSyncSuccessAt > 0) return Colors.lightGreenAccent;
+    return scheme.outline;
   }
 
   Future<void> _fetchServerVersion() async {
@@ -1128,6 +1168,15 @@ class _HomePageState extends State<HomePage> {
         if (cloudModifiedAt is num) {
           _cloudLastSyncModifiedAt = cloudModifiedAt.toInt();
         }
+        final cloudLastSuccessAt = data['cloudLastSyncSuccessAt'];
+        if (cloudLastSuccessAt is num) {
+          _cloudLastSyncSuccessAt = cloudLastSuccessAt.toInt();
+        }
+        _cloudSyncFailed = readBool('cloudSyncFailed', _cloudSyncFailed);
+        final cloudSyncLastError = data['cloudSyncLastError'];
+        if (cloudSyncLastError is String) {
+          _cloudSyncLastError = cloudSyncLastError;
+        }
         final knownToday = data['cloudKnownTodayIds'];
         if (knownToday is List) {
           _cloudKnownTodayIds = knownToday.map((e) => e.toString()).toSet();
@@ -1281,6 +1330,9 @@ class _HomePageState extends State<HomePage> {
         'cloudPIN': _cloudPIN,
         'cloudStateVersion': _cloudStateVersion,
         'cloudLastSyncModifiedAt': _cloudLastSyncModifiedAt,
+        'cloudLastSyncSuccessAt': _cloudLastSyncSuccessAt,
+        'cloudSyncFailed': _cloudSyncFailed,
+        'cloudSyncLastError': _cloudSyncLastError,
         'cloudKnownTodayIds': _cloudKnownTodayIds.toList(),
         'cloudKnownBacklogIds': _cloudKnownBacklogIds.toList(),
         'cloudKnownDoneIds': _cloudKnownDoneIds.toList(),
@@ -1754,6 +1806,9 @@ class _HomePageState extends State<HomePage> {
             'cloudWordPhrase': _cloudWordPhrase,
             'cloudDeviceName': _cloudDeviceName,
             'cloudPIN': _cloudPIN,
+            'cloudLastSyncSuccessAt': _cloudLastSyncSuccessAt,
+            'cloudSyncFailed': _cloudSyncFailed,
+            'cloudSyncLastError': _cloudSyncLastError,
             'scheduledReminderSoundEnabled': _scheduledReminderSoundEnabled,
           },
         ),
@@ -4019,11 +4074,29 @@ class _HomePageState extends State<HomePage> {
                                         ),
                                       ),
                                       const SizedBox(width: 8),
-                                      ElevatedButton(
-                                        onPressed: _showingDone
-                                            ? null
-                                            : () => _addToToday(_controller.text),
-                                        child: const Icon(Icons.add),
+                                      Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          ElevatedButton(
+                                            onPressed: _showingDone
+                                                ? null
+                                                : () => _addToToday(_controller.text),
+                                            child: const Icon(Icons.add),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Tooltip(
+                                            message: _cloudSyncStatusTooltip(),
+                                            child: Container(
+                                              width: 10,
+                                              height: 10,
+                                              decoration: BoxDecoration(
+                                                color: _cloudSyncStatusColor(
+                                                    Theme.of(context).colorScheme),
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -4188,6 +4261,9 @@ class _SettingsPageState extends State<SettingsPage> {
   late String cloudWordPhrase;
   late String cloudDeviceName;
   late String cloudPIN;
+  late int cloudLastSyncSuccessAt;
+  late bool cloudSyncFailed;
+  late String cloudSyncLastError;
   String _cloudStatus = '';
   String _serverVersion = '';
   String _versionWarning = '';
@@ -4291,6 +4367,9 @@ class _SettingsPageState extends State<SettingsPage> {
     cloudWordPhrase = readString('cloudWordPhrase', '');
     cloudDeviceName = readString('cloudDeviceName', Platform.localHostname);
     cloudPIN = readString('cloudPIN', '');
+    cloudLastSyncSuccessAt = readInt('cloudLastSyncSuccessAt', 0);
+    cloudSyncFailed = readBool('cloudSyncFailed', false);
+    cloudSyncLastError = readString('cloudSyncLastError', '');
     // Save initial values to detect changes
     _initialIdleMinutes = idleMinutes;
     _initialAttentionMinutes = attentionMinutes;
@@ -5003,6 +5082,32 @@ class _SettingsPageState extends State<SettingsPage> {
                   color: _versionWarning.isEmpty ? Colors.grey : Colors.orangeAccent,
                 ),
               ),
+              const SizedBox(height: 4),
+              Text(
+                cloudSyncFailed
+                    ? 'Sync-Status: fehlgeschlagen'
+                    : (cloudLastSyncSuccessAt > 0
+                        ? 'Sync-Status: ok'
+                        : 'Sync-Status: noch nicht synchronisiert'),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: cloudSyncFailed ? Colors.redAccent : Colors.grey,
+                ),
+              ),
+              if (cloudLastSyncSuccessAt > 0) ...[
+                const SizedBox(height: 2),
+                Text(
+                  'Zuletzt synchronisiert: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.fromMillisecondsSinceEpoch(cloudLastSyncSuccessAt))}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ],
+              if (cloudSyncFailed && cloudSyncLastError.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  cloudSyncLastError,
+                  style: const TextStyle(fontSize: 11, color: Colors.redAccent),
+                ),
+              ],
               if (_versionWarning.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(
