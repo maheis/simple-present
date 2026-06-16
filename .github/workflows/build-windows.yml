@@ -26,6 +26,8 @@ jobs:
               shell: pwsh
               run: |
                   New-Item -ItemType Directory -Force -Path release_dist | Out-Null
+                  $stageDir = "release_dist\simplepresent-windows"
+                  New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
                   Write-Host "Listing build directories for diagnostics"
                   Get-ChildItem -Force build -ErrorAction SilentlyContinue | Select-Object -First 50
                   $found = Get-ChildItem -Path build/windows -Directory -Recurse -ErrorAction SilentlyContinue |
@@ -33,7 +35,17 @@ jobs:
                   if ($found) {
                       $src = $found.FullName
                       Write-Host "Found runner release dir: $src"
-                      Compress-Archive -Path "$src\*" -DestinationPath "release_dist\simplepresent-windows.zip" -Force
+                      Copy-Item -Path "$src\*" -Destination $stageDir -Recurse -Force
+
+                      foreach ($doc in @("LICENSE", "README.md", "THIRD_PARTY_LICENSES.md")) {
+                          if (Test-Path $doc) {
+                              Copy-Item -Path $doc -Destination "$stageDir\$doc" -Force
+                          } else {
+                              Write-Host "WARNING: $doc not found, skipping"
+                          }
+                      }
+
+                      Compress-Archive -Path "$stageDir\*" -DestinationPath "release_dist\simplepresent-windows.zip" -Force
                   } else {
                       Write-Host "ERROR: build output not found: expected build/windows/**/runner/Release"
                       Get-ChildItem -Path build -Recurse -Force -ErrorAction SilentlyContinue | Select-Object -First 200

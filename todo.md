@@ -139,11 +139,12 @@
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [ ] buttons in burgermenü wenn platz zu klein wird
 - [ ] speichern übernimmt schonmal texte von anderen aufgaben?
-- [ ] web applikation
-- [ ] miniaturansicht soll je nach lage auf dem bildschirm nach unten oder oben expandieren (und minbandieren). bei der breite das gleiche.
-- [ ] ankleben klappt in windows nicht, bzw. fenster springt.
-- [x] erinnerungssound optional machen
-- [ ] work in progress soll bei fertigen aufgaben die aufgabe wieder in arbeit setzten und done = false
+- [ ] Web Applikation
+- [ ] Miniaturansicht soll je nach Lage auf dem Bildschirm nach unten oder oben expandieren (und minbandieren). Bei der Breite das gleiche.
+- [ ] Ankleben klappt in Windows nicht, bzw. Fenster springt.
+- [x] Erinnerungssound optional machen
+- [x] Work in progress soll bei fertigen Aufgaben die Aufgabe wieder in Arbeit setzen und done = false
+- [ ] Zeiterfassung soll Persistiert werden und in der Statistik angezeigt werden (Auf nicht abgeschlossene Aufgaben sollen in der Statistik auftauchen)
 
 ## notes
 
