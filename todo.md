@@ -117,7 +117,7 @@
 - [ ] Reihenfolge auch über andere gruppen hinaus und dann optisch einsortieren
 - [ ] Cloud-Synchronisation: Möglichkeit, Aufgaben über mehrere Geräte hinweg zu synchronisieren
   - [x] eigener api-server (optional hinter Apache Proxy) (linux only applikation in go?)
-  - [x] registrierung soll automatisch und anonym erfolgen, man kann als server "maheis.de" auswählen oder eigene serveradresse eingeben (selfhosted)
+  - [x] regerngistrierung soll automatisch und anonym erfolgen, man kann als server "maheis.de" auswählen oder eigene serveradresse eingeben (selfhosted)
   - [ ] server registrierung serverseitig beschränkt auf x user (mail an den admin bei erreichen von 75%, 90% und 100% der Kapazität)
   - [ ] wenn konto nicht länger als 30(konfigurierbar) tage nicht genutzt wird, soll der account archiviert werden und ein neuer platz frei werden 
   - [ ] warnung 14/7 tage vor archivierung an den anwender (in app) und info bei registrierung das der account aktiv zu nutzen ist und nach 30 tagen nicht nutztung archiviert wird
@@ -142,6 +142,7 @@
 - [ ] web applikation
 - [ ] miniaturansicht soll je nach lage auf dem bildschirm nach unten oder oben expandieren (und minbandieren). bei der breite das gleiche.
 - [ ] ankleben klappt in windows nicht, bzw. fenster springt.
+- [ ] erinnerungssound optional machen
 
 ## notes
 

@@ -347,6 +347,8 @@ class _HomePageState extends State<HomePage> {
   bool _reminderSoundEnabled = true;
   bool _reminderNotifyEnabled = true;
   bool _idleFlashEnabled = false;
+  // play sound for scheduled task reminders (15min / due)
+  bool _scheduledReminderSoundEnabled = true;
   bool _idleNotifyEnabled = false;
   bool _idleBringToFrontEnabled = false;
   bool _attentionNotifyEnabled = false;
@@ -1048,6 +1050,7 @@ class _HomePageState extends State<HomePage> {
             readBool('reminderFlashEnabled', _reminderFlashEnabled);
         _reminderBringToFrontEnabled = readBool(
             'reminderBringToFrontEnabled', _reminderBringToFrontEnabled);
+        _scheduledReminderSoundEnabled = readBool('scheduledReminderSoundEnabled', _scheduledReminderSoundEnabled);
         _urgentSoundEnabled =
             readBool('urgentSoundEnabled', _urgentSoundEnabled);
         _urgentNotifyEnabled =
@@ -1256,6 +1259,7 @@ class _HomePageState extends State<HomePage> {
         'cloudKnownTodayIds': _cloudKnownTodayIds.toList(),
         'cloudKnownBacklogIds': _cloudKnownBacklogIds.toList(),
         'cloudKnownDoneIds': _cloudKnownDoneIds.toList(),
+        'scheduledReminderSoundEnabled': _scheduledReminderSoundEnabled,
       };
 
       // Preserve lastRunDate if present in existing settings so daily-reset runs only once per day
@@ -1450,7 +1454,9 @@ class _HomePageState extends State<HomePage> {
             !_notified15.contains(key)) {
           _notified15.add(key);
           try {
-            await _audioPlayer.play(AssetSource('sounds/pop.mp3'));
+            if (_scheduledReminderSoundEnabled) {
+              await _audioPlayer.play(AssetSource('sounds/pop.mp3'));
+            }
           } catch (_) {}
           try {
             await _nativeWindowChannel.invokeMethod('notify', <String, String>{
@@ -1468,7 +1474,9 @@ class _HomePageState extends State<HomePage> {
         if (diff.inSeconds <= 0 && !_notifiedDue.contains(key)) {
           _notifiedDue.add(key);
           try {
-            await _audioPlayer.play(AssetSource('sounds/pop.mp3'));
+            if (_scheduledReminderSoundEnabled) {
+              await _audioPlayer.play(AssetSource('sounds/pop.mp3'));
+            }
           } catch (_) {}
           try {
             await _nativeWindowChannel.invokeMethod('notify', <String, String>{
@@ -1721,6 +1729,7 @@ class _HomePageState extends State<HomePage> {
             'cloudWordPhrase': _cloudWordPhrase,
             'cloudDeviceName': _cloudDeviceName,
             'cloudPIN': _cloudPIN,
+            'scheduledReminderSoundEnabled': _scheduledReminderSoundEnabled,
           },
         ),
       ),
@@ -1760,6 +1769,7 @@ class _HomePageState extends State<HomePage> {
       _reminderFlashEnabled = result['reminderFlashEnabled'] == true;
       _reminderBringToFrontEnabled =
           result['reminderBringToFrontEnabled'] == true;
+        _scheduledReminderSoundEnabled = result['scheduledReminderSoundEnabled'] == true;
       _urgentSoundEnabled = result['urgentSoundEnabled'] == true;
       _urgentFlashEnabled = result['urgentFlashEnabled'] == true;
       _urgentNotifyEnabled = result['urgentNotifyEnabled'] == true;
@@ -4114,6 +4124,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool urgentBringToFrontEnabled;
   late bool swipeEnabled;
   late bool magnetEnabled;
+  late bool scheduledReminderSoundEnabled;
   late double textScaleFactor;
   late String fontFamily;
   late String cloudServerUrl;
@@ -4149,6 +4160,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool _initialUrgentBringToFrontEnabled;
   late bool _initialSwipeEnabled;
   late bool _initialMagnetEnabled;
+  late bool _initialScheduledReminderSoundEnabled;
   late double _initialTextScaleFactor;
   late String _initialFontFamily;
   late String _initialCloudServerUrl;
@@ -4215,6 +4227,7 @@ class _SettingsPageState extends State<SettingsPage> {
     urgentFlashEnabled = readBool('urgentFlashEnabled', false);
     swipeEnabled = readBool('swipeEnabled', true);
     magnetEnabled = readBool('magnetEnabled', false);
+    scheduledReminderSoundEnabled = readBool('scheduledReminderSoundEnabled', true);
     textScaleFactor = readDouble('uiTextScaleFactor', 1.0).clamp(0.5, 1.6);
     fontFamily = readString('fontFamily', 'OpenDyslexic');
     cloudServerUrl = readString('cloudServerUrl', '');
@@ -4247,6 +4260,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialUrgentBringToFrontEnabled = urgentBringToFrontEnabled;
     _initialSwipeEnabled = swipeEnabled;
     _initialMagnetEnabled = magnetEnabled;
+    _initialScheduledReminderSoundEnabled = scheduledReminderSoundEnabled;
     _initialTextScaleFactor = textScaleFactor;
     _initialFontFamily = fontFamily;
     _initialCloudServerUrl = cloudServerUrl;
@@ -4321,6 +4335,7 @@ class _SettingsPageState extends State<SettingsPage> {
         reminderFlashEnabled != _initialReminderFlashEnabled ||
         reminderBringToFrontEnabled != _initialReminderBringToFrontEnabled ||
         urgentSoundEnabled != _initialUrgentSoundEnabled ||
+        scheduledReminderSoundEnabled != _initialScheduledReminderSoundEnabled ||
         urgentFlashEnabled != _initialUrgentFlashEnabled ||
         urgentNotifyEnabled != _initialUrgentNotifyEnabled ||
         urgentBringToFrontEnabled != _initialUrgentBringToFrontEnabled ||
@@ -4624,7 +4639,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     'urgentNotifyEnabled': urgentNotifyEnabled,
                     'urgentBringToFrontEnabled': urgentBringToFrontEnabled,
                     'swipeEnabled': swipeEnabled,
-                    'magnetEnabled': magnetEnabled,
+                                'magnetEnabled': magnetEnabled,
+                                'scheduledReminderSoundEnabled': scheduledReminderSoundEnabled,
                     'uiTextScaleFactor': textScaleFactor,
                     'fontFamily': fontFamily,
                     'cloudServerUrl': cloudServerUrl,
@@ -4780,6 +4796,14 @@ class _SettingsPageState extends State<SettingsPage> {
                 subtitle: const Text(
                     'when enabled, window will snap when within ~37px of an edge'),
                 onChanged: (v) => setState(() => magnetEnabled = v),
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                value: scheduledReminderSoundEnabled,
+                title: const Text('play sound for scheduled reminders'),
+                subtitle: const Text(
+                    'play a sound for scheduled task reminders (15min and due)'),
+                onChanged: (v) => setState(() => scheduledReminderSoundEnabled = v),
               ),
               const SizedBox(height: 8),
               const Divider(),
