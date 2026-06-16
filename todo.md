@@ -144,7 +144,7 @@
 - [x] Ankleben klappt in Windows nicht, bzw. Fenster springt.
 - [x] Erinnerungssound optional machen
 - [x] Work in progress soll bei fertigen Aufgaben die Aufgabe wieder in Arbeit setzen und done = false
-- [ ] Zeiterfassung soll Persistiert werden und in der Statistik angezeigt werden (Auf nicht abgeschlossene Aufgaben sollen in der Statistik auftauchen)
+- [x] Zeiterfassung soll Persistiert werden und in der Statistik angezeigt werden (Auf nicht abgeschlossene Aufgaben sollen in der Statistik auftauchen)
 
 ## notes
 

@@ -20,6 +20,7 @@ class SqliteStorage {
 
     _db = sqlite3.open(_dbPath);
     _createTablesIfNeeded();
+    _ensureTimeEntryColumns();
 
     if (!existed) {
       // First start with DB: migrate JSON files from disk.
@@ -58,6 +59,30 @@ class SqliteStorage {
 
     _db!.execute(
       'CREATE INDEX IF NOT EXISTS idx_tasks_list_order ON tasks(list_name, sort_order);',
+    );
+
+    // Dedicated time tracking table — survives task moves between lists.
+    _db!.execute('''
+      CREATE TABLE IF NOT EXISTS time_entries (
+        task_id   TEXT NOT NULL,
+        date      TEXT NOT NULL,
+        task_text TEXT NOT NULL DEFAULT '',
+        task_done INTEGER NOT NULL DEFAULT 0,
+        task_in_progress INTEGER NOT NULL DEFAULT 0,
+        stopwatch_seconds INTEGER NOT NULL DEFAULT 0,
+        work_minutes      INTEGER NOT NULL DEFAULT 0,
+        recorded_at       INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY(task_id, date)
+      );
+    ''');
+    _db!.execute(
+      'CREATE INDEX IF NOT EXISTS idx_time_entries_date ON time_entries(date);',
+    );
+    _db!.execute(
+      'CREATE INDEX IF NOT EXISTS idx_time_entries_task ON time_entries(task_id);',
+    );
+    _db!.execute(
+      'CREATE INDEX IF NOT EXISTS idx_time_entries_done ON time_entries(task_done, date);',
     );
   }
 
@@ -163,6 +188,29 @@ class SqliteStorage {
     }
   }
 
+  Future<void> _ensureTimeEntryColumns() async {
+    final columns = <String>{};
+    try {
+      final rows = _db!.select('PRAGMA table_info(time_entries);');
+      for (final row in rows) {
+        final name = (row['name'] ?? '').toString();
+        if (name.isNotEmpty) columns.add(name);
+      }
+    } catch (_) {
+      return;
+    }
+
+    void addColumnIfMissing(String columnSql, String name) {
+      if (!columns.contains(name)) {
+        _db!.execute('ALTER TABLE time_entries ADD COLUMN $columnSql;');
+      }
+    }
+
+    addColumnIfMissing('task_done INTEGER NOT NULL DEFAULT 0', 'task_done');
+    addColumnIfMissing(
+        'task_in_progress INTEGER NOT NULL DEFAULT 0', 'task_in_progress');
+  }
+
   List<Map<String, dynamic>> readTaskList(String listName) {
     final rows = _db!.select(
       'SELECT payload_json FROM tasks WHERE list_name = ? ORDER BY sort_order ASC;',
@@ -242,5 +290,78 @@ class SqliteStorage {
   void dispose() {
     _db?.dispose();
     _db = null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Time-entry persistence
+  // ---------------------------------------------------------------------------
+
+  /// Upsert a time-entry row for [taskId] on [date] (YYYY-MM-DD).
+  /// Replaces the stored values completely — caller passes the current totals.
+  void upsertTimeEntry({
+    required String taskId,
+    required String taskText,
+    required String date,
+    required bool taskDone,
+    required bool taskInProgress,
+    required int stopwatchSeconds,
+    required int workMinutes,
+  }) {
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    _db!.execute(
+      '''
+      INSERT INTO time_entries(task_id, date, task_text, task_done, task_in_progress, stopwatch_seconds, work_minutes, recorded_at)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(task_id, date) DO UPDATE SET
+        task_text         = excluded.task_text,
+        task_done         = CASE
+                              WHEN time_entries.task_done = 1 OR excluded.task_done = 1 THEN 1
+                              ELSE 0
+                            END,
+        task_in_progress   = CASE
+                              WHEN time_entries.task_in_progress = 1 OR excluded.task_in_progress = 1 THEN 1
+                              ELSE 0
+                            END,
+        stopwatch_seconds = excluded.stopwatch_seconds,
+        work_minutes      = excluded.work_minutes,
+        recorded_at       = excluded.recorded_at;
+      ''',
+      [
+        taskId,
+        date,
+        taskText,
+        taskDone ? 1 : 0,
+        taskInProgress ? 1 : 0,
+        stopwatchSeconds,
+        workMinutes,
+        now,
+      ],
+    );
+  }
+
+  /// Returns all time-entry rows for [date] (YYYY-MM-DD), ordered by recorded_at.
+  List<Map<String, dynamic>> getTimeEntriesForDate(String date) {
+    final rows = _db!.select(
+      'SELECT task_id, task_text, stopwatch_seconds, work_minutes, recorded_at '
+      'FROM time_entries WHERE date = ? ORDER BY recorded_at ASC;',
+      [date],
+    );
+    return rows.map((r) => {
+      'task_id': r['task_id'] as String,
+      'task_text': r['task_text'] as String,
+      'task_done': (r['task_done'] as int?) ?? 0,
+      'task_in_progress': (r['task_in_progress'] as int?) ?? 0,
+      'stopwatch_seconds': (r['stopwatch_seconds'] as int?) ?? 0,
+      'work_minutes': (r['work_minutes'] as int?) ?? 0,
+      'recorded_at': (r['recorded_at'] as int?) ?? 0,
+    }).toList();
+  }
+
+  /// Returns all distinct dates that have at least one time entry, most recent first.
+  List<String> getTimeEntryDates() {
+    final rows = _db!.select(
+      'SELECT DISTINCT date FROM time_entries ORDER BY date DESC;',
+    );
+    return rows.map((r) => (r['date'] as String)).toList();
   }
 }

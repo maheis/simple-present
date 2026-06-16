@@ -22,6 +22,43 @@ const _noChange = Object();
 
 const String kClientVersion = '0.1.0';
 
+/// A snapshot of tracked time for one task on one day, read from the
+/// `time_entries` SQLite table.
+class TimeEntry {
+  const TimeEntry({
+    required this.taskId,
+    required this.taskText,
+    required this.date,
+    required this.taskDone,
+    required this.taskInProgress,
+    required this.stopwatchSeconds,
+    required this.workMinutes,
+  });
+
+  final String taskId;
+  final String taskText;
+  final String date; // YYYY-MM-DD
+  final bool taskDone;
+  final bool taskInProgress;
+  final int stopwatchSeconds;
+  final int workMinutes;
+
+  /// Total rounded-up 15-min blocks from stopwatch + manual minutes.
+  int get totalMinutes {
+    const blockSec = 15 * 60;
+    final blocks = stopwatchSeconds > 0
+        ? ((stopwatchSeconds + blockSec - 1) ~/ blockSec)
+        : 0;
+    return blocks * 15 + workMinutes;
+  }
+
+  String get statusLabel {
+    if (taskDone) return 'fertig';
+    if (taskInProgress) return 'in Arbeit';
+    return 'offen';
+  }
+}
+
 List<int>? _parseVersionParts(String raw) {
   var normalized = raw.trim();
   if (normalized.isEmpty) return null;
@@ -1669,6 +1706,7 @@ class _HomePageState extends State<HomePage> {
         stopwatchStartedAt: null,
         stopwatchAccumulatedSeconds: newAccum));
     await _saveToday();
+    _upsertTimeEntry(_today[index]);
   }
 
   Future<void> _resetStopwatch(int index) async {
@@ -1817,29 +1855,69 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openStats() async {
-    // load today/backlog/done lists and open stats page
-    final List<TaskItem> combined = [];
-    final List<TaskItem> todayList = [];
-    final List<TaskItem> backlogList = [];
     final List<TaskItem> doneList = [];
-    await _loadList(_storage('simplepresent_today.json'), todayList);
-    await _loadList(_storage('simplepresent_backlog.json'), backlogList);
     await _loadList(_storage('simplepresent_done.json'), doneList);
-    combined.addAll(todayList);
-    combined.addAll(backlogList);
-    combined.addAll(doneList);
 
     // Normalize: tasks marked done but missing completedAt are considered completed now
-    final normalized = combined.map((t) {
+    final normalized = doneList.map((t) {
       if (t.done && t.completedAt == null) {
         return t.copyWith(completedAt: DateTime.now());
       }
       return t;
     }).toList();
 
+    // Load all time entries from DB for all known dates, so the stats page
+    // can show historical data regardless of where the task currently lives.
+    List<TimeEntry> allTimeEntries = [];
+    if (_useSqlite) {
+      try {
+        final dates = _sqliteStorage.getTimeEntryDates();
+        for (final date in dates) {
+          final rows = _sqliteStorage.getTimeEntriesForDate(date);
+          for (final row in rows) {
+            allTimeEntries.add(TimeEntry(
+              taskId: row['task_id'] as String,
+              taskText: row['task_text'] as String,
+              date: date,
+              taskDone: (row['task_done'] as int?) == 1,
+              taskInProgress: (row['task_in_progress'] as int?) == 1,
+              stopwatchSeconds: (row['stopwatch_seconds'] as int?) ?? 0,
+              workMinutes: (row['work_minutes'] as int?) ?? 0,
+            ));
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Also include in-memory tasks with tracked time for today that may not
+    // have been written to the DB yet (e.g. running stopwatch).
+    if (!_useSqlite) {
+      final List<TaskItem> todayList = [];
+      final List<TaskItem> backlogList = [];
+      await _loadList(_storage('simplepresent_today.json'), todayList);
+      await _loadList(_storage('simplepresent_backlog.json'), backlogList);
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      for (final t in [...todayList, ...backlogList]) {
+        final hasTime = t.stopwatchAccumulatedSeconds > 0 || (t.workMinutes ?? 0) > 0;
+        if (!hasTime) continue;
+        allTimeEntries.add(TimeEntry(
+          taskId: t.id,
+          taskText: t.text,
+          date: today,
+          taskDone: t.done,
+          taskInProgress: t.inProgress,
+          stopwatchSeconds: t.stopwatchAccumulatedSeconds,
+          workMinutes: t.workMinutes ?? 0,
+        ));
+      }
+    }
+
     if (!mounted) return;
     await Navigator.of(context).push(
-        MaterialPageRoute(builder: (ctx) => StatsPage(doneList: normalized)));
+        MaterialPageRoute(builder: (ctx) => StatsPage(
+          doneList: normalized,
+          timeEntries: allTimeEntries,
+        )));
   }
 
   Future<void> _openSettings() async {
@@ -2014,8 +2092,7 @@ class _HomePageState extends State<HomePage> {
       _today[index] = updated;
     });
     _saveToday();
-
-    // If the task has a scheduled date and it's not today, move it to backlog
+    _upsertTimeEntry(_today[index]);
     final scheduled = _today[index].scheduledAt;
     if (scheduled != null && !_isSameDay(scheduled, DateTime.now())) {
       await _moveToBacklogByIndex(index);
@@ -2025,6 +2102,27 @@ class _HomePageState extends State<HomePage> {
     _showTopToast('task updated');
     _registerActivity();
   }
+
+  /// Write (or overwrite) the time-entry row for [task] on today's date.
+  /// Only runs when sqlite is available; silently skipped otherwise.
+  void _upsertTimeEntry(TaskItem task) {
+    if (!_useSqlite) return;
+    final date = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    try {
+      _sqliteStorage.upsertTimeEntry(
+        taskId: task.id,
+        taskText: task.text,
+        date: date,
+        taskDone: task.done,
+        taskInProgress: task.inProgress,
+        stopwatchSeconds: task.stopwatchAccumulatedSeconds,
+        workMinutes: task.workMinutes ?? 0,
+      );
+    } catch (_) {}
+  }
+
+  // If the task has a scheduled date and it's not today, move it to backlog.
+  // (handled inside _saveEditedTitle below)
 
   void _addSubtask(int taskIndex, TextEditingController controller) {
     final text = controller.text.trim();
@@ -2449,6 +2547,7 @@ class _HomePageState extends State<HomePage> {
       await _stopStopwatch(index);
     }
     _saveToday();
+    _upsertTimeEntry(_today[index]);
     // clear notification flags for this task (by id)
     final t = _today[index];
     final idPrefix = '${t.id}|';
@@ -4028,6 +4127,17 @@ class _HomePageState extends State<HomePage> {
                                                                           () {
                                                                         // Manual entry only: do not auto-suggest stopwatch time here.
                                                                       },
+                                                                      onSubmitted: (value) {
+                                                                        final parsed = int.tryParse(value.trim());
+                                                                        if (parsed == null) return;
+                                                                        final idx = _today.indexWhere((t) => t.id == task.id);
+                                                                        if (idx < 0) return;
+                                                                        setState(() {
+                                                                          _today[idx] = _today[idx].copyWith(workMinutes: parsed);
+                                                                        });
+                                                                        _saveToday();
+                                                                        _upsertTimeEntry(_today[idx]);
+                                                                      },
                                                                     ),
                                                                   ),
                                                                 ),
@@ -4314,8 +4424,14 @@ class _HomePageState extends State<HomePage> {
 }
 
 class StatsPage extends StatefulWidget {
-  const StatsPage({super.key, required this.doneList});
+  const StatsPage({
+    super.key,
+    required this.doneList,
+    this.timeEntries = const [],
+  });
   final List<TaskItem> doneList;
+  /// All time entries from the DB (across all dates). Filtered by date in the page.
+  final List<TimeEntry> timeEntries;
   @override
   State<StatsPage> createState() => _StatsPageState();
 }
@@ -5420,6 +5536,14 @@ class _StatsPageState extends State<StatsPage> {
     }).toList();
   }
 
+  /// All time-entry rows for [day] from the persistent DB entries.
+  List<TimeEntry> _timeEntriesForDay(DateTime day) {
+    final dateStr = DateFormat('yyyy-MM-dd').format(day);
+    return widget.timeEntries
+        .where((e) => e.date == dateStr && e.totalMinutes > 0)
+        .toList();
+  }
+
   int _elapsedSecondsFor(TaskItem t) {
     var acc = t.stopwatchAccumulatedSeconds;
     if (t.stopwatchRunning && t.stopwatchStartedAt != null) {
@@ -5432,15 +5556,65 @@ class _StatsPageState extends State<StatsPage> {
     final secs = _elapsedSecondsFor(t);
     const blockSec = 15 * 60;
     final blocks = secs > 0 ? ((secs + blockSec - 1) ~/ blockSec) : 0;
-    final stopwatchMinutes = blocks * 15;
-    final manual = t.workMinutes ?? 0;
-    return manual + stopwatchMinutes;
+    return blocks * 15 + (t.workMinutes ?? 0);
+  }
+
+  _StatRow _rowFromEntry(TimeEntry e) {
+    return _StatRow(
+      taskText: e.taskText,
+      minutes: e.totalMinutes,
+      isDone: e.taskDone,
+      completedAt: null,
+      statusLabel: e.statusLabel,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final tasks = _tasksForDay(_currentDate);
-    final totalMinutes = tasks.fold<int>(0, (s, t) => s + _minutesForTask(t));
+    final scale = MediaQuery.textScaleFactorOf(context);
+    final doneTasks = _tasksForDay(_currentDate);
+    final timeEntries = _timeEntriesForDay(_currentDate);
+
+    // Build unified row list: one row per task.
+    // Prefer DB time for minutes; fall back to task payload for done tasks.
+    final doneRows = <_StatRow>[];
+    final openRows = <_StatRow>[];
+
+    // 1. Status-driven rows from persistent time entries.
+    final doneEntryIds = <String>{};
+    for (final t in doneTasks) {
+      final entry = timeEntries.where((e) => e.taskId == t.id).firstOrNull;
+      final isDone = entry?.taskDone ?? true;
+      final row = _StatRow(
+        taskText: t.text,
+        minutes: entry?.totalMinutes ?? _minutesForTask(t),
+        isDone: isDone,
+        completedAt: t.completedAt,
+        statusLabel: isDone ? 'fertig' : (entry?.statusLabel ?? 'offen'),
+      );
+      if (row.isDone) {
+        doneRows.add(row);
+      } else {
+        openRows.add(row);
+      }
+      if (entry != null) doneEntryIds.add(entry.taskId);
+    }
+
+    // 2. Remaining time entries for tasks not represented in doneTasks.
+    for (final e in timeEntries) {
+      if (doneEntryIds.contains(e.taskId)) continue;
+      final row = _rowFromEntry(e);
+      if (row.isDone) {
+        doneRows.add(row);
+      } else {
+        openRows.add(row);
+      }
+    }
+
+    final totalMinutes =
+        doneRows.fold<int>(0, (s, r) => s + r.minutes) +
+        openRows.fold<int>(0, (s, r) => s + r.minutes);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(DateFormat('EEEE, dd.MM.yyyy').format(_currentDate)),
@@ -5451,11 +5625,11 @@ class _StatsPageState extends State<StatsPage> {
         actions: [
           IconButton(
               icon: const Icon(Icons.arrow_left),
-              tooltip: 'Previous day',
+              tooltip: 'Vorheriger Tag',
               onPressed: _prevDay),
           IconButton(
               icon: const Icon(Icons.arrow_right),
-              tooltip: 'Next day',
+              tooltip: 'Nächster Tag',
               onPressed: _nextDay),
         ],
       ),
@@ -5464,35 +5638,73 @@ class _StatsPageState extends State<StatsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Total completed: ${tasks.length}',
+            Text(
+              'Erledigt: ${doneRows.where((r) => r.isDone).length}  |  Gesamt Zeit: $totalMinutes min',
               style: TextStyle(
-                fontSize: 16 * MediaQuery.textScaleFactorOf(context),
-                fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
-            Text('Total time (minutes): $totalMinutes',
-              style: TextStyle(fontSize: 16 * MediaQuery.textScaleFactorOf(context))),
+                  fontSize: 16 * scale, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             Expanded(
-              child: tasks.isEmpty
+              child: (doneRows.isEmpty && openRows.isEmpty)
                   ? Center(
                       child: Text(_currentDate.day == DateTime.now().day
-                          ? 'No tasks completed today'
-                          : 'No tasks for this day'))
-                  : ListView.separated(
-                      itemCount: tasks.length,
-                      separatorBuilder: (_, __) => const Divider(),
-                      itemBuilder: (ctx, i) {
-                        final t = tasks[i];
-                        final minutes = _minutesForTask(t);
-                        final completed = t.completedAt != null
-                            ? DateFormat('HH:mm').format(t.completedAt!)
-                            : '-';
-                        return ListTile(
-                          title: Text(t.text, style: TextStyle(fontSize: 14 * MediaQuery.textScaleFactorOf(context))),
-                          subtitle: Text('completed: $completed', style: TextStyle(fontSize: 12 * MediaQuery.textScaleFactorOf(context))),
-                          trailing: Text('$minutes min', style: TextStyle(fontSize: 12 * MediaQuery.textScaleFactorOf(context))),
-                        );
-                      },
+                          ? 'Heute noch keine Zeiterfassung'
+                          : 'Keine Einträge für diesen Tag'))
+                  : ListView(
+                      children: [
+                        if (doneRows.isNotEmpty) ...[
+                          Text('Erledigt',
+                              style: TextStyle(
+                                  fontSize: 13 * scale,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.greenAccent)),
+                          const SizedBox(height: 4),
+                          for (final r in doneRows)
+                            ListTile(
+                              dense: true,
+                              leading: const Icon(Icons.task_alt,
+                                  size: 18, color: Colors.greenAccent),
+                              title: Text(r.taskText,
+                                  style: TextStyle(fontSize: 14 * scale)),
+                              subtitle: Text(
+                                'Status: ${r.statusLabel}${r.completedAt != null ? ' | erledigt: ${DateFormat('HH:mm').format(r.completedAt!)}' : ''}',
+                                style: TextStyle(fontSize: 11 * scale),
+                              ),
+                              trailing: r.minutes > 0
+                                  ? Text('${r.minutes} min',
+                                      style:
+                                          TextStyle(fontSize: 12 * scale))
+                                  : null,
+                            ),
+                        ],
+                        if (openRows.isNotEmpty) ...[
+                          if (doneRows.isNotEmpty) const Divider(),
+                          Text('Laufend (nicht abgeschlossen)',
+                              style: TextStyle(
+                                  fontSize: 13 * scale,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orangeAccent)),
+                          const SizedBox(height: 4),
+                          for (final r in openRows)
+                            ListTile(
+                              dense: true,
+                              leading: Icon(
+                                r.statusLabel == 'in Arbeit'
+                                    ? Icons.timelapse
+                                    : Icons.radio_button_unchecked,
+                                size: 18,
+                                color: Colors.orangeAccent,
+                              ),
+                              title: Text(r.taskText,
+                                  style: TextStyle(fontSize: 14 * scale)),
+                              subtitle: Text(
+                                'Status: ${r.statusLabel}',
+                                style: TextStyle(fontSize: 11 * scale),
+                              ),
+                              trailing: Text('${r.minutes} min',
+                                  style: TextStyle(fontSize: 12 * scale)),
+                            ),
+                        ],
+                      ],
                     ),
             ),
           ],
@@ -5500,6 +5712,21 @@ class _StatsPageState extends State<StatsPage> {
       ),
     );
   }
+}
+
+class _StatRow {
+  const _StatRow({
+    required this.taskText,
+    required this.minutes,
+    required this.isDone,
+    required this.completedAt,
+    required this.statusLabel,
+  });
+  final String taskText;
+  final int minutes;
+  final bool isDone;
+  final DateTime? completedAt;
+  final String statusLabel;
 }
 
 /// Full-screen QR scanner page. Returns the scanned string or null.
