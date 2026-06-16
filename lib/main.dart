@@ -363,6 +363,8 @@ class _HomePageState extends State<HomePage> {
   bool _magnetEnabled = false;
   // threshold (px) within which window will snap to screen edge
   final int _magnetThreshold = 37;
+  // Last position we snapped to; prevents re-calling setWindowGeometry in a loop
+  Map<String, int>? _magnetLastSnapped;
   String _fontFamily = 'OpenDyslexic';
   // Fired flags to ensure each reminder type fires only once per inactivity period
   bool _idleFired = false;
@@ -1779,17 +1781,36 @@ class _HomePageState extends State<HomePage> {
       }
 
       if (snappedX != x || snappedY != y) {
-        final payload = <String, dynamic>{
-          'x': snappedX,
-          'y': snappedY,
-          'width': width,
-          'height': height,
-        };
-        try {
-          await _nativeWindowChannel.invokeMethod('setWindowGeometry', payload);
+        // Only snap if we haven't already snapped to exactly this position.
+        // This breaks the feedback loop where setWindowGeometry triggers
+        // another WM_MOVE which would cause re-snapping indefinitely.
+        final alreadySnapped = _magnetLastSnapped != null &&
+            _magnetLastSnapped!['x'] == snappedX &&
+            _magnetLastSnapped!['y'] == snappedY;
+        if (!alreadySnapped) {
+          _magnetLastSnapped = {'x': snappedX, 'y': snappedY};
+          final payload = <String, dynamic>{
+            'x': snappedX,
+            'y': snappedY,
+            'width': width,
+            'height': height,
+          };
+          try {
+            await _nativeWindowChannel.invokeMethod('setWindowGeometry', payload);
+            norm['x'] = snappedX;
+            norm['y'] = snappedY;
+          } catch (_) {}
+        } else {
+          // Already snapped here; update norm so saved geom reflects snap position
           norm['x'] = snappedX;
           norm['y'] = snappedY;
-        } catch (_) {}
+        }
+      } else {
+        // Window moved away from snapped position — reset so next snap fires
+        if (_magnetLastSnapped != null &&
+            (_magnetLastSnapped!['x'] != x || _magnetLastSnapped!['y'] != y)) {
+          _magnetLastSnapped = null;
+        }
       }
     } catch (_) {}
     return norm;
