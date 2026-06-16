@@ -3399,48 +3399,77 @@ class _HomePageState extends State<HomePage> {
                                                                       color: (task.inProgress && !task.done) ? Colors.greenAccent.shade200 : Theme.of(context).colorScheme.onSurfaceVariant,
                                                                       size: 18,
                                                                     ),
-                                                                    onPressed: task.done
-                                                                        ? null
-                                                                        : () {
-                                                                            final wasInProgress = _today[i].inProgress;
-                                                                            final now = !wasInProgress ? DateTime.now() : null;
-                                                                            setState(() {
-                                                                              _today[i] = _today[i].copyWith(inProgress: !wasInProgress, inProgressAt: now);
+                                                                    onPressed: () async {
+                                                                      final task = _today[i];
+                                                                      final wasInProgress = task.inProgress;
+                                                                      final now = !wasInProgress ? DateTime.now() : null;
 
-                                                                              if (wasInProgress && !_today[i].inProgress) {
-                                                                                final moved = _today.removeAt(i);
-                                                                                int insertAt = 0;
-                                                                                final now2 = DateTime.now();
-                                                                                for (final t in _today) {
-                                                                                  if (t.done) break;
-                                                                                  final hasSchedule = t.scheduledAt != null;
-                                                                                  final diff = hasSchedule ? t.scheduledAt!.difference(now2) : null;
-                                                                                  final isOverdue = hasSchedule && diff!.isNegative;
-                                                                                  final dueWithin1h = hasSchedule && !diff!.isNegative && diff.inMinutes <= 60;
-                                                                                  if (isOverdue) {
-                                                                                    insertAt++;
-                                                                                    continue;
-                                                                                  }
-                                                                                  if (t.important && t.inProgress) {
-                                                                                    insertAt++;
-                                                                                    continue;
-                                                                                  }
-                                                                                  if (t.inProgress) {
-                                                                                    insertAt++;
-                                                                                    continue;
-                                                                                  }
-                                                                                  if (t.important) {
-                                                                                    insertAt++;
-                                                                                    continue;
-                                                                                  }
-                                                                                  break;
-                                                                                }
-                                                                                _today.insert(insertAt, moved);
-                                                                              }
-                                                                            });
-                                                                            _saveToday();
-                                                                            _registerActivity();
-                                                                          },
+                                                                      // If the task is done and we're showing the Done list, move it back to Today as in-progress
+                                                                      if (task.done && _currentFile == 'simplepresent_done.json') {
+                                                                        try {
+                                                                          final restored = task.copyWith(done: false, inProgress: true, inProgressAt: DateTime.now(), completedAt: null);
+                                                                          setState(() {
+                                                                            _today.removeAt(i);
+                                                                            _expanded.clear();
+                                                                          });
+                                                                          await _saveToday(); // persist removal from done file
+
+                                                                          final List<TaskItem> todayList = [];
+                                                                          await _loadList(_storage('simplepresent_today.json'), todayList);
+                                                                          todayList.insert(0, restored);
+                                                                          await _saveList('simplepresent_today.json', todayList);
+
+                                                                          _showTopToast('task moved to today (in progress)');
+                                                                        } catch (_) {
+                                                                          _showTopToast('failed to move task');
+                                                                        }
+                                                                        _registerActivity();
+                                                                        return;
+                                                                      }
+
+                                                                      // Normal toggle for non-Done views (or done tasks in other views)
+                                                                      setState(() {
+                                                                        _today[i] = _today[i].copyWith(
+                                                                          inProgress: !wasInProgress,
+                                                                          inProgressAt: now,
+                                                                          // ensure a task marked in-progress is not still marked done
+                                                                          done: task.done && !wasInProgress ? false : task.done,
+                                                                          completedAt: task.done && !wasInProgress ? null : task.completedAt,
+                                                                        );
+
+                                                                        if (wasInProgress && !_today[i].inProgress) {
+                                                                          final moved = _today.removeAt(i);
+                                                                          int insertAt = 0;
+                                                                          final now2 = DateTime.now();
+                                                                          for (final t in _today) {
+                                                                            if (t.done) break;
+                                                                            final hasSchedule = t.scheduledAt != null;
+                                                                            final diff = hasSchedule ? t.scheduledAt!.difference(now2) : null;
+                                                                            final isOverdue = hasSchedule && diff!.isNegative;
+                                                                            if (isOverdue) {
+                                                                              insertAt++;
+                                                                              continue;
+                                                                            }
+                                                                            if (t.important && t.inProgress) {
+                                                                              insertAt++;
+                                                                              continue;
+                                                                            }
+                                                                            if (t.inProgress) {
+                                                                              insertAt++;
+                                                                              continue;
+                                                                            }
+                                                                            if (t.important) {
+                                                                              insertAt++;
+                                                                              continue;
+                                                                            }
+                                                                            break;
+                                                                          }
+                                                                          _today.insert(insertAt, moved);
+                                                                        }
+                                                                      });
+                                                                      await _saveToday();
+                                                                      _registerActivity();
+                                                                    },
                                                                   ),
                                                                 ),
                                                                 if (_expanded

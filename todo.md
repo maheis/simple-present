@@ -142,7 +142,8 @@
 - [ ] web applikation
 - [ ] miniaturansicht soll je nach lage auf dem bildschirm nach unten oder oben expandieren (und minbandieren). bei der breite das gleiche.
 - [ ] ankleben klappt in windows nicht, bzw. fenster springt.
-- [ ] erinnerungssound optional machen
+- [x] erinnerungssound optional machen
+- [ ] work in progress soll bei fertigen aufgaben die aufgabe wieder in arbeit setzten und done = false
 
 ## notes
 
