@@ -134,11 +134,11 @@
   - [x] Server / CLient Version abgleichen und Warnung ausgeben wenn Client zu alt ist
   - [x] einfügen von kopierten text-link
   - [x] Info wenn nicht synchronisiert werden konnte (z.B. Server nicht erreichbar, ungültige Antwort, etc.)
-  - [ ] Synchronisierungsstatus anzeigen (z.B. "Zuletzt synchronisiert um 14:35", "Synchronisierung fehlgeschlagen", etc.)
-  - [ ] Manuelle Synchronisierungsmöglichkeit (z.B. "Jetzt synchronisieren" Button)
+  - [x] Synchronisierungsstatus anzeigen (z.B. "Zuletzt synchronisiert um 14:35", "Synchronisierung fehlgeschlagen", etc.)
+  - [x] Manuelle Synchronisierungsmöglichkeit (z.B. "Jetzt synchronisieren" Button)
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
-- [ ] buttons in burgermenü wenn platz zu klein wird
-- [ ] speichern übernimmt schonmal texte von anderen aufgaben?
+- [x] buttons in burgermenü wenn platz zu klein wird -> Wird nicht umgesetzt, minimal mode reicht erstmal!
+- [ ] Speichern übernimmt schonmal texte von anderen Aufgaben?
 - [ ] Web Applikation
 - [ ] Miniaturansicht soll je nach Lage auf dem Bildschirm nach unten oder oben expandieren (und minbandieren). Bei der Breite das gleiche.
 - [ ] Ankleben klappt in Windows nicht, bzw. Fenster springt.

@@ -851,6 +851,25 @@ class _HomePageState extends State<HomePage> {
     return scheme.outline;
   }
 
+  Future<void> _manualSyncNow() async {
+    if (!_cloudSyncConfigured) {
+      _showTopToast('Cloud-Sync nicht konfiguriert.');
+      return;
+    }
+    if (_cloudSyncBusy) {
+      _showTopToast('Synchronisierung läuft bereits...');
+      return;
+    }
+
+    _showTopToast('Synchronisierung gestartet...');
+    await _syncPullFromCloud();
+    await _fetchServerVersion();
+
+    if (!_cloudSyncFailed) {
+      _showTopToast('Synchronisierung abgeschlossen.');
+    }
+  }
+
   Future<void> _fetchServerVersion() async {
     if (_cloudServerUrl.trim().isEmpty) return;
     try {
@@ -4084,17 +4103,46 @@ class _HomePageState extends State<HomePage> {
                                             child: const Icon(Icons.add),
                                           ),
                                           const SizedBox(height: 6),
-                                          Tooltip(
-                                            message: _cloudSyncStatusTooltip(),
-                                            child: Container(
-                                              width: 10,
-                                              height: 10,
-                                              decoration: BoxDecoration(
-                                                color: _cloudSyncStatusColor(
-                                                    Theme.of(context).colorScheme),
-                                                shape: BoxShape.circle,
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Tooltip(
+                                                message: _cloudSyncStatusTooltip(),
+                                                child: Container(
+                                                  width: 10,
+                                                  height: 10,
+                                                  decoration: BoxDecoration(
+                                                    color: _cloudSyncStatusColor(
+                                                        Theme.of(context)
+                                                            .colorScheme),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                ),
                                               ),
-                                            ),
+                                              const SizedBox(width: 6),
+                                              Tooltip(
+                                                message: 'Jetzt synchronisieren',
+                                                child: InkWell(
+                                                  onTap:
+                                                      _cloudSyncBusy ? null : _manualSyncNow,
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.all(2),
+                                                    child: Icon(
+                                                      Icons.sync,
+                                                      size: 14,
+                                                      color: _cloudSyncBusy
+                                                          ? Theme.of(context)
+                                                              .colorScheme
+                                                              .outline
+                                                          : Theme.of(context)
+                                                              .colorScheme
+                                                              .primary,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),
