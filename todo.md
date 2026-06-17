@@ -145,7 +145,7 @@
 - [x] Work in progress soll bei fertigen Aufgaben die Aufgabe wieder in Arbeit setzen und done = false
 - [x] Zeiterfassung soll Persistiert werden und in der Statistik angezeigt werden (Auf nicht abgeschlossene Aufgaben sollen in der Statistik auftauchen)
 - [ ] Stopuhr in der minimalen Ansicht anzeigen
-- [ ] minimal Mode zu klein
+- [ ] minimal Mode zu klein (ich entferne ihn komplett, zuviel schnickschnack)
 - [x] zoom funktion komplett entfernen und immer auf den kleinsten zoom verwenden
 - [x] snap window komplett entfernen
 - [x] cloud sync (server) -> das "(server)" entfernen

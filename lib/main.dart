@@ -420,8 +420,8 @@ class _HomePageState extends State<HomePage> {
   final Set<String> _notified15 = <String>{};
   final Set<String> _notifiedDue = <String>{};
   final Set<int> _swiping = <int>{};
-  bool _minimalViewMode = false;
-  Map<String, int>? _windowBeforeMinimal;
+  final bool _minimalViewMode = false;
+  // Minimal view removed; window-before-minimal state not used anymore.
 
   // When debugging, prepend filenames with 'debug_' so test data doesn't mix
   String _storage(String name) => kDebugMode ? 'debug_$name' : name;
@@ -1628,86 +1628,7 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  Future<void> _setMinimalViewMode(bool enable) async {
-    if (_minimalViewMode == enable) return;
-
-    if (enable) {
-      try {
-        final geom =
-            await _nativeWindowChannel.invokeMethod('getWindowGeometry');
-        if (geom is Map) {
-          final norm = <String, int>{};
-          for (final e in geom.entries) {
-            final k = e.key.toString();
-            final v = e.value;
-            if (v is int) {
-              norm[k] = v;
-            } else if (v is double) {
-              norm[k] = v.toInt();
-            } else {
-              norm[k] = int.tryParse(v.toString()) ?? 0;
-            }
-          }
-          // Prefer the last saved user geometry if available (this reflects the
-          // last user-drawn size); fall back to the immediate geometry we just
-          // queried.
-          final Map<String, int> orig = _lastSavedWindowGeom != null
-              ? Map<String, int>.from(_lastSavedWindowGeom!)
-              : norm;
-          _windowBeforeMinimal = Map<String, int>.from(orig);
-
-          // Determine how many tasks will be shown in the minimal view and
-          // size the window accordingly. Use a per-item height and a small
-          // base so the window fits the content without wasted space.
-          final visibleCount = _today
-              .where((t) => t.inProgress && !t.done)
-              .length
-              .clamp(1, 20);
-          const int perItemHeight = 56;
-          final targetHeight = (13 + (visibleCount * perItemHeight)).clamp(120, 1200);
-          // Compute a compact width informed by the number of visible items
-          // but never larger than the original width. Start from a sensible
-          // minimum and grow moderately with more items.
-          final int origWidth = orig['width'] ?? 700;
-          int targetWidth = 320 + (visibleCount * 20);
-          targetWidth = math.max(320, targetWidth);
-          targetWidth = math.min(origWidth, targetWidth);
-
-          // Keep top-right corner fixed: move x right by how much width shrinks.
-          final int origX = orig['x'] ?? norm['x'] ?? 0;
-          final int origY = orig['y'] ?? norm['y'] ?? 0;
-          final int targetX = origX + (origWidth - targetWidth);
-          await _nativeWindowChannel.invokeMethod('setWindowGeometry', {
-            'x': targetX,
-            'y': origY,
-            'width': targetWidth,
-            'height': targetHeight,
-          });
-        }
-      } catch (_) {}
-    } else {
-      try {
-        final restore = _windowBeforeMinimal;
-        if (restore != null) {
-          await _nativeWindowChannel.invokeMethod('setWindowGeometry', {
-            'x': restore['x'] ?? 0,
-            'y': restore['y'] ?? 0,
-            'width': restore['width'] ?? 700,
-            'height': restore['height'] ?? 500,
-          });
-        }
-      } catch (_) {}
-    }
-
-    if (!mounted) return;
-    setState(() {
-      _minimalViewMode = enable;
-    });
-  }
-
-  Future<void> _toggleMinimalViewMode() async {
-    await _setMinimalViewMode(!_minimalViewMode);
-  }
+  // Minimal view mode removed: `_minimalViewMode` is fixed to `false`.
 
   String _taskNotifyKey(TaskItem t) {
     final sched = t.scheduledAt?.toIso8601String() ?? '';
@@ -4431,45 +4352,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     ),
-                  Positioned(
-                    top: 2,
-                    right: Platform.isWindows ? 34 : 2,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      transitionBuilder: (child, animation) => ScaleTransition(
-                        scale: animation,
-                        child: FadeTransition(opacity: animation, child: child),
-                      ),
-                      child: Tooltip(
-                        key: ValueKey<bool>(_minimalViewMode),
-                        message: _minimalViewMode
-                            ? 'minimal mode off'
-                            : 'minimal mode on',
-                        child: Material(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest,
-                          shape: const CircleBorder(),
-                          child: InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: _toggleMinimalViewMode,
-                            child: SizedBox(
-                              width: 28,
-                              height: 28,
-                              child: Icon(
-                                _minimalViewMode
-                                    ? Icons.fullscreen_exit
-                                    : Icons.fullscreen,
-                                size: 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  // Minimal-mode toggle removed
                 ],
               ),
             );
