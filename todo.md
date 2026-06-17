@@ -146,7 +146,7 @@
 - [x] Zeiterfassung soll Persistiert werden und in der Statistik angezeigt werden (Auf nicht abgeschlossene Aufgaben sollen in der Statistik auftauchen)
 - [ ] Stopuhr in der minimalen Ansicht anzeigen
 - [ ] minimal Mode zu klein
-- [ ] zoom funktion komplett entfernen und immer auf den kleinsten zoom verwenden
+- [x] zoom funktion komplett entfernen und immer auf den kleinsten zoom verwenden
 - [x] snap window komplett entfernen
 - [x] cloud sync (server) -> das "(server)" entfernen
 - [x] Verzögertes umsortieren (nach editieren oder timer)

@@ -427,7 +427,7 @@ class _HomePageState extends State<HomePage> {
   String _storage(String name) => kDebugMode ? 'debug_$name' : name;
 
   // Zoom state: tile height and font scaling
-  double _tileHeight = 52.0;
+  double _tileHeight = 16.0;
   // default/min tile height constants removed (unused)
   // min font scale removed (unused)
   final double _baseFontSize = 15.0; // used when scaling text down
@@ -1280,7 +1280,8 @@ class _HomePageState extends State<HomePage> {
       if (data.containsKey('tileHeight')) {
         final v = data['tileHeight'];
         if (v is num) {
-          setState(() => _tileHeight = v.toDouble());
+          // Respect persisted value but cap to a small maximum so tiles stay minimal
+          setState(() => _tileHeight = math.min(v.toDouble(), 16.0));
         }
       }
       if (data.containsKey('fontScale')) {
@@ -3306,30 +3307,35 @@ class _HomePageState extends State<HomePage> {
                                               return Card(
                                                 key: ValueKey(
                                                     'mini_${i}_${task.id}'),
+                                                clipBehavior: Clip.hardEdge,
                                                 color: task.inProgress
                                                     ? Colors.green
                                                         .withValues(alpha: 0.10)
                                                     : null,
-                                                child: ListTile(
-                                                  contentPadding:
-                                                      EdgeInsets.symmetric(
-                                                          vertical: ((_tileHeight -
-                                                                          _baseFontSize) /
-                                                                      2)
-                                                                  .clamp(
-                                                                      0.0,
-                                                                      40.0),
-                                                          horizontal: 12),
-                                                  title: Text(
-                                                    task.text,
-                                                    style: _fontTextStyle(
-                                                      TextStyle(
-                                                        fontSize: _baseFontSize,
-                                                        fontWeight:
-                                                            FontWeight.normal,
-                                                        color: Theme.of(context)
-                                                            .colorScheme
-                                                            .onSurface,
+                                                child: SizedBox(
+                                                  height: _tileHeight,
+                                                  child: ListTile(
+                                                    contentPadding:
+                                                        EdgeInsets.symmetric(
+                                                            vertical:
+                                                                ((_tileHeight -
+                                                                            _baseFontSize) /
+                                                                        2)
+                                                                    .clamp(
+                                                                        0.0,
+                                                                        40.0),
+                                                            horizontal: 8),
+                                                    title: Text(
+                                                      task.text,
+                                                      style: _fontTextStyle(
+                                                        TextStyle(
+                                                          fontSize: _baseFontSize,
+                                                          fontWeight:
+                                                              FontWeight.normal,
+                                                          color: Theme.of(context)
+                                                              .colorScheme
+                                                              .onSurface,
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
@@ -3345,75 +3351,75 @@ class _HomePageState extends State<HomePage> {
                                                 padding: const EdgeInsets.only(
                                                     left: 20),
                                                 child: (_showingBacklog ||
-                                                        _currentFile ==
-                                                            'simplepresent_backlog.json')
+                                                    _currentFile ==
+                                                      'simplepresent_backlog.json')
+                                                  ? Row(
+                                                    mainAxisSize:
+                                                      MainAxisSize.min,
+                                                    children: [
+                                                      const Icon(
+                                                        Icons
+                                                          .arrow_circle_left,
+                                                        color:
+                                                          Colors.white,
+                                                        size: 20),
+                                                      const SizedBox(
+                                                        width: 8),
+                                                      const Text(
+                                                        'moved to today',
+                                                        style: TextStyle(
+                                                          color: Colors
+                                                            .white,
+                                                          fontWeight:
+                                                            FontWeight
+                                                              .w600)),
+                                                    ],
+                                                    )
+                                                  : (_today[i].inProgress
                                                     ? Row(
-                                                        mainAxisSize:
-                                                            MainAxisSize.min,
-                                                        children: [
-                                                          const Icon(
-                                                              Icons
-                                                                  .arrow_circle_left,
-                                                              color:
-                                                                  Colors.white,
-                                                              size: 20),
-                                                          const SizedBox(
-                                                              width: 8),
-                                                          const Text(
-                                                              'moved to today',
-                                                              style: TextStyle(
-                                                                  color: Colors
-                                                                      .white,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600)),
-                                                        ],
+                                                      mainAxisSize:
+                                                        MainAxisSize
+                                                          .min,
+                                                      children: [
+                                                        const Icon(
+                                                          Icons
+                                                            .check_circle,
+                                                          color: Colors
+                                                            .white),
+                                                        const SizedBox(
+                                                          width: 8),
+                                                        const Text('done',
+                                                          style: TextStyle(
+                                                            color: Colors
+                                                              .white,
+                                                            fontWeight:
+                                                              FontWeight
+                                                                .w600)),
+                                                      ],
                                                       )
-                                                    : (_today[i].inProgress
-                                                        ? Row(
-                                                            mainAxisSize:
-                                                                MainAxisSize
-                                                                    .min,
-                                                            children: [
-                                                              const Icon(
-                                                                  Icons
-                                                                      .check_circle,
-                                                                  color: Colors
-                                                                      .white),
-                                                              const SizedBox(
-                                                                  width: 8),
-                                                              const Text('done',
-                                                                  style: TextStyle(
-                                                                      color: Colors
-                                                                          .white,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .w600)),
-                                                            ],
-                                                          )
-                                                        : Row(
-                                                            mainAxisSize:
-                                                                MainAxisSize
-                                                                    .min,
-                                                            children: [
-                                                              const Icon(
-                                                                  Icons
-                                                                      .construction,
-                                                                  color: Colors
-                                                                      .white,
-                                                                  size: 18),
-                                                              const SizedBox(
-                                                                  width: 8),
-                                                              const Text(
-                                                                  'in progress',
-                                                                  style: TextStyle(
-                                                                      color: Colors
-                                                                          .white,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .w600)),
-                                                            ],
-                                                          )),
+                                                    : Row(
+                                                      mainAxisSize:
+                                                        MainAxisSize
+                                                          .min,
+                                                      children: [
+                                                        const Icon(
+                                                          Icons
+                                                            .construction,
+                                                          color: Colors
+                                                            .white,
+                                                          size: 18),
+                                                        const SizedBox(
+                                                          width: 8),
+                                                        const Text(
+                                                          'in progress',
+                                                          style: TextStyle(
+                                                            color: Colors
+                                                              .white,
+                                                            fontWeight:
+                                                              FontWeight
+                                                                .w600)),
+                                                      ],
+                                                      )),
                                               ),
                                               secondaryBackground: Container(
                                                 color: (_today[i].inProgress &&
