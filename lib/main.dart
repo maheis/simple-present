@@ -444,7 +444,7 @@ class _HomePageState extends State<HomePage> {
   String _cloudWordPhrase = '';
   String _cloudDeviceName = Platform.localHostname;
   String _cloudPIN = '';
-  String _serverVersion = '';
+  
   bool _versionWarningShown = false;
   bool _cloudSyncFailed = false;
   int _cloudLastSyncSuccessAt = 0;
@@ -504,7 +504,7 @@ class _HomePageState extends State<HomePage> {
     });
     // listen for any keyboard activity to reset idle timers
     try {
-      RawKeyboard.instance.addListener(_rawKeyListener);
+      HardwareKeyboard.instance.addHandler(_hardwareKeyHandler);
     } catch (_) {}
     // Start a short ticker to update stopwatch displays every second
     _stopwatchTicker = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -512,8 +512,9 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _rawKeyListener(RawKeyEvent ev) {
+  bool _hardwareKeyHandler(KeyEvent ev) {
     _registerActivity();
+    return false; // do not claim the event
   }
 
   Future<Directory> get _appDir async {
@@ -873,13 +874,13 @@ class _HomePageState extends State<HomePage> {
         payload: <String, dynamic>{
           'kind': 'time_entry',
           'date': date,
-          'entry': <String, dynamic>{
+            'entry': <String, dynamic>{
             'task_id': task.id,
             'task_text': task.text,
             'task_done': task.done,
             'task_in_progress': task.inProgress,
             'stopwatch_seconds': task.stopwatchAccumulatedSeconds,
-            'work_minutes': task.workMinutes ?? 0,
+            'work_minutes': task.workMinutes,
             'recorded_at': modifiedAt,
           },
         },
@@ -1002,7 +1003,6 @@ class _HomePageState extends State<HomePage> {
       final health = await client.getHealth();
       if (health != null && mounted) {
         final isOutdated = _isClientOlderThanServer(kClientVersion, health);
-        setState(() => _serverVersion = health);
         if (isOutdated && !_versionWarningShown) {
           _versionWarningShown = true;
           _showTopToast(
@@ -1397,7 +1397,7 @@ class _HomePageState extends State<HomePage> {
             await _validateAndApplyWindow(wm);
             if (w.containsKey('always_on_top')) {
               final val = w['always_on_top'];
-              _alwaysOnTop = (val == true) || (val is num && (val as num) != 0);
+              _alwaysOnTop = (val == true) || (val is num && val != 0);
             }
           }
         } catch (_) {}
@@ -1589,7 +1589,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     try {
-      RawKeyboard.instance.removeListener(_rawKeyListener);
+      HardwareKeyboard.instance.removeHandler(_hardwareKeyHandler);
     } catch (_) {}
     _windowWatcherTimer?.cancel();
     _saveSettings();
@@ -1916,7 +1916,7 @@ class _HomePageState extends State<HomePage> {
       await _loadList(_storage('simplepresent_backlog.json'), backlogList);
       final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
       for (final t in [...todayList, ...backlogList]) {
-        final hasTime = t.stopwatchAccumulatedSeconds > 0 || (t.workMinutes ?? 0) > 0;
+        final hasTime = t.stopwatchAccumulatedSeconds > 0 || t.workMinutes > 0;
         if (!hasTime) continue;
         allTimeEntries.add(TimeEntry(
           taskId: t.id,
@@ -1925,7 +1925,7 @@ class _HomePageState extends State<HomePage> {
           taskDone: t.done,
           taskInProgress: t.inProgress,
           stopwatchSeconds: t.stopwatchAccumulatedSeconds,
-          workMinutes: t.workMinutes ?? 0,
+          workMinutes: t.workMinutes,
         ));
       }
     }
@@ -1935,6 +1935,7 @@ class _HomePageState extends State<HomePage> {
         MaterialPageRoute(builder: (ctx) => StatsPage(
           doneList: normalized,
           timeEntries: allTimeEntries,
+          textScale: _uiTextScaleFactor,
         )));
   }
 
@@ -2133,7 +2134,7 @@ class _HomePageState extends State<HomePage> {
         taskDone: task.done,
         taskInProgress: task.inProgress,
         stopwatchSeconds: task.stopwatchAccumulatedSeconds,
-        workMinutes: task.workMinutes ?? 0,
+        workMinutes: task.workMinutes,
       );
       _queueCloudTimeEntrySync(task);
     } catch (_) {}
@@ -2261,7 +2262,7 @@ class _HomePageState extends State<HomePage> {
       final hasSchedule = t.scheduledAt != null;
       final diff = hasSchedule ? t.scheduledAt!.difference(now) : null;
       final isOverdue = hasSchedule && diff!.isNegative;
-      final dueWithin1h = hasSchedule && !diff!.isNegative && diff!.inMinutes <= 60;
+      final dueWithin1h = hasSchedule && !diff!.isNegative && diff.inMinutes <= 60;
       if (t.done) {
         bucketDone.add(t);
         continue;
@@ -2540,7 +2541,6 @@ class _HomePageState extends State<HomePage> {
     _toastEntry?.remove();
 
     final overlay = Overlay.of(context, rootOverlay: true);
-    if (overlay == null) return;
 
     _toastEntry = OverlayEntry(
       builder: (ctx) => SafeArea(
@@ -2992,9 +2992,7 @@ class _HomePageState extends State<HomePage> {
                                           text: combined,
                                           textDirection:
                                               Directionality.of(context),
-                                          textScaleFactor:
-                                              MediaQuery.textScaleFactorOf(
-                                                  context));
+                                              textScaleFactor: _uiTextScaleFactor);
                                       tp.layout();
                                       final textWidth = tp.width;
 
@@ -3186,10 +3184,7 @@ class _HomePageState extends State<HomePage> {
 
                                         return ReorderableListView(
                                           buildDefaultDragHandles: false,
-                                          onReorder: (oldIndex, newIndex) {
-                                            // Normalize indices as in ReorderableListView behavior
-                                            if (newIndex > oldIndex)
-                                              newIndex -= 1;
+                                          onReorderItem: (oldIndex, newIndex) {
                                             final srcEntry = sorted[oldIndex];
                                             final dstEntry = sorted[newIndex];
                                             // Determine bucket membership for src and dst
@@ -3313,7 +3308,7 @@ class _HomePageState extends State<HomePage> {
                                                     'mini_${i}_${task.id}'),
                                                 color: task.inProgress
                                                     ? Colors.green
-                                                        .withOpacity(0.10)
+                                                        .withValues(alpha: 0.10)
                                                     : null,
                                                 child: ListTile(
                                                   contentPadding:
@@ -3532,7 +3527,7 @@ class _HomePageState extends State<HomePage> {
                                                   Card(
                                                     color: task.inProgress
                                                         ? Colors.green
-                                                            .withOpacity(0.10)
+                                                            .withValues(alpha: 0.10)
                                                         : null,
                                                     child: ListTile(
                                                       contentPadding:
@@ -3638,7 +3633,7 @@ class _HomePageState extends State<HomePage> {
                                                                           const blockSec = 15 * 60;
                                                                           final blocks = secs > 0 ? ((secs + blockSec - 1) ~/ blockSec) : 0;
                                                                           final accumulatedMinutes = blocks * 15;
-                                                                          final manual = task.workMinutes ?? 0;
+                                                                          final manual = task.workMinutes;
                                                                           final totalMinutes = manual + accumulatedMinutes;
                                                                           if (totalMinutes <= 0) return const SizedBox.shrink();
                                                                           final hours = totalMinutes ~/ 60;
@@ -3756,7 +3751,6 @@ class _HomePageState extends State<HomePage> {
                                                                     onPressed: () async {
                                                                         final task = _today[i];
                                                                         final wasInProgress = _stagedInProgress[task.id] ?? task.inProgress;
-                                                                        final now = !wasInProgress ? DateTime.now() : null;
 
                                                                         // If the task is done and we're showing the Done list, move it back to Today as in-progress (keep immediate behavior)
                                                                         if (( _stagedDone[task.id] ?? task.done) && _currentFile == 'simplepresent_done.json') {
@@ -3999,12 +3993,12 @@ class _HomePageState extends State<HomePage> {
                                                                       true,
                                                                   physics:
                                                                       const NeverScrollableScrollPhysics(),
-                                                                  onReorder: (oldIndex,
-                                                                          newIndex) =>
+                                                                    onReorderItem: (oldIndex,
+                                                                        newIndex) =>
                                                                       _reorderSubtasks(
-                                                                          i,
-                                                                          oldIndex,
-                                                                          newIndex),
+                                                                        i,
+                                                                        oldIndex,
+                                                                        newIndex),
                                                                   children: [
                                                                     for (int sidx =
                                                                             0;
@@ -4031,7 +4025,7 @@ class _HomePageState extends State<HomePage> {
                                                                                     step.text,
                                                                                     style: TextStyle(
                                                                                       decoration: TextDecoration.lineThrough,
-                                                                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                                                                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                                                                                     ),
                                                                                   )
                                                                                 : TextFormField(
@@ -4485,10 +4479,12 @@ class StatsPage extends StatefulWidget {
     super.key,
     required this.doneList,
     this.timeEntries = const [],
+    required this.textScale,
   });
   final List<TaskItem> doneList;
   /// All time entries from the DB (across all dates). Filtered by date in the page.
   final List<TimeEntry> timeEntries;
+  final double textScale;
   @override
   State<StatsPage> createState() => _StatsPageState();
 }
@@ -5053,7 +5049,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         child: PopScope(
           canPop: !_hasChanges(),
-          onPopInvoked: (didPop) async {
+          onPopInvokedWithResult: (didPop, _) async {
             if (didPop) return;
             final shouldLeave = await _onWillPop();
             if (shouldLeave && mounted) {
@@ -5599,7 +5595,7 @@ class _StatsPageState extends State<StatsPage> {
     final secs = _elapsedSecondsFor(t);
     const blockSec = 15 * 60;
     final blocks = secs > 0 ? ((secs + blockSec - 1) ~/ blockSec) : 0;
-    return blocks * 15 + (t.workMinutes ?? 0);
+    return blocks * 15 + t.workMinutes;
   }
 
   _StatRow _rowFromEntry(TimeEntry e) {
@@ -5614,7 +5610,7 @@ class _StatsPageState extends State<StatsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final scale = MediaQuery.textScaleFactorOf(context);
+    final scale = widget.textScale;
     final doneTasks = _tasksForDay(_currentDate);
     final timeEntries = _timeEntriesForDay(_currentDate);
 

@@ -138,8 +138,6 @@
   - [x] Manuelle Synchronisierungsmöglichkeit (z.B. "Jetzt synchronisieren" Button)
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [x] buttons in burgermenü wenn platz zu klein wird -> Wird nicht umgesetzt, minimal mode reicht erstmal!
-- [ ] Speichern übernimmt schonmal texte von anderen Aufgaben?
-      Wenn ich die Felder an Position 2 z.B. Editiere und es kommt eine andere Aufgabe an Position 2 und ich klappe diese auf, dann wird der alte Text von Position 2 geladden!
 - [ ] Web Applikationich
 - [x] Miniaturansicht soll je nach Lage auf dem Bildschirm nach unten oder oben expandieren (und minbandieren). Bei der Breite das gleiche.
 - [x] Ankleben klappt in Windows nicht, bzw. Fenster springt.
@@ -150,10 +148,12 @@
 - [ ] minimal Mode zu klein
 - [ ] zoom funktion komplett entfernen und immer auf den kleinsten zoom verwenden
 - [x] snap window komplett entfernen
-- [ ] cloud sync (server) -> das "(server)" entfernen
+- [ ] dcloud sync (server) -> das "(server)" entfernen
 - [x] Verzögertes umsortieren (nach editieren oder timer)
 - [x] Fertige Unteraufgaben sollen wir normale Aufgaben ausgegraut werden
 - [ ] wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.), damit sie automatisch nach Erledigung oder nach einem bestimmten Zeitplan neu erstellt werden.
+- [ ] Speichern übernimmt schonmal texte von anderen Aufgaben?
+      Wenn ich die Felder an Position 2 z.B. Editiere und es kommt eine andere Aufgabe an Position 2 und ich klappe diese auf, dann wird der alte Text von Position 2 geladden!
 
 ## notes
 
