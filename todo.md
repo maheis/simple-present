@@ -139,7 +139,8 @@
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [x] buttons in burgermenü wenn platz zu klein wird -> Wird nicht umgesetzt, minimal mode reicht erstmal!
 - [ ] Speichern übernimmt schonmal texte von anderen Aufgaben?
-- [ ] Web Applikation
+      Wenn ich die Felder an Position 2 z.B. Editiere und es kommt eine andere Aufgabe an Position 2 und ich klappe diese auf, dann wird der alte Text von Position 2 geladden!
+- [ ] Web Applikationich
 - [x] Miniaturansicht soll je nach Lage auf dem Bildschirm nach unten oder oben expandieren (und minbandieren). Bei der Breite das gleiche.
 - [x] Ankleben klappt in Windows nicht, bzw. Fenster springt.
 - [x] Erinnerungssound optional machen
@@ -147,7 +148,8 @@
 - [x] Zeiterfassung soll Persistiert werden und in der Statistik angezeigt werden (Auf nicht abgeschlossene Aufgaben sollen in der Statistik auftauchen)
 - [ ] Stopuhr in der minimalen Ansicht anzeigen
 - [ ] minimal Mode zu klein unter windows
-- [ ] snap window komplett entfernen
+- [ ] zoom funktion komplett entfernen und immer auf den kleinsten zoom verwenden
+- [x] snap window komplett entfernen
 - [ ] cloud sync (server) -> das "(server)" entfernen
 - [x] Verzögertes umsortieren (nach editieren oder timer)
 - [x] Fertige Unteraufgaben sollen wir normale Aufgaben ausgegraut werden

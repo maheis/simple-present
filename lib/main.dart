@@ -404,11 +404,6 @@ class _HomePageState extends State<HomePage> {
   bool _urgentNotifyEnabled = true;
   bool _urgentBringToFrontEnabled = true;
   bool _swipeEnabled = true;
-  bool _magnetEnabled = false;
-  // threshold (px) within which window will snap to screen edge
-  final int _magnetThreshold = 37;
-  // Last position we snapped to; prevents re-calling setWindowGeometry in a loop
-  Map<String, int>? _magnetLastSnapped;
   String _fontFamily = 'OpenDyslexic';
   // Fired flags to ensure each reminder type fires only once per inactivity period
   bool _idleFired = false;
@@ -1338,7 +1333,6 @@ class _HomePageState extends State<HomePage> {
         _urgentBringToFrontEnabled =
             readBool('urgentBringToFrontEnabled', _urgentBringToFrontEnabled);
         _swipeEnabled = readBool('swipeEnabled', _swipeEnabled);
-        _magnetEnabled = readBool('magnetEnabled', _magnetEnabled);
         _uiTextScaleFactor =
             _clampUiTextScaleFactor(readDouble('uiTextScaleFactor', 1.0));
         final font = data['fontFamily'];
@@ -1531,7 +1525,6 @@ class _HomePageState extends State<HomePage> {
         'urgentNotifyEnabled': _urgentNotifyEnabled,
         'urgentBringToFrontEnabled': _urgentBringToFrontEnabled,
         'swipeEnabled': _swipeEnabled,
-          'magnetEnabled': _magnetEnabled,
         'uiTextScaleFactor': _uiTextScaleFactor,
         'fontFamily': _fontFamily,
         'cloudServerUrl': _cloudServerUrl,
@@ -1887,96 +1880,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<Map<String, int>> _applyMagnetIfNeeded(Map<String, int> norm) async {
-    try {
-      if (!kIsWeb) {
-        // Only apply on desktop platforms
-        try {
-          if (!(Platform.isLinux || Platform.isMacOS || Platform.isWindows)) return norm;
-        } catch (_) {
-          return norm;
-        }
-      } else {
-        return norm;
-      }
-
-      if (!_magnetEnabled) return norm;
-
-      // Skip if window appears maximized
-      final maximized = (norm['maximized'] ?? 0) == 1 || norm['maximized'] == 1;
-      if (maximized) return norm;
-
-      final screen = await _nativeWindowChannel.invokeMethod('getScreenSize');
-      int sw = 0, sh = 0;
-      if (screen is Map) {
-        sw = (screen['width'] is int)
-            ? screen['width'] as int
-            : (screen['width'] is double
-                ? (screen['width'] as double).toInt()
-                : int.parse(screen['width'].toString()));
-        sh = (screen['height'] is int)
-            ? screen['height'] as int
-            : (screen['height'] is double
-                ? (screen['height'] as double).toInt()
-                : int.parse(screen['height'].toString()));
-      }
-
-      final x = norm['x'] ?? 0;
-      final y = norm['y'] ?? 0;
-      final width = norm['width'] ?? 800;
-      final height = norm['height'] ?? 600;
-
-      final int threshold = _magnetThreshold;
-      int snappedX = x;
-      int snappedY = y;
-
-      // Left
-      if ((x - 0).abs() <= threshold) snappedX = 0;
-      // Right
-      if (sw > 0) {
-        final rightX = sw - width;
-        if ((rightX - x).abs() <= threshold) snappedX = rightX;
-      }
-      // Top
-      if ((y - 0).abs() <= threshold) snappedY = 0;
-      // Bottom
-      if (sh > 0) {
-        final bottomY = sh - height;
-        if ((bottomY - y).abs() <= threshold) snappedY = bottomY;
-      }
-
-      if (snappedX != x || snappedY != y) {
-        // Only snap if we haven't already snapped to exactly this position.
-        // This breaks the feedback loop where setWindowGeometry triggers
-        // another WM_MOVE which would cause re-snapping indefinitely.
-        final alreadySnapped = _magnetLastSnapped != null &&
-            _magnetLastSnapped!['x'] == snappedX &&
-            _magnetLastSnapped!['y'] == snappedY;
-        if (!alreadySnapped) {
-          _magnetLastSnapped = {'x': snappedX, 'y': snappedY};
-          final payload = <String, dynamic>{
-            'x': snappedX,
-            'y': snappedY,
-            'width': width,
-            'height': height,
-          };
-          try {
-            await _nativeWindowChannel.invokeMethod('setWindowGeometry', payload);
-            norm['x'] = snappedX;
-            norm['y'] = snappedY;
-          } catch (_) {}
-        } else {
-          // Already snapped here; update norm so saved geom reflects snap position
-          norm['x'] = snappedX;
-          norm['y'] = snappedY;
-        }
-      } else {
-        // Window moved away from snapped position — reset so next snap fires
-        if (_magnetLastSnapped != null &&
-            (_magnetLastSnapped!['x'] != x || _magnetLastSnapped!['y'] != y)) {
-          _magnetLastSnapped = null;
-        }
-      }
-    } catch (_) {}
+    // Snap/magnet behavior has been removed — return geometry unchanged.
     return norm;
   }
 
@@ -2072,7 +1976,6 @@ class _HomePageState extends State<HomePage> {
             'urgentNotifyEnabled': _urgentNotifyEnabled,
             'urgentBringToFrontEnabled': _urgentBringToFrontEnabled,
             'swipeEnabled': _swipeEnabled,
-            'magnetEnabled': _magnetEnabled,
             'uiTextScaleFactor': _uiTextScaleFactor,
             'fontFamily': _fontFamily,
             'cloudServerUrl': _cloudServerUrl,
@@ -2131,7 +2034,6 @@ class _HomePageState extends State<HomePage> {
       _urgentNotifyEnabled = result['urgentNotifyEnabled'] == true;
       _urgentBringToFrontEnabled = result['urgentBringToFrontEnabled'] == true;
       _swipeEnabled = result['swipeEnabled'] == true;
-      _magnetEnabled = result['magnetEnabled'] == true;
       _uiTextScaleFactor =
           clampTextScale(result['uiTextScaleFactor'], _uiTextScaleFactor);
       if (result['fontFamily'] is String &&
@@ -4670,7 +4572,6 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool urgentFlashEnabled;
   late bool urgentBringToFrontEnabled;
   late bool swipeEnabled;
-  late bool magnetEnabled;
   late bool scheduledReminderSoundEnabled;
   late double textScaleFactor;
   late String fontFamily;
@@ -4712,7 +4613,6 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool _initialUrgentFlashEnabled;
   late bool _initialUrgentBringToFrontEnabled;
   late bool _initialSwipeEnabled;
-  late bool _initialMagnetEnabled;
   late bool _initialScheduledReminderSoundEnabled;
   late double _initialTextScaleFactor;
   late String _initialFontFamily;
@@ -4779,7 +4679,6 @@ class _SettingsPageState extends State<SettingsPage> {
     urgentBringToFrontEnabled = readBool('urgentBringToFrontEnabled', true);
     urgentFlashEnabled = readBool('urgentFlashEnabled', false);
     swipeEnabled = readBool('swipeEnabled', true);
-    magnetEnabled = readBool('magnetEnabled', false);
     scheduledReminderSoundEnabled = readBool('scheduledReminderSoundEnabled', true);
     textScaleFactor = readDouble('uiTextScaleFactor', 1.0).clamp(0.5, 1.6);
     fontFamily = readString('fontFamily', 'OpenDyslexic');
@@ -4815,7 +4714,6 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialUrgentFlashEnabled = urgentFlashEnabled;
     _initialUrgentBringToFrontEnabled = urgentBringToFrontEnabled;
     _initialSwipeEnabled = swipeEnabled;
-    _initialMagnetEnabled = magnetEnabled;
     _initialScheduledReminderSoundEnabled = scheduledReminderSoundEnabled;
     _initialTextScaleFactor = textScaleFactor;
     _initialFontFamily = fontFamily;
@@ -4937,7 +4835,6 @@ class _SettingsPageState extends State<SettingsPage> {
         urgentNotifyEnabled != _initialUrgentNotifyEnabled ||
         urgentBringToFrontEnabled != _initialUrgentBringToFrontEnabled ||
         swipeEnabled != _initialSwipeEnabled ||
-        magnetEnabled != _initialMagnetEnabled ||
         textScaleFactor != _initialTextScaleFactor ||
         fontFamily != _initialFontFamily ||
         cloudServerUrl != _initialCloudServerUrl ||
@@ -5240,7 +5137,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     'urgentNotifyEnabled': urgentNotifyEnabled,
                     'urgentBringToFrontEnabled': urgentBringToFrontEnabled,
                     'swipeEnabled': swipeEnabled,
-                                'magnetEnabled': magnetEnabled,
                                 'scheduledReminderSoundEnabled': scheduledReminderSoundEnabled,
                     'uiTextScaleFactor': textScaleFactor,
                     'fontFamily': fontFamily,
@@ -5389,14 +5285,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 subtitle: const Text(
                     'if disabled, swipe gestures on task rows are turned off.'),
                 onChanged: (v) => setState(() => swipeEnabled = v),
-              ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                value: magnetEnabled,
-                title: const Text('snap window to screen edges'),
-                subtitle: const Text(
-                    'when enabled, window will snap when within ~37px of an edge'),
-                onChanged: (v) => setState(() => magnetEnabled = v),
               ),
               const SizedBox(height: 8),
               SwitchListTile(
