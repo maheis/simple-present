@@ -2992,7 +2992,7 @@ class _HomePageState extends State<HomePage> {
                                           text: combined,
                                           textDirection:
                                               Directionality.of(context),
-                                              textScaleFactor: _uiTextScaleFactor);
+                                              textScaler: TextScaler.linear(_uiTextScaleFactor));
                                       tp.layout();
                                       final textWidth = tp.width;
 
@@ -5246,7 +5246,7 @@ class _SettingsPageState extends State<SettingsPage> {
               const Divider(),
               const SizedBox(height: 8),
               const Text(
-                'cloud sync (server)',
+                'cloud sync',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),

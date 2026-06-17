@@ -148,7 +148,7 @@
 - [ ] minimal Mode zu klein
 - [ ] zoom funktion komplett entfernen und immer auf den kleinsten zoom verwenden
 - [x] snap window komplett entfernen
-- [ ] dcloud sync (server) -> das "(server)" entfernen
+- [x] cloud sync (server) -> das "(server)" entfernen
 - [x] Verzögertes umsortieren (nach editieren oder timer)
 - [x] Fertige Unteraufgaben sollen wir normale Aufgaben ausgegraut werden
 - [ ] wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.), damit sie automatisch nach Erledigung oder nach einem bestimmten Zeitplan neu erstellt werden.
