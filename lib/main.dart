@@ -366,12 +366,19 @@ class _HomePageState extends State<HomePage> {
   final Map<String, TextEditingController> _subtaskInputControllers = {};
   final Map<String, FocusNode> _subtaskFocusNodes = {};
   final Map<String, TextEditingController> _workControllers = {};
+  // Staged important flag changes (apply when delayed reorder fires)
+  final Map<String, bool> _stagedImportant = {};
+  // Staged inProgress and done flag changes (apply when delayed reorder fires)
+  final Map<String, bool> _stagedInProgress = {};
+  final Map<String, bool> _stagedDone = {};
   final AudioPlayer _audioPlayer = AudioPlayer();
   // SQLite storage (migrates JSON files on first init)
   final _sqliteStorage = SqliteStorage();
   bool _useSqlite = false;
   Timer? _idleTimer;
   Timer? _attentionTimer;
+  Timer? _delayedReorderTimer;
+  static const int _delayedReorderMilliseconds = 750;
   int _idleMinutes = 45;
   int _attentionMinutes = 60;
   Timer? _reminderTimer;
@@ -1811,9 +1818,9 @@ class _HomePageState extends State<HomePage> {
   Future<void> _startStopwatch(int index) async {
     final t = _today[index];
     if (t.stopwatchRunning) return;
-    setState(() => _today[index] =
-        t.copyWith(stopwatchRunning: true, stopwatchStartedAt: DateTime.now()));
+    setState(() => _today[index] = t.copyWith(stopwatchRunning: true, stopwatchStartedAt: DateTime.now()));
     await _saveToday();
+    _scheduleDelayedReorder();
   }
 
   Future<void> _stopStopwatch(int index) async {
@@ -1822,11 +1829,9 @@ class _HomePageState extends State<HomePage> {
     final started = t.stopwatchStartedAt ?? DateTime.now();
     final added = DateTime.now().difference(started).inSeconds;
     final newAccum = t.stopwatchAccumulatedSeconds + added;
-    setState(() => _today[index] = t.copyWith(
-        stopwatchRunning: false,
-        stopwatchStartedAt: null,
-        stopwatchAccumulatedSeconds: newAccum));
+    setState(() => _today[index] = t.copyWith(stopwatchRunning: false, stopwatchStartedAt: null, stopwatchAccumulatedSeconds: newAccum));
     await _saveToday();
+    _scheduleDelayedReorder();
     _upsertTimeEntry(_today[index]);
   }
 
@@ -2213,6 +2218,7 @@ class _HomePageState extends State<HomePage> {
       _today[index] = updated;
     });
     _saveToday();
+    _scheduleDelayedReorder();
     _upsertTimeEntry(_today[index]);
     final scheduled = _today[index].scheduledAt;
     if (scheduled != null && !_isSameDay(scheduled, DateTime.now())) {
@@ -2263,6 +2269,7 @@ class _HomePageState extends State<HomePage> {
       _subtaskFocusNodes[task.id]?.requestFocus();
     } catch (_) {}
     _saveToday();
+    _scheduleDelayedReorder();
     _registerActivity();
   }
 
@@ -2284,7 +2291,129 @@ class _HomePageState extends State<HomePage> {
       _today[taskIndex] = task.copyWith(subtasks: updated);
     });
     _saveToday();
+    _scheduleDelayedReorder();
     _registerActivity();
+  }
+
+  void _scheduleDelayedReorder() {
+    try {
+      _delayedReorderTimer?.cancel();
+    } catch (_) {}
+    _delayedReorderTimer = Timer(Duration(milliseconds: _delayedReorderMilliseconds), () {
+      if (!mounted) return;
+      _performDelayedReorder();
+    });
+  }
+
+  void _performDelayedReorder() {
+    // Apply any staged important flag changes before computing new order.
+    if (_stagedImportant.isNotEmpty) {
+      for (final entry in _stagedImportant.entries) {
+        final id = entry.key;
+        final val = entry.value;
+        final idx = _today.indexWhere((t) => t.id == id);
+        if (idx != -1) {
+          final now = val ? DateTime.now() : null;
+          _today[idx] = _today[idx].copyWith(important: val, importantAt: now);
+        }
+      }
+      _stagedImportant.clear();
+    }
+    // Apply staged inProgress changes
+    if (_stagedInProgress.isNotEmpty) {
+      for (final entry in _stagedInProgress.entries) {
+        final id = entry.key;
+        final val = entry.value;
+        final idx = _today.indexWhere((t) => t.id == id);
+        if (idx != -1) {
+          final now = val ? DateTime.now() : null;
+          _today[idx] = _today[idx].copyWith(inProgress: val, inProgressAt: now);
+        }
+      }
+      _stagedInProgress.clear();
+    }
+    // Apply staged done changes
+    if (_stagedDone.isNotEmpty) {
+      for (final entry in _stagedDone.entries) {
+        final id = entry.key;
+        final val = entry.value;
+        final idx = _today.indexWhere((t) => t.id == id);
+        if (idx != -1) {
+          final now = val ? DateTime.now() : null;
+          // When marking done, clear inProgress
+          _today[idx] = _today[idx].copyWith(done: val, inProgress: val ? false : _today[idx].inProgress, completedAt: val ? now : _today[idx].completedAt);
+          if (val == true) {
+            // clear any pending notified flags for this task
+            final idPrefix = '${_today[idx].id}|';
+            _notified15.removeWhere((k) => k.startsWith(idPrefix));
+            _notifiedDue.removeWhere((k) => k.startsWith(idPrefix));
+            try {
+              _upsertTimeEntry(_today[idx]);
+            } catch (_) {}
+            try {
+              unawaited(_playDading());
+            } catch (_) {}
+          }
+        }
+      }
+      _stagedDone.clear();
+    }
+    final now = DateTime.now();
+    final bucketOverdue = <TaskItem>[];
+    final bucketImportantInProgress = <TaskItem>[];
+    final bucketInProgress = <TaskItem>[];
+    final bucketImportant = <TaskItem>[];
+    final bucketDueIn1h = <TaskItem>[];
+    final bucketRest = <TaskItem>[];
+    final bucketDone = <TaskItem>[];
+
+    for (final t in _today) {
+      final hasSchedule = t.scheduledAt != null;
+      final diff = hasSchedule ? t.scheduledAt!.difference(now) : null;
+      final isOverdue = hasSchedule && diff!.isNegative;
+      final dueWithin1h = hasSchedule && !diff!.isNegative && diff!.inMinutes <= 60;
+      if (t.done) {
+        bucketDone.add(t);
+        continue;
+      }
+      if (isOverdue) {
+        bucketOverdue.add(t);
+        continue;
+      }
+      if (t.important && t.inProgress) {
+        bucketImportantInProgress.add(t);
+        continue;
+      }
+      if (t.inProgress) {
+        bucketInProgress.add(t);
+        continue;
+      }
+      if (t.important) {
+        bucketImportant.add(t);
+        continue;
+      }
+      if (dueWithin1h) {
+        bucketDueIn1h.add(t);
+        continue;
+      }
+      bucketRest.add(t);
+    }
+
+    final newOrder = <TaskItem>[];
+    newOrder.addAll(bucketOverdue);
+    newOrder.addAll(bucketImportantInProgress);
+    newOrder.addAll(bucketInProgress);
+    newOrder.addAll(bucketImportant);
+    newOrder.addAll(bucketDueIn1h);
+    newOrder.addAll(bucketRest);
+    newOrder.addAll(bucketDone);
+
+    setState(() {
+      _today
+        ..clear()
+        ..addAll(newOrder);
+    });
+    _saveToday();
   }
 
   void _removeSubtask(int taskIndex, String subtaskId) {
@@ -2336,6 +2465,7 @@ class _HomePageState extends State<HomePage> {
     setState(
         () => _today[index] = _today[index].copyWith(scheduledAt: scheduled));
     await _saveToday();
+    _scheduleDelayedReorder();
 
     // If scheduled date is not today, move to backlog automatically
     if (!_isSameDay(scheduled, DateTime.now())) {
@@ -2655,23 +2785,21 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    setState(() {
-      final t = _today[index];
-      // When marking done, clear inProgress
-      _today[index] = t.copyWith(
-        done: value,
-        inProgress: value ? false : t.inProgress,
-        completedAt: value ? DateTime.now() : t.completedAt,
-      );
-    });
-    // If marked done, stop the stopwatch and persist
-    if (value == true) {
-      await _stopStopwatch(index);
-    }
-    _saveToday();
-    _upsertTimeEntry(_today[index]);
-    // clear notification flags for this task (by id)
+    // Stage done change to avoid immediate reordering; persist when delayed reorder runs.
     final t = _today[index];
+    setState(() => _stagedDone[t.id] = value);
+    // If marking done, ensure any staged inProgress is cleared
+    if (value == true) {
+      _stagedInProgress.remove(t.id);
+    }
+    _scheduleDelayedReorder();
+    // If marked done, still stop the stopwatch now to avoid counting further time
+    if (value == true) {
+      try {
+        await _stopStopwatch(index);
+      } catch (_) {}
+    }
+    // clear notification flags for this task (by id)
     final idPrefix = '${t.id}|';
     _notified15.removeWhere((k) => k.startsWith(idPrefix));
     _notifiedDue.removeWhere((k) => k.startsWith(idPrefix));
@@ -3483,15 +3611,10 @@ class _HomePageState extends State<HomePage> {
                                                   // Right swipe (Today view): 1st -> set inProgress, 2nd -> set done
                                                   if (!t.inProgress &&
                                                       !t.done) {
-                                                    setState(() => _today[i] =
-                                                        t.copyWith(
-                                                            inProgress: true,
-                                                            inProgressAt:
-                                                                DateTime
-                                                                    .now()));
-                                                    _saveToday();
-                                                    _showTopToast(
-                                                        'task marked in progress');
+                                                    // Stage inProgress instead of immediate save to avoid noisy reorders
+                                                    setState(() => _stagedInProgress[t.id] = true);
+                                                    _scheduleDelayedReorder();
+                                                    _showTopToast('task marked in progress');
                                                   } else if (t.inProgress &&
                                                       !t.done) {
                                                     _setDone(i, true);
@@ -3502,13 +3625,10 @@ class _HomePageState extends State<HomePage> {
                                                 }
                                                 // Left swipe: if task is inProgress -> unset inProgress, do not delete
                                                 if (t.inProgress && !t.done) {
-                                                  setState(() => _today[i] =
-                                                      t.copyWith(
-                                                          inProgress: false,
-                                                          inProgressAt: null));
-                                                  _saveToday();
-                                                  _showTopToast(
-                                                      'task marked not in progress');
+                                                  // Stage unset inProgress instead of immediate save
+                                                  setState(() => _stagedInProgress[t.id] = false);
+                                                  _scheduleDelayedReorder();
+                                                  _showTopToast('task marked not in progress');
                                                   return false;
                                                 }
                                                 // Otherwise ask for delete confirmation
@@ -3575,14 +3695,21 @@ class _HomePageState extends State<HomePage> {
                                                           _toggleExpanded(i),
                                                       leading: IconButton(
                                                         tooltip: 'done',
-                                                        icon: Icon(task.done
-                                                            ? Icons
-                                                                .radio_button_checked
-                                                            : Icons
-                                                                .radio_button_unchecked),
-                                                        onPressed: () =>
-                                                            _setDone(
-                                                                i, !task.done),
+                                                        icon: Icon(( _stagedDone[task.id] ?? task.done)
+                                                            ? Icons.radio_button_checked
+                                                            : Icons.radio_button_unchecked),
+                                                        onPressed: () async {
+                                                          final current = _stagedDone[task.id] ?? task.done;
+                                                          final newVal = !current;
+                                                          // If we're in Done view and unchecking, perform immediate move back to Today
+                                                          if (!newVal && _currentFile == 'simplepresent_done.json' && task.done) {
+                                                            await _setDone(i, newVal);
+                                                            return;
+                                                          }
+                                                          // Stage the change and schedule delayed reorder
+                                                          setState(() => _stagedDone[task.id] = newVal);
+                                                          _scheduleDelayedReorder();
+                                                        },
                                                       ),
                                                       title: Row(
                                                         children: [
@@ -3768,80 +3895,44 @@ class _HomePageState extends State<HomePage> {
                                                                     constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
                                                                     tooltip: task.inProgress && !task.done ? 'remove in progress' : 'mark in progress',
                                                                     icon: Icon(
-                                                                      Icons.construction,
-                                                                      color: (task.inProgress && !task.done) ? Colors.greenAccent.shade200 : Theme.of(context).colorScheme.onSurfaceVariant,
+                                                                        Icons.construction,
+                                                                        color: ((_stagedInProgress[task.id] ?? task.inProgress) && !(_stagedDone[task.id] ?? task.done)) ? Colors.greenAccent.shade200 : Theme.of(context).colorScheme.onSurfaceVariant,
                                                                       size: 18,
                                                                     ),
                                                                     onPressed: () async {
-                                                                      final task = _today[i];
-                                                                      final wasInProgress = task.inProgress;
-                                                                      final now = !wasInProgress ? DateTime.now() : null;
+                                                                        final task = _today[i];
+                                                                        final wasInProgress = _stagedInProgress[task.id] ?? task.inProgress;
+                                                                        final now = !wasInProgress ? DateTime.now() : null;
 
-                                                                      // If the task is done and we're showing the Done list, move it back to Today as in-progress
-                                                                      if (task.done && _currentFile == 'simplepresent_done.json') {
-                                                                        try {
-                                                                          final restored = task.copyWith(done: false, inProgress: true, inProgressAt: DateTime.now(), completedAt: null);
-                                                                          setState(() {
-                                                                            _today.removeAt(i);
-                                                                            _expanded.clear();
-                                                                          });
-                                                                          await _saveToday(); // persist removal from done file
+                                                                        // If the task is done and we're showing the Done list, move it back to Today as in-progress (keep immediate behavior)
+                                                                        if (( _stagedDone[task.id] ?? task.done) && _currentFile == 'simplepresent_done.json') {
+                                                                          try {
+                                                                            final restored = task.copyWith(done: false, inProgress: true, inProgressAt: DateTime.now(), completedAt: null);
+                                                                            setState(() {
+                                                                              _today.removeAt(i);
+                                                                              _expanded.clear();
+                                                                            });
+                                                                            await _saveToday(); // persist removal from done file
 
-                                                                          final List<TaskItem> todayList = [];
-                                                                          await _loadList(_storage('simplepresent_today.json'), todayList);
-                                                                          todayList.insert(0, restored);
-                                                                          await _saveList('simplepresent_today.json', todayList);
+                                                                            final List<TaskItem> todayList = [];
+                                                                            await _loadList(_storage('simplepresent_today.json'), todayList);
+                                                                            todayList.insert(0, restored);
+                                                                            await _saveList('simplepresent_today.json', todayList);
 
-                                                                          _showTopToast('task moved to today (in progress)');
-                                                                        } catch (_) {
-                                                                          _showTopToast('failed to move task');
-                                                                        }
-                                                                        _registerActivity();
-                                                                        return;
-                                                                      }
-
-                                                                      // Normal toggle for non-Done views (or done tasks in other views)
-                                                                      setState(() {
-                                                                        _today[i] = _today[i].copyWith(
-                                                                          inProgress: !wasInProgress,
-                                                                          inProgressAt: now,
-                                                                          // ensure a task marked in-progress is not still marked done
-                                                                          done: task.done && !wasInProgress ? false : task.done,
-                                                                          completedAt: task.done && !wasInProgress ? null : task.completedAt,
-                                                                        );
-
-                                                                        if (wasInProgress && !_today[i].inProgress) {
-                                                                          final moved = _today.removeAt(i);
-                                                                          int insertAt = 0;
-                                                                          final now2 = DateTime.now();
-                                                                          for (final t in _today) {
-                                                                            if (t.done) break;
-                                                                            final hasSchedule = t.scheduledAt != null;
-                                                                            final diff = hasSchedule ? t.scheduledAt!.difference(now2) : null;
-                                                                            final isOverdue = hasSchedule && diff!.isNegative;
-                                                                            if (isOverdue) {
-                                                                              insertAt++;
-                                                                              continue;
-                                                                            }
-                                                                            if (t.important && t.inProgress) {
-                                                                              insertAt++;
-                                                                              continue;
-                                                                            }
-                                                                            if (t.inProgress) {
-                                                                              insertAt++;
-                                                                              continue;
-                                                                            }
-                                                                            if (t.important) {
-                                                                              insertAt++;
-                                                                              continue;
-                                                                            }
-                                                                            break;
+                                                                            _showTopToast('task moved to today (in progress)');
+                                                                          } catch (_) {
+                                                                            _showTopToast('failed to move task');
                                                                           }
-                                                                          _today.insert(insertAt, moved);
+                                                                          _registerActivity();
+                                                                          return;
                                                                         }
-                                                                      });
-                                                                      await _saveToday();
-                                                                      _registerActivity();
+
+                                                                        // Stage the inProgress toggle and schedule reorder
+                                                                        setState(() => _stagedInProgress[task.id] = !wasInProgress);
+                                                                        // If staging inProgress=true, ensure stagedDone is false
+                                                                        if (_stagedInProgress[task.id] == true) _stagedDone.remove(task.id);
+                                                                        _scheduleDelayedReorder();
+                                                                        _registerActivity();
                                                                     },
                                                                   ),
                                                                 ),
@@ -3883,34 +3974,17 @@ class _HomePageState extends State<HomePage> {
                                                                 IconButton(
                                                                   tooltip:
                                                                       'Important',
-                                                                  icon: Icon(
-                                                                      task.important
-                                                                          ? Icons
-                                                                              .star
-                                                                          : Icons
-                                                                              .star_border,
-                                                                      color: task.important
-                                                                          ? Colors
-                                                                              .amber
-                                                                          : Theme.of(context)
-                                                                              .colorScheme
-                                                                              .onSurfaceVariant),
-                                                                  onPressed:
-                                                                      () {
-                                                                    final now = !_today[i]
-                                                                            .important
-                                                                        ? DateTime
-                                                                            .now()
-                                                                        : _today[i]
-                                                                            .importantAt;
-                                                                    setState(() => _today[
-                                                                        i] = _today[
-                                                                            i]
-                                                                        .copyWith(
-                                                                            important:
-                                                                                !_today[i].important,
-                                                                            importantAt: now));
-                                                                    _saveToday();
+                                                                    icon: Icon(
+                                                                      ( _stagedImportant[task.id] ?? task.important)
+                                                                          ? Icons.star
+                                                                          : Icons.star_border,
+                                                                      color: (_stagedImportant[task.id] ?? task.important)
+                                                                          ? Colors.amber
+                                                                          : Theme.of(context).colorScheme.onSurfaceVariant),
+                                                                  onPressed: () {
+                                                                    final newVal = !(_stagedImportant[task.id] ?? task.important);
+                                                                    setState(() => _stagedImportant[task.id] = newVal);
+                                                                    _scheduleDelayedReorder();
                                                                   },
                                                                 ),
                                                                 // Custom D&D handle (reduced left padding)
