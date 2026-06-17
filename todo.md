@@ -145,6 +145,13 @@
 - [x] Erinnerungssound optional machen
 - [x] Work in progress soll bei fertigen Aufgaben die Aufgabe wieder in Arbeit setzen und done = false
 - [x] Zeiterfassung soll Persistiert werden und in der Statistik angezeigt werden (Auf nicht abgeschlossene Aufgaben sollen in der Statistik auftauchen)
+- [ ] Stopuhr in der minimalen Ansicht anzeigen
+- [ ] minimal Mode zu klein unter windows
+- [ ] snap window komplett entfernen
+- [ ] cloud sync (server) -> das "(server)" entfernen
+- [ ] Verzögertes umsortieren (nach editieren oder timer)
+- [x] Fertige Unteraufgaben sollen wir normale Aufgaben ausgegraut werden
+- [ ] wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.), damit sie automatisch nach Erledigung oder nach einem bestimmten Zeitplan neu erstellt werden.
 
 ## notes
 

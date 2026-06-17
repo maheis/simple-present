@@ -4098,12 +4098,19 @@ class _HomePageState extends State<HomePage> {
                                                                               value: step.done,
                                                                               onChanged: (value) => _updateSubtask(i, step.id, done: value ?? false),
                                                                             ),
-                                                                            title:
-                                                                                TextFormField(
-                                                                              initialValue: step.text,
-                                                                              decoration: const InputDecoration(border: InputBorder.none, isDense: true),
-                                                                              onChanged: (value) => _updateSubtask(i, step.id, text: value),
-                                                                            ),
+                                                                            title: step.done
+                                                                                ? Text(
+                                                                                    step.text,
+                                                                                    style: TextStyle(
+                                                                                      decoration: TextDecoration.lineThrough,
+                                                                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                                                                    ),
+                                                                                  )
+                                                                                : TextFormField(
+                                                                                    initialValue: step.text,
+                                                                                    decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+                                                                                    onChanged: (value) => _updateSubtask(i, step.id, text: value),
+                                                                                  ),
                                                                             trailing:
                                                                                 Row(
                                                                               mainAxisSize: MainAxisSize.min,
