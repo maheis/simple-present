@@ -8,9 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:math' as math;
-import 'package:flutter/gestures.dart' show PointerScrollEvent;
+// Pointer scroll events (task zoom via Ctrl+wheel) disabled — no import needed
 import 'package:path_provider/path_provider.dart';
 import 'package:simple_present/sync/cloud_sync_client.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -429,16 +428,13 @@ class _HomePageState extends State<HomePage> {
 
   // Zoom state: tile height and font scaling
   double _tileHeight = 52.0;
-  final double _defaultTileHeight = 52.0;
-  final double _minTileHeight = 0.1; // allow very small tiles
-  double _fontScale = 1.0;
-  final double _minFontScale = 0.01;
+  // default/min tile height constants removed (unused)
+  // min font scale removed (unused)
   final double _baseFontSize = 15.0; // used when scaling text down
   double _uiTextScaleFactor = 1.0;
   final double _minUiTextScaleFactor = 0.5;
   final double _maxUiTextScaleFactor = 1.6;
-  double _tileHeightStart = 52.0;
-  double _fontScaleStart = 1.0;
+  // gesture scale start values removed (pinch zoom disabled)
   bool _alwaysOnTop = false;
   final String _appTitle = 'SimplePresent';
   String _cloudServerUrl = '';
@@ -472,10 +468,7 @@ class _HomePageState extends State<HomePage> {
   Duration get _urgentDuration =>
       Duration(minutes: _urgentMinutes.clamp(1, 720));
 
-  double _fontScaleForTileHeight(double tileHeight) {
-    if (tileHeight >= 1.0) return 1.0;
-    return math.max(tileHeight, _minFontScale);
-  }
+// removed task font-scale helper (unused after disabling task zoom)
 
   double _clampUiTextScaleFactor(double value) {
     return value.clamp(_minUiTextScaleFactor, _maxUiTextScaleFactor).toDouble();
@@ -1291,13 +1284,9 @@ class _HomePageState extends State<HomePage> {
         }
       }
       if (data.containsKey('fontScale')) {
-        final v = data['fontScale'];
-        if (v is num) {
-          setState(() => _fontScale = v.toDouble());
-        }
+        // persisted fontScale ignored (task zoom disabled)
       }
       setState(() {
-        _fontScale = _fontScaleForTileHeight(_tileHeight);
         _idleMinutes = readInt('idleMinutes', _idleMinutes);
         _attentionMinutes = readInt('attentionMinutes', _attentionMinutes);
         _reminderMinutes = readInt('reminderMinutes', _reminderMinutes);
@@ -1503,7 +1492,6 @@ class _HomePageState extends State<HomePage> {
       final f = await _fileFor(_storage('simplepresent_settings.json'));
       final out = <String, dynamic>{
         'tileHeight': _tileHeight,
-        'fontScale': _fontScale,
         'idleMinutes': _idleMinutes,
         'attentionMinutes': _attentionMinutes,
         'reminderMinutes': _reminderMinutes,
@@ -2932,48 +2920,12 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   Listener(
                 onPointerDown: (_) => _registerActivity(),
-                onPointerSignal: (ps) {
-                  if (ps is PointerScrollEvent) {
-                    final ctrl = RawKeyboard.instance.keysPressed
-                            .contains(LogicalKeyboardKey.controlLeft) ||
-                        RawKeyboard.instance.keysPressed
-                            .contains(LogicalKeyboardKey.controlRight);
-                    if (!ctrl) return;
-                    final delta = ps.scrollDelta.dy;
-                    final step = delta.abs() * 0.08;
-                    if (delta > 0) {
-                      // zoom out
-                      final candidate = (_tileHeight - step)
-                          .clamp(_minTileHeight, _defaultTileHeight);
-                      setState(() {
-                        _tileHeight = candidate;
-                        _fontScale = _fontScaleForTileHeight(_tileHeight);
-                      });
-                    } else {
-                      // zoom in
-                      final candidate = (_tileHeight + step)
-                          .clamp(_minTileHeight, _defaultTileHeight);
-                      setState(() {
-                        _tileHeight = candidate;
-                        _fontScale = _fontScaleForTileHeight(_tileHeight);
-                      });
-                    }
-                  }
-                },
+                // Task zoom via pointer signals disabled
+                onPointerSignal: (_) {},
                 child: GestureDetector(
-                  onScaleStart: (d) {
-                    _tileHeightStart = _tileHeight;
-                    _fontScaleStart = _fontScale;
-                  },
-                  onScaleUpdate: (d) {
-                    if (d.scale == 0.0 || d.scale.isNaN) return;
-                    final newHeight = (_tileHeightStart * d.scale)
-                        .clamp(_minTileHeight, double.infinity);
-                    setState(() {
-                      _tileHeight = newHeight;
-                      _fontScale = _fontScaleForTileHeight(_tileHeight);
-                    });
-                  },
+                  // Pinch-to-zoom disabled for tasks
+                  onScaleStart: (_) {},
+                  onScaleUpdate: (_) {},
                   behavior: HitTestBehavior.translucent,
                   onTap: () {
                     _inputFocus.requestFocus();
@@ -4586,7 +4538,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool cloudSyncFailed;
   late String cloudSyncLastError;
   String _cloudStatus = '';
-  String _serverVersion = '';
+  String _settingsServerVersion = '';
   String _versionWarning = '';
   String _cloudArchiveInfo = '';
   bool _cloudArchiveWarning = false;
@@ -4737,7 +4689,7 @@ class _SettingsPageState extends State<SettingsPage> {
       final version = await client.getHealth();
       if (version != null && mounted) {
         setState(() {
-          _serverVersion = version;
+          _settingsServerVersion = version;
           _versionWarning = _isClientOlderThanServer(kClientVersion, version)
               ? 'Warnung: Client ist älter als Server. Bitte Client aktualisieren.'
               : '';
@@ -5437,7 +5389,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 6),
               SelectableText(
-                'Client: $kClientVersion${_serverVersion.isNotEmpty ? ' | Server: $_serverVersion' : ' | Server: -'}',
+                'Client: $kClientVersion${_settingsServerVersion.isNotEmpty ? ' | Server: $_settingsServerVersion' : ' | Server: -'}',
                 style: TextStyle(
                   fontSize: 11,
                   color: _versionWarning.isEmpty ? Colors.grey : Colors.orangeAccent,
