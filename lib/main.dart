@@ -1254,10 +1254,40 @@ class _HomePageState extends State<HomePage> {
         final txt = _sqliteStorage.read(_storage('simplepresent_settings.json'));
         if (txt == null) return;
         data = jsonDecode(txt) as Map<String, dynamic>;
+        // Clean up legacy keys that should no longer be persisted
+        var cleaned = false;
+        if (data.containsKey('window')) {
+          data.remove('window');
+          cleaned = true;
+        }
+        if (data.containsKey('uiTextScaleFactor')) {
+          data.remove('uiTextScaleFactor');
+          cleaned = true;
+        }
+        if (cleaned) {
+          try {
+            _sqliteStorage.write(_storage('simplepresent_settings.json'), jsonEncode(data));
+          } catch (_) {}
+        }
       } else {
         final f = await _fileFor(_storage('simplepresent_settings.json'));
         if (!await f.exists()) return;
         data = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
+        // Clean up legacy keys that should no longer be persisted
+        var cleaned = false;
+        if (data.containsKey('window')) {
+          data.remove('window');
+          cleaned = true;
+        }
+        if (data.containsKey('uiTextScaleFactor')) {
+          data.remove('uiTextScaleFactor');
+          cleaned = true;
+        }
+        if (cleaned) {
+          try {
+            await f.writeAsString(jsonEncode(data));
+          } catch (_) {}
+        }
       }
       int readInt(String key, int fallback) {
         final v = data[key];
@@ -1488,25 +1518,7 @@ class _HomePageState extends State<HomePage> {
         }
       } catch (_) {}
 
-      try {
-        Map<String, dynamic>? useGeom;
-        if (geom != null) {
-          useGeom = geom.cast<String, dynamic>();
-        } else {
-          // Only capture the window geometry when the HomePage is the
-          // currently visible main route. This prevents saving sizes from
-          // transient dialogs (settings, stats, etc.). If HomePage is not
-          // current, keep the previously persisted window geometry intact.
-          final isMainRoute = ModalRoute.of(context)?.isCurrent ?? true;
-          if (isMainRoute) {
-            final g =
-                await _nativeWindowChannel.invokeMethod('getWindowGeometry');
-            if (g is Map)
-              useGeom = Map<String, dynamic>.from(g.cast<String, dynamic>());
-          }
-        }
-        if (useGeom != null) out['window'] = useGeom;
-      } catch (_) {}
+      // Do not capture or persist window geometry or position.
       // Persist current notification flags as lists so restarts don't re-notify
       out['notified15'] = _notified15.toList();
       out['notifiedDue'] = _notifiedDue.toList();
@@ -4853,7 +4865,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     'urgentBringToFrontEnabled': urgentBringToFrontEnabled,
                     'swipeEnabled': swipeEnabled,
                                 'scheduledReminderSoundEnabled': scheduledReminderSoundEnabled,
-                    'uiTextScaleFactor': textScaleFactor,
                     'fontFamily': fontFamily,
                     'cloudServerUrl': cloudServerUrl,
                     'cloudAccountId': cloudAccountId,
