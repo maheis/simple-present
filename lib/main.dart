@@ -359,9 +359,9 @@ class _HomePageState extends State<HomePage> {
   final FocusNode _inputFocus = FocusNode();
   OverlayEntry? _toastEntry;
   Timer? _toastTimer;
-  final Set<int> _expanded = <int>{};
-  final Map<int, TextEditingController> _editControllers = {};
-  final Map<int, TextEditingController> _notesControllers = {};
+  final Set<String> _expanded = <String>{};
+  final Map<String, TextEditingController> _editControllers = {};
+  final Map<String, TextEditingController> _notesControllers = {};
   final Map<String, TextEditingController> _subtaskInputControllers = {};
   final Map<String, FocusNode> _subtaskFocusNodes = {};
   final Map<String, TextEditingController> _workControllers = {};
@@ -1983,23 +1983,24 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _toggleExpanded(int index) {
-    if (_expanded.contains(index)) {
+    final taskId = _today[index].id;
+    if (_expanded.contains(taskId)) {
       // collapsing: save edited title/notes before collapsing
       _saveEditedTitle(index);
       setState(() {
-        _expanded.remove(index);
+        _expanded.remove(taskId);
       });
     } else {
       setState(() {
-        _expanded.add(index);
-        _editControllers.putIfAbsent(index, () {
+        _expanded.add(taskId);
+        _editControllers.putIfAbsent(taskId, () {
           final c = TextEditingController(text: _today[index].text.trim());
           c.addListener(() {
             if (mounted) setState(() {});
           });
           return c;
         });
-        _notesControllers.putIfAbsent(index, () {
+        _notesControllers.putIfAbsent(taskId, () {
           final n = TextEditingController(text: _today[index].notes ?? '');
           n.addListener(() {
             if (mounted) setState(() {});
@@ -2012,8 +2013,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _saveEditedTitle(int index) async {
-    final titleCtrl = _editControllers[index];
-    final notesCtrl = _notesControllers[index];
+    if (index < 0 || index >= _today.length) return;
+    final taskId = _today[index].id;
+    final titleCtrl = _editControllers[taskId];
+    final notesCtrl = _notesControllers[taskId];
     if (titleCtrl == null || notesCtrl == null) return;
     final newText = titleCtrl.text.trim();
     final newNotes = notesCtrl.text;
@@ -3439,7 +3442,7 @@ class _HomePageState extends State<HomePage> {
                                                         children: [
                                                           Expanded(
                                                             child: _expanded
-                                                                    .contains(i)
+                                                                    .contains(task.id)
                                                                 ? const SizedBox
                                                                     .shrink()
                                                                 : Column(
@@ -3660,17 +3663,17 @@ class _HomePageState extends State<HomePage> {
                                                                   ),
                                                                 ),
                                                                 if (_expanded
-                                                                    .contains(
-                                                                        i))
+                                                                  .contains(
+                                                                    task.id))
                                                                   Builder(
                                                                       builder:
                                                                           (_) {
                                                                     final titleCtrl =
                                                                         _editControllers[
-                                                                            i];
+                                                                      task.id];
                                                                     final notesCtrl =
                                                                         _notesControllers[
-                                                                            i];
+                                                                      task.id];
                                                                     final isDirty = (titleCtrl !=
                                                                                 null &&
                                                                             titleCtrl.text.trim() !=
@@ -3728,7 +3731,7 @@ class _HomePageState extends State<HomePage> {
                                                       ),
                                                     ),
                                                   ),
-                                                  if (_expanded.contains(i))
+                                                  if (_expanded.contains(task.id))
                                                     Padding(
                                                       padding: const EdgeInsets
                                                           .symmetric(
@@ -3744,7 +3747,7 @@ class _HomePageState extends State<HomePage> {
                                                             controller:
                                                                 _editControllers
                                                                     .putIfAbsent(
-                                                                        i, () {
+                                                                  task.id, () {
                                                               final c =
                                                                   TextEditingController(
                                                                       text: task
@@ -3775,7 +3778,7 @@ class _HomePageState extends State<HomePage> {
                                                             controller:
                                                                 _notesControllers
                                                                     .putIfAbsent(
-                                                                        i, () {
+                                                                  task.id, () {
                                                               final n =
                                                                   TextEditingController(
                                                                       text: task
