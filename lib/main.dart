@@ -561,10 +561,29 @@ class _HomePageState extends State<HomePage> {
     await _loadSettings();
     await _ensureInitialFiles();
 
-    // Set a sensible default size on startup (width x height). Do not store
-    // position or size — position is left to the window manager/OS.
+    // Set a sensible default size on startup (width x height).
+    // On Windows place the window at the top-right edge of the primary screen.
     try {
-      await _nativeWindowChannel.invokeMethod('setWindowGeometry', <String, dynamic>{'width': 450, 'height': 700, 'maximized': 0, 'always_on_top': 0});
+      if (Platform.isWindows) {
+        try {
+          final screen = await _nativeWindowChannel.invokeMethod('getScreenSize');
+          int sw = 0;
+          if (screen is Map) {
+            final w = screen['width'];
+            if (w is int) sw = w;
+            else if (w is num) sw = w.toInt();
+            else if (w is String) sw = int.tryParse(w) ?? 0;
+          }
+          final int width = 450;
+          final int x = (sw > 0) ? math.max(0, sw - width) : 0;
+          await _nativeWindowChannel.invokeMethod('setWindowGeometry', <String, dynamic>{'x': x, 'y': 0, 'width': width, 'height': 700, 'maximized': 0, 'always_on_top': 0});
+        } catch (_) {
+          // fallback to center/normal sizing if screen query fails
+          await _nativeWindowChannel.invokeMethod('setWindowGeometry', <String, dynamic>{'width': 450, 'height': 700, 'maximized': 0, 'always_on_top': 0});
+        }
+      } else {
+        await _nativeWindowChannel.invokeMethod('setWindowGeometry', <String, dynamic>{'width': 450, 'height': 700, 'maximized': 0, 'always_on_top': 0});
+      }
     } catch (_) {}
 
     // Ensure daily reset: when app is started the first time on a new day,

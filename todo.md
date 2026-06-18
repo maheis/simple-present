@@ -160,7 +160,7 @@
 - [x] Stopuhr beim Fertigmelden anhalten
 - [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [x] Text-Zoom schon gespeichert!
-- [ ] Öffnen oben Rechts
+- [ ] Öffnen oben Rechts (unter windows?)
 
 ## notes
 
