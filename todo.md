@@ -155,7 +155,8 @@
 - [x] Speichern übernimmt schonmal texte von anderen Aufgaben?
       Wenn ich die Felder an Position 2 z.B. Editiere und es kommt eine andere Aufgabe an Position 2 und ich klappe diese auf, dann wird der alte Text von Position 2 geladen!
 - [x] Aufgaben die von heute ins Backlog verschoben werden, sollen oben im Backlog einsortiert werden!
-- [x] Fenstergröße 450x700
+- [ ] Fenstergröße 450x700 (klappt so gar nicht?!)
+- [x] Sortierungsverzögerung bei Termin Anpassung
 
 ## notes
 

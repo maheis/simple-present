@@ -370,6 +370,8 @@ class _HomePageState extends State<HomePage> {
   // Staged inProgress and done flag changes (apply when delayed reorder fires)
   final Map<String, bool> _stagedInProgress = {};
   final Map<String, bool> _stagedDone = {};
+  // Staged scheduled date/time changes (apply when delayed reorder fires)
+  final Map<String, DateTime?> _stagedScheduled = {};
   final AudioPlayer _audioPlayer = AudioPlayer();
   // SQLite storage (migrates JSON files on first init)
   final _sqliteStorage = SqliteStorage();
@@ -2173,6 +2175,28 @@ class _HomePageState extends State<HomePage> {
       }
       _stagedDone.clear();
     }
+    // Apply staged scheduled changes
+    final idsToMoveToBacklog = <String>[];
+    if (_stagedScheduled.isNotEmpty) {
+      for (final entry in _stagedScheduled.entries) {
+        final id = entry.key;
+        final val = entry.value; // DateTime? or null
+        final idx = _today.indexWhere((t) => t.id == id);
+        if (idx != -1) {
+          if (val == null) {
+            _today[idx] = _today[idx].copyWith(scheduledAt: null);
+          } else {
+            // apply the scheduledAt change
+            _today[idx] = _today[idx].copyWith(scheduledAt: val);
+            // if it's not for today, defer moving to backlog until after reorder
+            if (!_isSameDay(val, DateTime.now())) {
+              idsToMoveToBacklog.add(id);
+            }
+          }
+        }
+      }
+      _stagedScheduled.clear();
+    }
     final now = DateTime.now();
     final bucketOverdue = <TaskItem>[];
     final bucketImportantInProgress = <TaskItem>[];
@@ -2229,6 +2253,17 @@ class _HomePageState extends State<HomePage> {
         ..addAll(newOrder);
     });
     _saveToday();
+
+    // After reordering, move any tasks with scheduled dates outside today into backlog
+    if (idsToMoveToBacklog.isNotEmpty) {
+      for (final id in idsToMoveToBacklog) {
+        // find current index for id
+        final idx = _today.indexWhere((t) => t.id == id);
+        if (idx != -1) {
+          unawaited(_moveToBacklogByIndex(idx));
+        }
+      }
+    }
   }
 
   void _removeSubtask(int taskIndex, String subtaskId) {
@@ -2277,16 +2312,14 @@ class _HomePageState extends State<HomePage> {
     if (time == null) return;
     final scheduled =
         DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    setState(
-        () => _today[index] = _today[index].copyWith(scheduledAt: scheduled));
+    // apply scheduled time immediately in-memory and persist, but defer any
+    // move to backlog / sorting until the delayed reorder fires so quick
+    // adjustments don't cause immediate reordering.
+    setState(() => _today[index] = _today[index].copyWith(scheduledAt: scheduled));
     await _saveToday();
+    // Stage this scheduled change for delayed reorder handling
+    setState(() => _stagedScheduled[_today[index].id] = scheduled);
     _scheduleDelayedReorder();
-
-    // If scheduled date is not today, move to backlog automatically
-    if (!_isSameDay(scheduled, DateTime.now())) {
-      await _moveToBacklogByIndex(index);
-      return;
-    }
 
     _showTopToast('schedule set');
     // clear any prior notifications for this task so reminders can be re-scheduled
