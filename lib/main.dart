@@ -5373,9 +5373,29 @@ class _StatsPageState extends State<StatsPage> {
   /// All time-entry rows for [day] from the persistent DB entries.
   List<TimeEntry> _timeEntriesForDay(DateTime day) {
     final dateStr = DateFormat('yyyy-MM-dd').format(day);
-    return widget.timeEntries
-        .where((e) => e.date == dateStr && e.totalMinutes > 0)
-        .toList();
+    // Aggregate multiple recorded windows for the same task/date by summing
+    // stopwatch seconds and manual work minutes so the stats reflect the
+    // total time for that day only.
+    final rows = widget.timeEntries.where((e) => e.date == dateStr && e.totalMinutes > 0);
+    final Map<String, TimeEntry> agg = {};
+    for (final e in rows) {
+      final existing = agg[e.taskId];
+      if (existing == null) {
+        agg[e.taskId] = e;
+      } else {
+        final summed = TimeEntry(
+          taskId: existing.taskId,
+          taskText: existing.taskText,
+          date: existing.date,
+          taskDone: existing.taskDone || e.taskDone,
+          taskInProgress: existing.taskInProgress || e.taskInProgress,
+          stopwatchSeconds: existing.stopwatchSeconds + e.stopwatchSeconds,
+          workMinutes: existing.workMinutes + e.workMinutes,
+        );
+        agg[existing.taskId] = summed;
+      }
+    }
+    return agg.values.toList();
   }
 
   int _elapsedSecondsFor(TaskItem t) {

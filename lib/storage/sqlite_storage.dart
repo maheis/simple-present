@@ -62,8 +62,12 @@ class SqliteStorage {
     );
 
     // Dedicated time tracking table — survives task moves between lists.
+    // Use an autoincrement primary key so multiple time windows per task/date
+    // can be recorded as separate rows. Older DBs used a composite PK
+    // (task_id, date) which prevented appending multiple entries.
     _db!.execute('''
       CREATE TABLE IF NOT EXISTS time_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         task_id   TEXT NOT NULL,
         date      TEXT NOT NULL,
         task_text TEXT NOT NULL DEFAULT '',
@@ -71,8 +75,7 @@ class SqliteStorage {
         task_in_progress INTEGER NOT NULL DEFAULT 0,
         stopwatch_seconds INTEGER NOT NULL DEFAULT 0,
         work_minutes      INTEGER NOT NULL DEFAULT 0,
-        recorded_at       INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY(task_id, date)
+        recorded_at       INTEGER NOT NULL DEFAULT 0
       );
     ''');
     _db!.execute(
@@ -200,6 +203,48 @@ class SqliteStorage {
       return;
     }
 
+    // If the existing table uses a composite primary key (task_id, date),
+    // migrate to the new schema with an autoincrement id so we can append
+    // multiple time windows per day for the same task.
+    try {
+      final rows = _db!.select('PRAGMA table_info(time_entries);');
+      var hasId = false;
+      var pkTaskId = false;
+      var pkDate = false;
+      for (final row in rows) {
+        final name = (row['name'] ?? '').toString();
+        final pk = (row['pk'] is int) ? (row['pk'] as int) : int.tryParse((row['pk'] ?? '').toString()) ?? 0;
+        if (name == 'id') hasId = true;
+        if (name == 'task_id' && pk > 0) pkTaskId = true;
+        if (name == 'date' && pk > 0) pkDate = true;
+      }
+      if (!hasId && (pkTaskId && pkDate)) {
+        // perform migration: create new table, copy data, replace
+        _db!.execute('BEGIN TRANSACTION;');
+        _db!.execute('''
+          CREATE TABLE IF NOT EXISTS time_entries_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id   TEXT NOT NULL,
+            date      TEXT NOT NULL,
+            task_text TEXT NOT NULL DEFAULT '',
+            task_done INTEGER NOT NULL DEFAULT 0,
+            task_in_progress INTEGER NOT NULL DEFAULT 0,
+            stopwatch_seconds INTEGER NOT NULL DEFAULT 0,
+            work_minutes      INTEGER NOT NULL DEFAULT 0,
+            recorded_at       INTEGER NOT NULL DEFAULT 0
+          );
+        ''');
+        _db!.execute('INSERT INTO time_entries_new(task_id, date, task_text, task_done, task_in_progress, stopwatch_seconds, work_minutes, recorded_at) SELECT task_id, date, task_text, task_done, task_in_progress, stopwatch_seconds, work_minutes, recorded_at FROM time_entries;');
+        _db!.execute('DROP TABLE time_entries;');
+        _db!.execute('ALTER TABLE time_entries_new RENAME TO time_entries;');
+        _db!.execute('COMMIT;');
+      }
+    } catch (_) {
+      try {
+        _db!.execute('ROLLBACK;');
+      } catch (_) {}
+    }
+
     void addColumnIfMissing(String columnSql, String name) {
       if (!columns.contains(name)) {
         _db!.execute('ALTER TABLE time_entries ADD COLUMN $columnSql;');
@@ -309,34 +354,15 @@ class SqliteStorage {
     int? recordedAt,
   }) {
     final now = recordedAt ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+    // Insert a new time-entry row. We intentionally append entries so each
+    // recorded time window is preserved for the given date. Aggregation
+    // per-day is performed when reading entries for the stats view.
     _db!.execute(
       '''
       INSERT INTO time_entries(task_id, date, task_text, task_done, task_in_progress, stopwatch_seconds, work_minutes, recorded_at)
-        VALUES(?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(task_id, date) DO UPDATE SET
-        task_text         = excluded.task_text,
-        task_done         = CASE
-                              WHEN time_entries.task_done = 1 OR excluded.task_done = 1 THEN 1
-                              ELSE 0
-                            END,
-        task_in_progress   = CASE
-                              WHEN time_entries.task_in_progress = 1 OR excluded.task_in_progress = 1 THEN 1
-                              ELSE 0
-                            END,
-        stopwatch_seconds = excluded.stopwatch_seconds,
-        work_minutes      = excluded.work_minutes,
-        recorded_at       = excluded.recorded_at;
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?);
       ''',
-      [
-        taskId,
-        date,
-        taskText,
-        taskDone ? 1 : 0,
-        taskInProgress ? 1 : 0,
-        stopwatchSeconds,
-        workMinutes,
-        now,
-      ],
+      [taskId, date, taskText, taskDone ? 1 : 0, taskInProgress ? 1 : 0, stopwatchSeconds, workMinutes, now],
     );
   }
 
