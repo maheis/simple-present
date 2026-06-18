@@ -144,16 +144,17 @@
 - [x] Erinnerungssound optional machen
 - [x] Work in progress soll bei fertigen Aufgaben die Aufgabe wieder in Arbeit setzen und done = false
 - [x] Zeiterfassung soll Persistiert werden und in der Statistik angezeigt werden (Auf nicht abgeschlossene Aufgaben sollen in der Statistik auftauchen)
-- [ ] Stopuhr in der minimalen Ansicht anzeigen
-- [ ] minimal Mode zu klein (ich entferne ihn komplett, zuviel schnickschnack)
+- [x] Stopuhr in der minimalen Ansicht anzeigen (gibt es gar nicht mehr...)
+- [x] minimal Mode zu klein (ich entferne ihn komplett, zuviel schnickschnack)
 - [x] zoom funktion komplett entfernen und immer auf den kleinsten zoom verwenden
 - [x] snap window komplett entfernen
 - [x] cloud sync (server) -> das "(server)" entfernen
 - [x] Verzögertes umsortieren (nach editieren oder timer)
 - [x] Fertige Unteraufgaben sollen wir normale Aufgaben ausgegraut werden
-- [ ] wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.), damit sie automatisch nach Erledigung oder nach einem bestimmten Zeitplan neu erstellt werden.
+- [ ] wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.), damit sie automatisch nach Erledigung oder nach einem bestimmten Zeitplan neu erstellt werden. (neue augabe soll dann automatisch mit dem nächsten datum angelegt werden, z.B. bei täglich: morgen, bei wöchentlich: in 7 Tagen, etc.)
 - [ ] Speichern übernimmt schonmal texte von anderen Aufgaben?
       Wenn ich die Felder an Position 2 z.B. Editiere und es kommt eine andere Aufgabe an Position 2 und ich klappe diese auf, dann wird der alte Text von Position 2 geladden!
+- [ ] Aufgaben die von heute ins Backlog verschoben werden, sollen oben im Backlog einsortiert werden!
 
 ## notes
 

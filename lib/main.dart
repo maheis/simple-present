@@ -420,8 +420,7 @@ class _HomePageState extends State<HomePage> {
   final Set<String> _notified15 = <String>{};
   final Set<String> _notifiedDue = <String>{};
   final Set<int> _swiping = <int>{};
-  final bool _minimalViewMode = false;
-  // Minimal view removed; window-before-minimal state not used anymore.
+  // Minimal view removed.
 
   // When debugging, prepend filenames with 'debug_' so test data doesn't mix
   String _storage(String name) => kDebugMode ? 'debug_$name' : name;
@@ -2858,17 +2857,13 @@ class _HomePageState extends State<HomePage> {
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 220),
                         curve: Curves.easeOutCubic,
-                        height: (!_minimalViewMode && Platform.isAndroid)
-                            ? MediaQuery.of(context).padding.top
-                            : 0.0,
+                        height: Platform.isAndroid ? MediaQuery.of(context).padding.top : 0.0,
                       ),
                       Expanded(
                         child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 220),
-                          curve: Curves.easeOutCubic,
-                          padding: _minimalViewMode
-                              ? const EdgeInsets.fromLTRB(8, 8, 6, 8)
-                              : const EdgeInsets.fromLTRB(12, 22, 6, 8),
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOutCubic,
+                            padding: const EdgeInsets.fromLTRB(12, 22, 6, 8),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -2876,11 +2871,8 @@ class _HomePageState extends State<HomePage> {
                                 duration: const Duration(milliseconds: 220),
                                 switchInCurve: Curves.easeOutCubic,
                                 switchOutCurve: Curves.easeInCubic,
-                                child: _minimalViewMode
-                                    ? const SizedBox.shrink(
-                                        key: ValueKey('header_hidden'))
-                                    : Row(
-                                        key: const ValueKey('header_visible'),
+                                child: Row(
+                                    key: const ValueKey('header_visible'),
                                 children: [
                                   // Left arrow moved to the far left of the header row
                                   IconButton(
@@ -3019,7 +3011,7 @@ class _HomePageState extends State<HomePage> {
                               AnimatedContainer(
                                 duration: const Duration(milliseconds: 220),
                                 curve: Curves.easeOutCubic,
-                                height: _minimalViewMode ? 0.0 : 8.0,
+                                height: 8.0,
                               ),
                               Expanded(
                                 child: _today.isEmpty
@@ -3047,13 +3039,7 @@ class _HomePageState extends State<HomePage> {
                                             TaskItem>>[]; // done tasks (always bottom)
 
                                         final now = DateTime.now();
-                                        final entries = _today
-                                          .asMap()
-                                          .entries
-                                          .where((e) =>
-                                            !_minimalViewMode ||
-                                            (e.value.inProgress &&
-                                              !e.value.done));
+                                        final entries = _today.asMap().entries;
                                         for (final e in entries) {
                                           final t = e.value;
                                           if (t.done) {
@@ -3224,45 +3210,7 @@ class _HomePageState extends State<HomePage> {
                                             final totalSubtasks =
                                                 task.subtasks.length;
                                             final i = originalIndex;
-                                            if (_minimalViewMode) {
-                                              return Card(
-                                                key: ValueKey(
-                                                    'mini_${i}_${task.id}'),
-                                                clipBehavior: Clip.hardEdge,
-                                                color: task.inProgress
-                                                    ? Colors.green
-                                                        .withValues(alpha: 0.10)
-                                                    : null,
-                                                child: SizedBox(
-                                                  height: _tileHeight,
-                                                  child: ListTile(
-                                                    contentPadding:
-                                                        EdgeInsets.symmetric(
-                                                            vertical:
-                                                                ((_tileHeight -
-                                                                            _baseFontSize) /
-                                                                        2)
-                                                                    .clamp(
-                                                                        0.0,
-                                                                        40.0),
-                                                            horizontal: 8),
-                                                    title: Text(
-                                                      task.text,
-                                                      style: _fontTextStyle(
-                                                        TextStyle(
-                                                          fontSize: _baseFontSize,
-                                                          fontWeight:
-                                                              FontWeight.normal,
-                                                          color: Theme.of(context)
-                                                              .colorScheme
-                                                              .onSurface,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              );
-                                            }
+                                            // Minimal-mode removed: always render the full task Dismissible below.
                                             return Dismissible(
                                               key: ValueKey(
                                                   'today_${i}_${task.text}_${task.done}'),
@@ -4202,10 +4150,7 @@ class _HomePageState extends State<HomePage> {
                         duration: const Duration(milliseconds: 220),
                         switchInCurve: Curves.easeOutCubic,
                         switchOutCurve: Curves.easeInCubic,
-                        child: _minimalViewMode
-                            ? const SizedBox.shrink(
-                                key: ValueKey('composer_hidden'))
-                            : SafeArea(
+                        child: SafeArea(
                                 key: const ValueKey('composer_visible'),
                                 top: false,
                                 child: Padding(
