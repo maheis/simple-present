@@ -1260,10 +1260,6 @@ class _HomePageState extends State<HomePage> {
           data.remove('window');
           cleaned = true;
         }
-        if (data.containsKey('uiTextScaleFactor')) {
-          data.remove('uiTextScaleFactor');
-          cleaned = true;
-        }
         if (cleaned) {
           try {
             _sqliteStorage.write(_storage('simplepresent_settings.json'), jsonEncode(data));
@@ -1277,10 +1273,6 @@ class _HomePageState extends State<HomePage> {
         var cleaned = false;
         if (data.containsKey('window')) {
           data.remove('window');
-          cleaned = true;
-        }
-        if (data.containsKey('uiTextScaleFactor')) {
-          data.remove('uiTextScaleFactor');
           cleaned = true;
         }
         if (cleaned) {
@@ -1306,7 +1298,11 @@ class _HomePageState extends State<HomePage> {
         return fallback;
       }
 
-      // double readDouble removed: do not restore persisted ui text scale factor
+      double readDouble(String key, double fallback) {
+        final v = data[key];
+        if (v is num) return v.toDouble();
+        return double.tryParse(v?.toString() ?? '') ?? fallback;
+      }
 
       if (data.containsKey('tileHeight')) {
         final v = data['tileHeight'];
@@ -1354,8 +1350,8 @@ class _HomePageState extends State<HomePage> {
         _urgentBringToFrontEnabled =
             readBool('urgentBringToFrontEnabled', _urgentBringToFrontEnabled);
         _swipeEnabled = readBool('swipeEnabled', _swipeEnabled);
-        // Do not restore persisted ui text scale factor; keep default scale.
-        _uiTextScaleFactor = 1.0;
+        // Restore persisted UI text scale factor if present
+        _uiTextScaleFactor = _clampUiTextScaleFactor(readDouble('uiTextScaleFactor', _uiTextScaleFactor));
         final font = data['fontFamily'];
         if (font is String && font.isNotEmpty) {
           _fontFamily = font;
@@ -1478,6 +1474,7 @@ class _HomePageState extends State<HomePage> {
         'urgentNotifyEnabled': _urgentNotifyEnabled,
         'urgentBringToFrontEnabled': _urgentBringToFrontEnabled,
         'swipeEnabled': _swipeEnabled,
+        'uiTextScaleFactor': _uiTextScaleFactor,
         'fontFamily': _fontFamily,
         'cloudServerUrl': _cloudServerUrl,
         'cloudAccountId': _cloudAccountId,
@@ -4864,6 +4861,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     'urgentNotifyEnabled': urgentNotifyEnabled,
                     'urgentBringToFrontEnabled': urgentBringToFrontEnabled,
                     'swipeEnabled': swipeEnabled,
+                    'uiTextScaleFactor': textScaleFactor,
                                 'scheduledReminderSoundEnabled': scheduledReminderSoundEnabled,
                     'fontFamily': fontFamily,
                     'cloudServerUrl': cloudServerUrl,

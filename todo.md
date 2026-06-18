@@ -159,7 +159,7 @@
 - [x] Sortierungsverzögerung bei Termin Anpassung
 - [x] Stopuhr beim Fertigmelden anhalten
 - [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [ ] Text-Zoom schon gespeichert!
+- [x] Text-Zoom schon gespeichert!
 - [ ] Öffnen oben Rechts
 
 ## notes
