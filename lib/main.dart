@@ -1444,8 +1444,8 @@ class _HomePageState extends State<HomePage> {
       }
       int x = w['x'] ?? 0;
       int y = w['y'] ?? 0;
-      int width = w['width'] ?? 800;
-      int height = w['height'] ?? 600;
+      int width = w['width'] ?? 450;
+      int height = w['height'] ?? 700;
       final maximized = (w['maximized'] ?? 0) == 1 || w['maximized'] == true;
 
       bool valid = true;
