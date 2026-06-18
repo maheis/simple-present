@@ -418,7 +418,6 @@ class _HomePageState extends State<HomePage> {
   Timer? _autoSwitchTimer;
   final Duration _autoSwitchDuration = const Duration(minutes: 3);
   Timer? _stopwatchTicker;
-  Map<String, int>? _lastSavedWindowGeom;
   final Set<String> _notified15 = <String>{};
   final Set<String> _notifiedDue = <String>{};
   final Set<int> _swiping = <int>{};
@@ -490,8 +489,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    // Start watching window geometry after startup
-    _startWindowWatcher();
+    // Do not watch or persist window geometry; OS chooses position.
     _startIdleTimer();
     _startAttentionTimer();
     _startReminderTimer();
@@ -562,6 +560,12 @@ class _HomePageState extends State<HomePage> {
     }
     await _loadSettings();
     await _ensureInitialFiles();
+
+    // Set a sensible default size on startup (width x height). Do not store
+    // position or size — position is left to the window manager/OS.
+    try {
+      await _nativeWindowChannel.invokeMethod('setWindowGeometry', <String, dynamic>{'width': 450, 'height': 700, 'maximized': 0, 'always_on_top': 0});
+    } catch (_) {}
 
     // Ensure daily reset: when app is started the first time on a new day,
     // move all open (not done) tasks from Today into Backlog (bottom->top),
@@ -1272,11 +1276,7 @@ class _HomePageState extends State<HomePage> {
         return fallback;
       }
 
-      double readDouble(String key, double fallback) {
-        final v = data[key];
-        if (v is num) return v.toDouble();
-        return double.tryParse(v?.toString() ?? '') ?? fallback;
-      }
+      // double readDouble removed: do not restore persisted ui text scale factor
 
       if (data.containsKey('tileHeight')) {
         final v = data['tileHeight'];
@@ -1324,8 +1324,8 @@ class _HomePageState extends State<HomePage> {
         _urgentBringToFrontEnabled =
             readBool('urgentBringToFrontEnabled', _urgentBringToFrontEnabled);
         _swipeEnabled = readBool('swipeEnabled', _swipeEnabled);
-        _uiTextScaleFactor =
-            _clampUiTextScaleFactor(readDouble('uiTextScaleFactor', 1.0));
+        // Do not restore persisted ui text scale factor; keep default scale.
+        _uiTextScaleFactor = 1.0;
         final font = data['fontFamily'];
         if (font is String && font.isNotEmpty) {
           _fontFamily = font;
@@ -1389,21 +1389,8 @@ class _HomePageState extends State<HomePage> {
           _cloudKnownDoneIds = knownDone.map((e) => e.toString()).toSet();
         }
       });
-      if (data.containsKey('window')) {
-        try {
-          final w = data['window'];
-          if (w is Map) {
-            final wm = Map<String, int>.from(w
-                .cast<String, dynamic>()
-                .map((k, v) => MapEntry(k, (v as num).toInt())));
-            await _validateAndApplyWindow(wm);
-            if (w.containsKey('always_on_top')) {
-              final val = w['always_on_top'];
-              _alwaysOnTop = (val == true) || (val is num && val != 0);
-            }
-          }
-        } catch (_) {}
-      }
+      // Do not restore persisted window geometry or position; OS/window manager
+      // determines position. Size is set once on startup elsewhere.
       // Load persisted notified sets so reminders don't fire again after restart
       try {
         if (data.containsKey('notified15')) {
@@ -1428,62 +1415,8 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
   }
 
-  Future<void> _validateAndApplyWindow(Map<String, int> w) async {
-    try {
-      final screen = await _nativeWindowChannel.invokeMethod('getScreenSize');
-      int sw = 0, sh = 0;
-      if (screen is Map) {
-        sw = (screen['width'] is int)
-            ? screen['width'] as int
-            : (screen['width'] is double
-                ? (screen['width'] as double).toInt()
-                : int.parse(screen['width'].toString()));
-        sh = (screen['height'] is int)
-            ? screen['height'] as int
-            : (screen['height'] is double
-                ? (screen['height'] as double).toInt()
-                : int.parse(screen['height'].toString()));
-      }
-      int x = w['x'] ?? 0;
-      int y = w['y'] ?? 0;
-      int width = w['width'] ?? 450;
-      int height = w['height'] ?? 700;
-      final maximized = (w['maximized'] ?? 0) == 1 || w['maximized'] == true;
-
-      bool valid = true;
-      if (sw > 0 && sh > 0) {
-        // Consider it invalid if window is entirely off-screen or absurdly large
-        if (x < -sw || y < -sh || x > sw || y > sh) valid = false;
-        if (width <= 0 || height <= 0 || width > sw * 4 || height > sh * 4)
-          valid = false;
-      }
-      if (!valid) {
-        // center it on primary screen
-        if (sw > 0 && sh > 0) {
-          x = ((sw - width) / 2).toInt();
-          y = ((sh - height) / 2).toInt();
-        } else {
-          x = 100;
-          y = 100;
-        }
-      }
-
-      final payload = <String, dynamic>{
-        'x': x,
-        'y': y,
-        'width': width,
-        'height': height,
-        'maximized': maximized,
-        'always_on_top': (_alwaysOnTop || (w['always_on_top'] == 1))
-      };
-      await _nativeWindowChannel.invokeMethod('setWindowGeometry', payload);
-    } catch (_) {
-      // fallback: try to set geometry directly
-      try {
-        await _nativeWindowChannel.invokeMethod('setWindowGeometry', w);
-      } catch (_) {}
-    }
-  }
+  // Window geometry restoration removed — position and persisted geometry
+  // handling is disabled.
 
   Future<void> _saveSettings() async {
     await _saveSettingsWithGeom(null);
@@ -1515,7 +1448,6 @@ class _HomePageState extends State<HomePage> {
         'urgentNotifyEnabled': _urgentNotifyEnabled,
         'urgentBringToFrontEnabled': _urgentBringToFrontEnabled,
         'swipeEnabled': _swipeEnabled,
-        'uiTextScaleFactor': _uiTextScaleFactor,
         'fontFamily': _fontFamily,
         'cloudServerUrl': _cloudServerUrl,
         'cloudAccountId': _cloudAccountId,
@@ -1652,22 +1584,22 @@ class _HomePageState extends State<HomePage> {
             diff.inMinutes <= 15 &&
             !_notified15.contains(key)) {
           _notified15.add(key);
-          try {
-            if (_scheduledReminderSoundEnabled) {
-              await _audioPlayer.play(AssetSource('sounds/pop.mp3'));
-            }
-          } catch (_) {}
-          try {
-            await _nativeWindowChannel.invokeMethod('notify', <String, String>{
-              'title': _appTitle,
-              'body': 'due in 15 minutes: ${t.text}',
-              'icon': 'assets/icons/icon.png',
-            });
-          } catch (_) {}
-          // Persist notified flags so restart doesn't re-notify
-          try {
-            await _saveSettingsWithGeom(_lastSavedWindowGeom);
-          } catch (_) {}
+            try {
+              if (_scheduledReminderSoundEnabled) {
+                await _audioPlayer.play(AssetSource('sounds/pop.mp3'));
+              }
+            } catch (_) {}
+            try {
+              await _nativeWindowChannel.invokeMethod('notify', <String, String>{
+                'title': _appTitle,
+                'body': 'due in 15 minutes: ${t.text}',
+                'icon': 'assets/icons/icon.png',
+              });
+            } catch (_) {}
+            // Persist notified flags so restart doesn't re-notify
+            try {
+              await _saveSettings();
+            } catch (_) {}
         }
         // At due time or overdue (first time)
         if (diff.inSeconds <= 0 && !_notifiedDue.contains(key)) {
@@ -1689,7 +1621,7 @@ class _HomePageState extends State<HomePage> {
           } catch (_) {}
           // Persist notified flags so restart doesn't re-notify
           try {
-            await _saveSettingsWithGeom(_lastSavedWindowGeom);
+            await _saveSettings();
           } catch (_) {}
         }
       }
@@ -1748,52 +1680,7 @@ class _HomePageState extends State<HomePage> {
     await _saveToday();
   }
 
-  void _startWindowWatcher() {
-    _windowWatcherTimer?.cancel();
-    _windowWatcherTimer = Timer.periodic(const Duration(seconds: 1), (t) async {
-      try {
-        final geom =
-            await _nativeWindowChannel.invokeMethod('getWindowGeometry');
-        if (geom is Map) {
-          // normalize ints
-          final norm = <String, int>{};
-          for (final e in geom.entries) {
-            final k = e.key.toString();
-            final v = e.value;
-            if (v is int)
-              norm[k] = v;
-            else if (v is double)
-              norm[k] = v.toInt();
-            else
-              norm[k] = int.tryParse(v.toString()) ?? 0;
-          
-          // Apply magnet snapping if enabled (may update norm)
-          try {
-            final applied = await _applyMagnetIfNeeded(Map<String, int>.from(norm));
-            norm.clear();
-            norm.addAll(applied);
-          } catch (_) {}
-          }
-          // Only update the saved main-window geometry when the HomePage
-          // route is the current (main) route. This avoids capturing
-          // transient dialog/settings window sizes.
-          final isMainRoute = ModalRoute.of(context)?.isCurrent ?? true;
-          if (isMainRoute) {
-            if (_lastSavedWindowGeom == null ||
-                !mapEquals(_lastSavedWindowGeom, norm)) {
-              _lastSavedWindowGeom = Map<String, int>.from(norm);
-              await _saveSettingsWithGeom(_lastSavedWindowGeom);
-            }
-          }
-        }
-      } catch (_) {}
-    });
-  }
-
-  Future<Map<String, int>> _applyMagnetIfNeeded(Map<String, int> norm) async {
-    // Snap/magnet behavior has been removed — return geometry unchanged.
-    return norm;
-  }
+  // Window watcher and magnet/snapping behavior removed.
 
   Future<void> _openStats() async {
     final List<TaskItem> doneList = [];
@@ -2334,7 +2221,7 @@ class _HomePageState extends State<HomePage> {
     _notifiedDue.removeWhere((k) => k.startsWith(idPrefix));
     _registerActivity();
     try {
-      await _saveSettingsWithGeom(_lastSavedWindowGeom);
+          await _saveSettings();
     } catch (_) {}
   }
 
@@ -2499,7 +2386,7 @@ class _HomePageState extends State<HomePage> {
       } catch (_) {}
     } catch (_) {}
     try {
-      await _saveSettingsWithGeom(_lastSavedWindowGeom);
+          await _saveSettings();
     } catch (_) {}
   }
 
@@ -2666,7 +2553,7 @@ class _HomePageState extends State<HomePage> {
     }
     _registerActivity();
     try {
-      await _saveSettingsWithGeom(_lastSavedWindowGeom);
+          await _saveSettings();
     } catch (_) {}
   }
 
@@ -2699,7 +2586,7 @@ class _HomePageState extends State<HomePage> {
     _notifiedDue.removeWhere((k) => k.startsWith(idPrefix));
     _registerActivity();
     try {
-      await _saveSettingsWithGeom(_lastSavedWindowGeom);
+          await _saveSettings();
     } catch (_) {}
   }
 
