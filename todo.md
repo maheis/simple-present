@@ -157,6 +157,8 @@
 - [x] Aufgaben die von heute ins Backlog verschoben werden, sollen oben im Backlog einsortiert werden!
 - [ ] Fenstergröße 450x700 (klappt so gar nicht?!)
 - [x] Sortierungsverzögerung bei Termin Anpassung
+- [x] Stopuhr beim Fertigmelden anhalten
+- [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 
 ## notes
 

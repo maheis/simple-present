@@ -2122,7 +2122,7 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _performDelayedReorder() {
+  Future<void> _performDelayedReorder() async {
     // Apply any staged important flag changes before computing new order.
     if (_stagedImportant.isNotEmpty) {
       for (final entry in _stagedImportant.entries) {
@@ -2157,6 +2157,12 @@ class _HomePageState extends State<HomePage> {
         final idx = _today.indexWhere((t) => t.id == id);
         if (idx != -1) {
           final now = val ? DateTime.now() : null;
+          // If marking done, stop running stopwatch first to capture final time
+          if (val == true) {
+            try {
+              await _stopStopwatch(idx);
+            } catch (_) {}
+          }
           // When marking done, clear inProgress
           _today[idx] = _today[idx].copyWith(done: val, inProgress: val ? false : _today[idx].inProgress, completedAt: val ? now : _today[idx].completedAt);
           if (val == true) {
