@@ -2356,9 +2356,13 @@ class _HomePageState extends State<HomePage> {
 
       final List<TaskItem> backlogList = [];
       await _loadList('simplepresent_backlog.json', backlogList);
-      // append to backlog at end
-      backlogList.add(item.copyWith(done: false, inProgress: false));
+      // insert at top so task appears first in backlog
+      backlogList.insert(0, item.copyWith(done: false, inProgress: false));
       await _saveList('simplepresent_backlog.json', backlogList);
+      // If we're currently showing backlog, reload to reflect the new top item
+      if (_showingBacklog || _currentFile == 'simplepresent_backlog.json') {
+        await _loadToday();
+      }
 
       _showTopToast('task moved to backlog');
     } catch (_) {
