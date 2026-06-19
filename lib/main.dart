@@ -3914,29 +3914,6 @@ class _HomePageState extends State<HomePage> {
                                                           ),
                                                           const SizedBox(
                                                               height: 12),
-                                                          // Recurrence selector
-                                                          Row(
-                                                            children: [
-                                                              const Text('repeat:'),
-                                                              const SizedBox(width: 8),
-                                                              DropdownButton<String>(
-                                                                value: task.recurrence ?? '',
-                                                                items: const [
-                                                                  DropdownMenuItem(value: '', child: Text('none')),
-                                                                  DropdownMenuItem(value: 'daily', child: Text('daily')),
-                                                                  DropdownMenuItem(value: 'weekly', child: Text('weekly')),
-                                                                  DropdownMenuItem(value: 'monthly', child: Text('monthly')),
-                                                                ],
-                                                                onChanged: (v) async {
-                                                                  final newRec = (v == null || v.isEmpty) ? null : v;
-                                                                  setState(() {
-                                                                    _today[i] = _today[i].copyWith(recurrence: newRec);
-                                                                  });
-                                                                  await _saveToday();
-                                                                },
-                                                              ),
-                                                            ],
-                                                          ),
                                                           Row(
                                                             children: [
                                                               Expanded(
@@ -4262,6 +4239,30 @@ class _HomePageState extends State<HomePage> {
                                                                         i);
                                                                   },
                                                                 ),
+                                                            ],
+                                                          ),
+                                                          const SizedBox(height: 12),
+                                                          // Recurrence selector (moved below scheduled)
+                                                          Row(
+                                                            children: [
+                                                              const Text('repeat:'),
+                                                              const SizedBox(width: 8),
+                                                              DropdownButton<String>(
+                                                                value: task.recurrence ?? '',
+                                                                items: const [
+                                                                  DropdownMenuItem(value: '', child: Text('none')),
+                                                                  DropdownMenuItem(value: 'daily', child: Text('daily')),
+                                                                  DropdownMenuItem(value: 'weekly', child: Text('weekly')),
+                                                                  DropdownMenuItem(value: 'monthly', child: Text('monthly')),
+                                                                ],
+                                                                onChanged: (v) async {
+                                                                  final newRec = (v == null || v.isEmpty) ? null : v;
+                                                                  setState(() {
+                                                                    _today[i] = _today[i].copyWith(recurrence: newRec);
+                                                                  });
+                                                                  await _saveToday();
+                                                                },
+                                                              ),
                                                             ],
                                                           ),
                                                         ],

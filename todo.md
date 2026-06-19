@@ -160,13 +160,13 @@
   - [x] app name ist noch simple_present
   - [x] backlog icon ist faded (datum entfernen?)
   - [x] pin button nur unter windows anzeigenhttps://www.youtube.com/results?search_query=k%C3%B6fte
-  - [ ] icon fritte
+  - [ ] icon frittepp
 - [ ] Worklog an Aufgaben...https://www.youtube.com/watch?v=S7QONFUcsBo&list=PLuWhOdZWSINvX9SKXRizMSRkQF495a-8s&index=75
 - [ ] Reihenfolge auch über andere Gruppen hinaus und dann optisch einsortieren
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [ ] Web Applikationich
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [ ] Wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.) Wird eine Wiederkehrende Aufgabe erledigt, soll eine neue neu Aufgabe mit den gleichen Eigenschaften (Wiederkehrend, Titel, Notizen, etc.) auf das nächste Interall angelegt werden.
+- [x] Wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.) Wird eine Wiederkehrende Aufgabe erledigt, soll eine neue neu Aufgabe mit den gleichen Eigenschaften (Wiederkehrend, Titel, Notizen, etc.) auf das nächste Interall angelegt werden.
 - [x] Verschieben in backlog soll stopuhr stoppen
 
 ## notes
