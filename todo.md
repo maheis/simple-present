@@ -148,25 +148,26 @@
 - [x] Öffnen oben Rechts (unter windows?)
 - [x] Stopuhr soll Aufgabe in arbeit setzten
 - [x] "speichern" haken entfernen, es soll jede änderung an der aufgabe automatisch gespeichert werden
-- [ ] Android APK Testen
-  - [x] icon
-  - [x] den header ein bisschen runter mit der app, damit platz für die android statusleiste ist
-  - [x] spent time feld rutscht rechts aus dem bild
-  - [x] app name ist noch simple_present
-  - [x] backlog icon ist faded (datum entfernen?)
-  - [x] pin button nur unter windows anzeigen
-  - [ ] icon fritte
-- [ ] Worklog an Aufgaben...
-- [ ] position, Größe und Zoom werden nicht korrekt geladen
-- [ ] Reihenfolge auch über andere gruppen hinaus und dann optisch einsortieren
-- [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
-- [ ] Web Applikationich
-- [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [ ] wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.), damit sie automatisch nach Erledigung oder nach einem bestimmten Zeitplan neu erstellt werden. (neue augabe soll dann automatisch mit dem nächsten datum angelegt werden, z.B. bei täglich: morgen, bei wöchentlich: in 7 Tagen, etc.)
+- [x] position, Größe und Zoom werden nicht korrekt geladen -> Fixsize!
 - [x] Erster Wochentag Montag (statt Sonntag)
 - [x] Datums button soll immer das aktuelle Datum anzeigen, nicht das Datum der Aufgabe
 - [x] Datum im backlog mit anzeigen
 - [x] Debug.json umbauen auf only db-file debug_
+- [ ] Android APK Testen
+  - [x] iconhttps://mealie.heister.be/g/home
+  - [x] den header ein bisschen runter mit der app, damit platz für die android statusleiste ist
+  - [x] spent time feld rutscht rechts aus dem bild
+  - [x] app name ist noch simple_present
+  - [x] backlog icon ist faded (datum entfernen?)
+  - [x] pin button nur unter windows anzeigenhttps://www.youtube.com/results?search_query=k%C3%B6fte
+  - [ ] icon fritte
+- [ ] Worklog an Aufgaben...https://www.youtube.com/watch?v=S7QONFUcsBo&list=PLuWhOdZWSINvX9SKXRizMSRkQF495a-8s&index=75
+- [ ] Reihenfolge auch über andere Gruppen hinaus und dann optisch einsortieren
+- [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
+- [ ] Web Applikationich
+- [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
+- [ ] Wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.), damit sie automatisch nach Erledigung oder nach einem bestimmten Zeitplan neu erstellt werden. (neue augabe soll dann automatisch mit dem nächsten datum angelegt werden, z.B. bei täglich: morgen, bei wöchentlich: in 7 Tagen, etc.)
+- [x] Verschieben in backlog soll stopuhr stoppen
 
 ## notes
 

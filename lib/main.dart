@@ -2335,12 +2335,28 @@ class _HomePageState extends State<HomePage> {
         _expanded.clear();
       });
       await _saveToday(); // persist removal from today
+      // If stopwatch was running, stop it and record the accumulated seconds
+      TaskItem toStore = item;
+      if (item.stopwatchRunning) {
+        final started = item.stopwatchStartedAt ?? DateTime.now();
+        final added = DateTime.now().difference(started).inSeconds;
+        final newAccum = item.stopwatchAccumulatedSeconds + added;
+        toStore = item.copyWith(
+            stopwatchRunning: false,
+            stopwatchStartedAt: null,
+            stopwatchAccumulatedSeconds: newAccum,
+            inProgress: false);
+      } else {
+        toStore = item.copyWith(done: false, inProgress: false);
+      }
 
       final List<TaskItem> backlogList = [];
       await _loadList('simplepresent_backlog.json', backlogList);
       // insert at top so task appears first in backlog
-      backlogList.insert(0, item.copyWith(done: false, inProgress: false));
+      backlogList.insert(0, toStore);
       await _saveList('simplepresent_backlog.json', backlogList);
+      // Persist time entry for this task (if using sqlite this appends a row)
+      _upsertTimeEntry(toStore);
       // If we're currently showing backlog, reload to reflect the new top item
       if (_showingBacklog || _currentFile == 'simplepresent_backlog.json') {
         await _loadToday();
@@ -2360,12 +2376,27 @@ class _HomePageState extends State<HomePage> {
         _expanded.clear();
       });
       await _saveToday(); // persist removal from today
+      // Stop running stopwatch and persist time if necessary
+      TaskItem toStore = item;
+      if (item.stopwatchRunning) {
+        final started = item.stopwatchStartedAt ?? DateTime.now();
+        final added = DateTime.now().difference(started).inSeconds;
+        final newAccum = item.stopwatchAccumulatedSeconds + added;
+        toStore = item.copyWith(
+            stopwatchRunning: false,
+            stopwatchStartedAt: null,
+            stopwatchAccumulatedSeconds: newAccum,
+            inProgress: false);
+      } else {
+        toStore = item.copyWith(done: false, inProgress: false);
+      }
 
       final List<TaskItem> backlogList = [];
       await _loadList('simplepresent_backlog.json', backlogList);
       // insert at top so task appears first in backlog
-      backlogList.insert(0, item.copyWith(done: false, inProgress: false));
+      backlogList.insert(0, toStore);
       await _saveList('simplepresent_backlog.json', backlogList);
+      _upsertTimeEntry(toStore);
       // If we're currently showing backlog, reload to reflect the new top item
       if (_showingBacklog || _currentFile == 'simplepresent_backlog.json') {
         await _loadToday();
