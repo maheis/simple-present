@@ -161,6 +161,7 @@
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.), damit sie automatisch nach Erledigung oder nach einem bestimmten Zeitplan neu erstellt werden. (neue augabe soll dann automatisch mit dem nächsten datum angelegt werden, z.B. bei täglich: morgen, bei wöchentlich: in 7 Tagen, etc.)
 - [?] Öffnen oben Rechts (unter windows?)
+- [x] Stopuhr soll Aufgabe in arbeit setzten 
 
 ## notes
 
