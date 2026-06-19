@@ -3554,38 +3554,37 @@ class _HomePageState extends State<HomePage> {
                                                                   MainAxisSize
                                                                       .min,
                                                               children: [
-                                                                if (task.scheduledAt !=
-                                                                    null)
+                                                                if (task.scheduledAt != null)
                                                                   Tooltip(
-                                                                    message: DateFormat(
-                                                                            'yyyy-MM-dd HH:mm')
-                                                                        .format(
-                                                                            task.scheduledAt!),
-                                                                    child:
-                                                                        InkWell(
-                                                                      onTap: () =>
-                                                                          _pickSchedule(
-                                                                              i),
-                                                                      child:
-                                                                          Row(
-                                                                        mainAxisSize:
-                                                                            MainAxisSize.min,
+                                                                    message: DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!),
+                                                                    child: InkWell(
+                                                                      onTap: () => _pickSchedule(i),
+                                                                      child: Row(
+                                                                        mainAxisSize: MainAxisSize.min,
                                                                         children: [
-                                                                          Icon(
-                                                                              Icons.event,
-                                                                              color: _scheduleIconColor(task.scheduledAt!),
-                                                                              size: 16),
-                                                                          const SizedBox(
-                                                                              width: 4),
+                                                                          Icon(Icons.event, color: _scheduleIconColor(task.scheduledAt!), size: 16),
+                                                                          const SizedBox(width: 4),
                                                                           Text(
-                                                                            DateFormat('HH:mm').format(task.scheduledAt!),
-                                                                            style:
-                                                                                TextStyle(fontSize: 11, color: _scheduleIconColor(task.scheduledAt!)),
+                                                                            (_showingBacklog || _currentFile == 'simplepresent_backlog.json')
+                                                                                ? DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!)
+                                                                                : DateFormat('HH:mm').format(task.scheduledAt!),
+                                                                            style: TextStyle(fontSize: 11, color: _scheduleIconColor(task.scheduledAt!)),
                                                                           ),
                                                                         ],
                                                                       ),
                                                                     ),
                                                                   ),
+                                                                // Always show small calendar button on the tile so user can set schedule without expanding
+                                                                Padding(
+                                                                  padding: const EdgeInsets.only(left: 4.0, right: 2.0),
+                                                                  child: IconButton(
+                                                                    padding: const EdgeInsets.all(4),
+                                                                    constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                                                                    tooltip: 'set schedule',
+                                                                    icon: const Icon(Icons.calendar_today, size: 18),
+                                                                    onPressed: () => _pickSchedule(i),
+                                                                  ),
+                                                                ),
                                                                 if (_currentFile ==
                                                                         'simplepresent_backlog.json' ||
                                                                     _showingBacklog)
