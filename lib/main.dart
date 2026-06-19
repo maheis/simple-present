@@ -1682,9 +1682,17 @@ class _HomePageState extends State<HomePage> {
   Future<void> _startStopwatch(int index) async {
     final t = _today[index];
     if (t.stopwatchRunning) return;
-    setState(() => _today[index] = t.copyWith(stopwatchRunning: true, stopwatchStartedAt: DateTime.now()));
+    final now = DateTime.now();
+    setState(() => _today[index] = t.copyWith(
+        stopwatchRunning: true,
+        stopwatchStartedAt: now,
+        inProgress: true,
+        inProgressAt: now));
+    // Clear any staged toggle for this task since we applied it directly
+    _stagedInProgress.remove(t.id);
     await _saveToday();
     _scheduleDelayedReorder();
+    _registerActivity();
   }
 
   Future<void> _stopStopwatch(int index) async {
