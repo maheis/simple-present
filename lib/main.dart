@@ -235,7 +235,7 @@ class TaskItem {
     bool? done,
     bool? important,
     bool? inProgress,
-    String? recurrence,
+    Object? recurrence = _noChange,
     Object? completedAt = _noChange,
     Object? inProgressAt = _noChange,
     Object? importantAt = _noChange,
@@ -271,7 +271,9 @@ class TaskItem {
           : (scheduledAt == null ? null : (scheduledAt as DateTime)),
       notes: notes ?? this.notes,
       subtasks: subtasks ?? this.subtasks,
-        recurrence: recurrence ?? this.recurrence,
+          recurrence: identical(recurrence, _noChange)
+            ? this.recurrence
+            : (recurrence == null ? null : (recurrence as String)),
       stopwatchAccumulatedSeconds:
           stopwatchAccumulatedSeconds ?? this.stopwatchAccumulatedSeconds,
       stopwatchRunning: stopwatchRunning ?? this.stopwatchRunning,
