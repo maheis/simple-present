@@ -104,17 +104,6 @@
 - [x] umstellung von json auf sqlite (bessere performance, weniger fehleranfällig, einfacher zu synchronisieren)
 - [x] miniaturansicht wenn kein fokus drauf ist (per button!)
 - [x] breite auch kleiner werden
-- [ ] Android APK Testen
-  - [x] icon
-  - [x] den header ein bisschen runter mit der app, damit platz für die android statusleiste ist
-  - [x] spent time feld rutscht rechts aus dem bild
-  - [x] app name ist noch simple_present
-  - [x] backlog icon ist faded (datum entfernen?)
-  - [x] pin button nur unter windows anzeigen
-  - [ ] icon fritte
-- [ ] Worklog an Aufgaben...
-- [ ] position, Größe und Zoom werden nicht korrekt geladen
-- [ ] Reihenfolge auch über andere gruppen hinaus und dann optisch einsortieren
 - [x] Cloud-Synchronisation: Möglichkeit, Aufgaben über mehrere Geräte hinweg zu synchronisieren
   - [x] eigener api-server (optional hinter Apache Proxy) (linux only applikation in go?)
   - [x] regerngistrierung soll automatisch und anonym erfolgen, man kann als server "maheis.de" auswählen oder eigene serveradresse eingeben (selfhosted)
@@ -136,9 +125,7 @@
   - [x] Info wenn nicht synchronisiert werden konnte (z.B. Server nicht erreichbar, ungültige Antwort, etc.)
   - [x] Synchronisierungsstatus anzeigen (z.B. "Zuletzt synchronisiert um 14:35", "Synchronisierung fehlgeschlagen", etc.)
   - [x] Manuelle Synchronisierungsmöglichkeit (z.B. "Jetzt synchronisieren" Button)
-- [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [x] buttons in burgermenü wenn platz zu klein wird -> Wird nicht umgesetzt, minimal mode reicht erstmal!
-- [ ] Web Applikationich
 - [x] Miniaturansicht soll je nach Lage auf dem Bildschirm nach unten oder oben expandieren (und minbandieren). Bei der Breite das gleiche.
 - [x] Ankleben klappt in Windows nicht, bzw. Fenster springt.
 - [x] Erinnerungssound optional machen
@@ -158,11 +145,25 @@
 - [x] Sortierungsverzögerung bei Termin Anpassung
 - [x] Stopuhr beim Fertigmelden anhalten
 - [x] Text-Zoom schon gespeichert!
-- [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [ ] wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.), damit sie automatisch nach Erledigung oder nach einem bestimmten Zeitplan neu erstellt werden. (neue augabe soll dann automatisch mit dem nächsten datum angelegt werden, z.B. bei täglich: morgen, bei wöchentlich: in 7 Tagen, etc.)
 - [x] Öffnen oben Rechts (unter windows?)
 - [x] Stopuhr soll Aufgabe in arbeit setzten
 - [x] "speichern" haken entfernen, es soll jede änderung an der aufgabe automatisch gespeichert werden
+- [ ] Android APK Testen
+  - [x] icon
+  - [x] den header ein bisschen runter mit der app, damit platz für die android statusleiste ist
+  - [x] spent time feld rutscht rechts aus dem bild
+  - [x] app name ist noch simple_present
+  - [x] backlog icon ist faded (datum entfernen?)
+  - [x] pin button nur unter windows anzeigen
+  - [ ] icon fritte
+- [ ] Worklog an Aufgaben...
+- [ ] position, Größe und Zoom werden nicht korrekt geladen
+- [ ] Reihenfolge auch über andere gruppen hinaus und dann optisch einsortieren
+- [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
+- [ ] Web Applikationich
+- [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
+- [ ] wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.), damit sie automatisch nach Erledigung oder nach einem bestimmten Zeitplan neu erstellt werden. (neue augabe soll dann automatisch mit dem nächsten datum angelegt werden, z.B. bei täglich: morgen, bei wöchentlich: in 7 Tagen, etc.)
+- [x] Erster Wochentag Montag (statt Sonntag)
 
 ## notes
 

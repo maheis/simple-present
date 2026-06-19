@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -108,6 +109,16 @@ class SimplePresentApp extends StatelessWidget {
     return MaterialApp(
       title: 'SimplePresent',
       locale: const Locale('de', 'DE'),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: [
+        Locale('de', 'DE'),
+        Locale('en', 'US'),
+        Locale('en', 'GB'),
+      ],
       theme: ThemeData(
         fontFamily: 'OpenDyslexic',
         brightness: Brightness.dark,
@@ -2251,6 +2262,8 @@ class _HomePageState extends State<HomePage> {
     final date = await showDatePicker(
       context: context,
       initialDate: initial,
+      // Use English (UK) so labels stay English and week starts on Monday
+      locale: const Locale('en', 'GB'),
       firstDate: DateTime(now.year - 5),
       lastDate: DateTime(now.year + 5),
     );
