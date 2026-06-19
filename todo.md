@@ -154,14 +154,15 @@
 - [x] Speichern übernimmt schonmal texte von anderen Aufgaben?
       Wenn ich die Felder an Position 2 z.B. Editiere und es kommt eine andere Aufgabe an Position 2 und ich klappe diese auf, dann wird der alte Text von Position 2 geladen!
 - [x] Aufgaben die von heute ins Backlog verschoben werden, sollen oben im Backlog einsortiert werden!
-- [?] Fenstergröße 450x700 (klappt so gar nicht?!)
+- [x] Fenstergröße 450x700 (klappt so gar nicht?!)
 - [x] Sortierungsverzögerung bei Termin Anpassung
 - [x] Stopuhr beim Fertigmelden anhalten
 - [x] Text-Zoom schon gespeichert!
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.), damit sie automatisch nach Erledigung oder nach einem bestimmten Zeitplan neu erstellt werden. (neue augabe soll dann automatisch mit dem nächsten datum angelegt werden, z.B. bei täglich: morgen, bei wöchentlich: in 7 Tagen, etc.)
-- [?] Öffnen oben Rechts (unter windows?)
-- [x] Stopuhr soll Aufgabe in arbeit setzten 
+- [x] Öffnen oben Rechts (unter windows?)
+- [x] Stopuhr soll Aufgabe in arbeit setzten
+- [x] "speichern" haken entfernen, es soll jede änderung an der aufgabe automatisch gespeichert werden
 
 ## notes
 

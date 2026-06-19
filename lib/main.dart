@@ -362,6 +362,7 @@ class _HomePageState extends State<HomePage> {
   final Set<String> _expanded = <String>{};
   final Map<String, TextEditingController> _editControllers = {};
   final Map<String, TextEditingController> _notesControllers = {};
+  final Map<String, Timer?> _autosaveTimers = {};
   final Map<String, TextEditingController> _subtaskInputControllers = {};
   final Map<String, FocusNode> _subtaskFocusNodes = {};
   final Map<String, TextEditingController> _workControllers = {};
@@ -1224,6 +1225,12 @@ class _HomePageState extends State<HomePage> {
         : _storage('simplepresent_today.json');
     // clear expanded/edit state
     _expanded.clear();
+    for (final id in _editControllers.keys) {
+      try {
+        _autosaveTimers[id]?.cancel();
+      } catch (_) {}
+    }
+    _autosaveTimers.clear();
     for (final c in _editControllers.values) {
       c.dispose();
     }
@@ -1242,6 +1249,12 @@ class _HomePageState extends State<HomePage> {
     _currentFile = _storage('simplepresent_backlog.json');
     // clear expanded/edit state
     _expanded.clear();
+    for (final id in _editControllers.keys) {
+      try {
+        _autosaveTimers[id]?.cancel();
+      } catch (_) {}
+    }
+    _autosaveTimers.clear();
     for (final c in _editControllers.values) {
       c.dispose();
     }
@@ -1922,6 +1935,7 @@ class _HomePageState extends State<HomePage> {
           final c = TextEditingController(text: _today[index].text.trim());
           c.addListener(() {
             if (mounted) setState(() {});
+            _scheduleAutoSave(taskId);
           });
           return c;
         });
@@ -1929,6 +1943,7 @@ class _HomePageState extends State<HomePage> {
           final n = TextEditingController(text: _today[index].notes ?? '');
           n.addListener(() {
             if (mounted) setState(() {});
+            _scheduleAutoSave(taskId);
           });
           return n;
         });
@@ -1968,6 +1983,17 @@ class _HomePageState extends State<HomePage> {
 
     _showTopToast('task updated');
     _registerActivity();
+  }
+
+  void _scheduleAutoSave(String taskId) {
+    try {
+      _autosaveTimers[taskId]?.cancel();
+    } catch (_) {}
+    _autosaveTimers[taskId] = Timer(const Duration(milliseconds: 800), () {
+      _autosaveTimers.remove(taskId);
+      final idx = _today.indexWhere((t) => t.id == taskId);
+      if (idx != -1) _saveEditedTitle(idx);
+    });
   }
 
   /// Write (or overwrite) the time-entry row for [task] on today's date.
@@ -2487,6 +2513,12 @@ class _HomePageState extends State<HomePage> {
     if (input.isEmpty) return;
     // Prevent controller/index mismatch: collapse expanded editors and dispose their controllers
     if (_expanded.isNotEmpty) {
+      for (final id in _editControllers.keys) {
+        try {
+          _autosaveTimers[id]?.cancel();
+        } catch (_) {}
+      }
+      _autosaveTimers.clear();
       for (final c in _editControllers.values) {
         try {
           c.dispose();
@@ -3628,41 +3660,7 @@ class _HomePageState extends State<HomePage> {
                                                                     },
                                                                   ),
                                                                 ),
-                                                                if (_expanded
-                                                                  .contains(
-                                                                    task.id))
-                                                                  Builder(
-                                                                      builder:
-                                                                          (_) {
-                                                                    final titleCtrl =
-                                                                        _editControllers[
-                                                                      task.id];
-                                                                    final notesCtrl =
-                                                                        _notesControllers[
-                                                                      task.id];
-                                                                    final isDirty = (titleCtrl !=
-                                                                                null &&
-                                                                            titleCtrl.text.trim() !=
-                                                                                task.text
-                                                                                    .trim()) ||
-                                                                        (notesCtrl !=
-                                                                                null &&
-                                                                            notesCtrl.text !=
-                                                                                (task.notes ?? ''));
-                                                                    return IconButton(
-                                                                      tooltip:
-                                                                          'Save',
-                                                                      icon: Icon(
-                                                                          Icons
-                                                                              .check,
-                                                                          color: isDirty
-                                                                              ? Colors.red
-                                                                              : Colors.white),
-                                                                      onPressed:
-                                                                          () =>
-                                                                              _saveEditedTitle(i),
-                                                                    );
-                                                                  }),
+                                                                
                                                                 IconButton(
                                                                   tooltip:
                                                                       'Important',
@@ -3710,21 +3708,16 @@ class _HomePageState extends State<HomePage> {
                                                         children: [
                                                           // Editable title in expanded area
                                                           TextField(
-                                                            controller:
-                                                                _editControllers
-                                                                    .putIfAbsent(
-                                                                  task.id, () {
-                                                              final c =
-                                                                  TextEditingController(
-                                                                      text: task
-                                                                          .text);
-                                                              c.addListener(() {
-                                                                if (mounted)
-                                                                  setState(
-                                                                      () {});
-                                                              });
-                                                              return c;
-                                                            }),
+                                                            controller: _editControllers.putIfAbsent(
+                                                                  task.id,
+                                                                  () {
+                                                                    final c = TextEditingController(text: task.text);
+                                                                    c.addListener(() {
+                                                                      if (mounted) setState(() {});
+                                                                      _scheduleAutoSave(task.id);
+                                                                    });
+                                                                    return c;
+                                                                  }),
                                                             autofocus: true,
                                                             decoration:
                                                                 const InputDecoration(
@@ -3741,22 +3734,16 @@ class _HomePageState extends State<HomePage> {
                                                               height: 8),
                                                           // Notes field (moved above timestamps)
                                                           TextField(
-                                                            controller:
-                                                                _notesControllers
-                                                                    .putIfAbsent(
-                                                                  task.id, () {
-                                                              final n =
-                                                                  TextEditingController(
-                                                                      text: task
-                                                                              .notes ??
-                                                                          '');
-                                                              n.addListener(() {
-                                                                if (mounted)
-                                                                  setState(
-                                                                      () {});
-                                                              });
-                                                              return n;
-                                                            }),
+                                                            controller: _notesControllers.putIfAbsent(
+                                                                  task.id,
+                                                                  () {
+                                                                    final n = TextEditingController(text: task.notes ?? '');
+                                                                    n.addListener(() {
+                                                                      if (mounted) setState(() {});
+                                                                      _scheduleAutoSave(task.id);
+                                                                    });
+                                                                    return n;
+                                                                  }),
                                                             keyboardType:
                                                                 TextInputType
                                                                     .multiline,
