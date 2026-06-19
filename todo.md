@@ -154,14 +154,14 @@
 - [x] Datum im backlog mit anzeigen
 - [x] Debug.json umbauen auf only db-file debug_
 - [ ] Android APK Testen
-  - [x] iconhttps://mealie.heister.be/g/home
+  - [x] icon
   - [x] den header ein bisschen runter mit der app, damit platz für die android statusleiste ist
   - [x] spent time feld rutscht rechts aus dem bild
   - [x] app name ist noch simple_present
   - [x] backlog icon ist faded (datum entfernen?)
-  - [x] pin button nur unter windows anzeigenhttps://www.youtube.com/results?search_query=k%C3%B6fte
+  - [x] pin button nur unter windows anzeigen
   - [ ] icon frittepp
-- [ ] Worklog an Aufgaben...https://www.youtube.com/watch?v=S7QONFUcsBo&list=PLuWhOdZWSINvX9SKXRizMSRkQF495a-8s&index=75
+- [ ] Worklog an Aufgaben...
 - [ ] Reihenfolge auch über andere Gruppen hinaus und dann optisch einsortieren
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [ ] Web Applikationich
