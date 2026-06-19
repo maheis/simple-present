@@ -166,7 +166,7 @@
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [ ] Web Applikationich
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [ ] Wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.), damit sie automatisch nach Erledigung oder nach einem bestimmten Zeitplan neu erstellt werden. (neue augabe soll dann automatisch mit dem nächsten datum angelegt werden, z.B. bei täglich: morgen, bei wöchentlich: in 7 Tagen, etc.)
+- [ ] Wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.) Wird eine Wiederkehrende Aufgabe erledigt, soll eine neue neu Aufgabe mit den gleichen Eigenschaften (Wiederkehrend, Titel, Notizen, etc.) auf das nächste Interall angelegt werden.
 - [x] Verschieben in backlog soll stopuhr stoppen
 
 ## notes

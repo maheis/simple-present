@@ -192,6 +192,7 @@ class TaskItem {
     this.done = false,
     this.important = false,
     this.inProgress = false,
+    this.recurrence,
     this.completedAt,
     this.inProgressAt,
     this.importantAt,
@@ -218,6 +219,8 @@ class TaskItem {
   final DateTime? scheduledAt; // optional scheduled date/time
   final String? notes;
   final List<TaskStep> subtasks;
+  // recurrence values: 'daily', 'weekly', 'monthly' or null
+  final String? recurrence;
   // Stopwatch state per task
   final int
       stopwatchAccumulatedSeconds; // total seconds accumulated when not running
@@ -232,6 +235,7 @@ class TaskItem {
     bool? done,
     bool? important,
     bool? inProgress,
+    String? recurrence,
     Object? completedAt = _noChange,
     Object? inProgressAt = _noChange,
     Object? importantAt = _noChange,
@@ -267,6 +271,7 @@ class TaskItem {
           : (scheduledAt == null ? null : (scheduledAt as DateTime)),
       notes: notes ?? this.notes,
       subtasks: subtasks ?? this.subtasks,
+        recurrence: recurrence ?? this.recurrence,
       stopwatchAccumulatedSeconds:
           stopwatchAccumulatedSeconds ?? this.stopwatchAccumulatedSeconds,
       stopwatchRunning: stopwatchRunning ?? this.stopwatchRunning,
@@ -297,6 +302,7 @@ class TaskItem {
         'stopwatch_running': stopwatchRunning,
         'stopwatch_started_at': stopwatchStartedAt?.toIso8601String(),
         'work_minutes': workMinutes,
+        'recurrence': recurrence,
       };
 
   static DateTime? _parseDate(dynamic v) {
@@ -360,6 +366,9 @@ class TaskItem {
       workMinutes: (map['work_minutes'] is int)
           ? map['work_minutes'] as int
           : int.tryParse((map['work_minutes'] ?? '').toString()) ?? 0,
+        recurrence: (map['recurrence'] ?? map['repeat'] ?? '').toString().isNotEmpty
+          ? (map['recurrence'] ?? map['repeat'] ?? '').toString()
+          : null,
     );
   }
 }
@@ -2117,6 +2126,7 @@ class _HomePageState extends State<HomePage> {
         final val = entry.value;
         final idx = _today.indexWhere((t) => t.id == id);
         if (idx != -1) {
+          final originalTask = _today[idx];
           final now = val ? DateTime.now() : null;
           // If marking done, stop running stopwatch first to capture final time
           if (val == true) {
@@ -2136,6 +2146,39 @@ class _HomePageState extends State<HomePage> {
             } catch (_) {}
             try {
               unawaited(_playDading());
+            } catch (_) {}
+            // If the original task is recurring, create the next occurrence
+            try {
+              final rec = originalTask.recurrence;
+              if (rec != null && rec.isNotEmpty) {
+                final base = originalTask.scheduledAt ?? DateTime.now();
+                final next = _computeNextRecurrence(base, rec);
+                if (next != null) {
+                  final newId = '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+                  final newTask = originalTask.copyWith(
+                      id: newId,
+                      createdAt: DateTime.now(),
+                      completedAt: null,
+                      done: false,
+                      inProgress: false,
+                      stopwatchAccumulatedSeconds: 0,
+                      stopwatchRunning: false,
+                      stopwatchStartedAt: null,
+                      scheduledAt: next);
+                  // Insert into the appropriate list: Today if next is today, else backlog
+                  if (_isSameDay(next, DateTime.now())) {
+                    final List<TaskItem> todayList = [];
+                    await _loadList('simplepresent_today.json', todayList);
+                    todayList.insert(0, newTask);
+                    await _saveList('simplepresent_today.json', todayList);
+                  } else {
+                    final List<TaskItem> backlogList = [];
+                    await _loadList('simplepresent_backlog.json', backlogList);
+                    backlogList.insert(0, newTask);
+                    await _saveList('simplepresent_backlog.json', backlogList);
+                  }
+                }
+              }
             } catch (_) {}
           }
         }
@@ -2638,6 +2681,38 @@ class _HomePageState extends State<HomePage> {
         });
         await _saveToday(); // persist removal from backlog
         await _appendDone([moved]);
+        // If recurring, create next occurrence
+        try {
+          final rec = finalTask.recurrence;
+          if (rec != null && rec.isNotEmpty) {
+            final base = finalTask.scheduledAt ?? DateTime.now();
+            final next = _computeNextRecurrence(base, rec);
+            if (next != null) {
+              final newId = '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+              final newTask = finalTask.copyWith(
+                  id: newId,
+                  createdAt: DateTime.now(),
+                  completedAt: null,
+                  done: false,
+                  inProgress: false,
+                  stopwatchAccumulatedSeconds: 0,
+                  stopwatchRunning: false,
+                  stopwatchStartedAt: null,
+                  scheduledAt: next);
+              if (_isSameDay(next, DateTime.now())) {
+                final List<TaskItem> todayList = [];
+                await _loadList('simplepresent_today.json', todayList);
+                todayList.insert(0, newTask);
+                await _saveList('simplepresent_today.json', todayList);
+              } else {
+                final List<TaskItem> backlogList = [];
+                await _loadList('simplepresent_backlog.json', backlogList);
+                backlogList.insert(0, newTask);
+                await _saveList('simplepresent_backlog.json', backlogList);
+              }
+            }
+          }
+        } catch (_) {}
         _showTopToast('task moved to done');
         _playDading();
       } catch (_) {
@@ -2774,6 +2849,33 @@ class _HomePageState extends State<HomePage> {
       _idleFired = true;
       // do not auto-restart; wait for user activity to reset
     });
+  }
+
+  DateTime? _computeNextRecurrence(DateTime base, String recurrence) {
+    try {
+      switch (recurrence) {
+        case 'daily':
+          return DateTime(base.year, base.month, base.day + 1, base.hour, base.minute, base.second);
+        case 'weekly':
+          return base.add(const Duration(days: 7));
+        case 'monthly':
+          // Add one month, clamping day to last valid day
+          int y = base.year + ((base.month) ~/ 12);
+          int m = base.month + 1;
+          // normalize year/month rollover
+          if (m > 12) {
+            m = 1;
+            y += 1;
+          }
+          final lastDay = DateTime(y, m + 1, 0).day;
+          final d = base.day <= lastDay ? base.day : lastDay;
+          return DateTime(y, m, d, base.hour, base.minute, base.second);
+        default:
+          return null;
+      }
+    } catch (_) {
+      return null;
+    }
   }
 
   void _startAttentionTimer() {
@@ -3810,6 +3912,29 @@ class _HomePageState extends State<HomePage> {
                                                           ),
                                                           const SizedBox(
                                                               height: 12),
+                                                          // Recurrence selector
+                                                          Row(
+                                                            children: [
+                                                              const Text('repeat:'),
+                                                              const SizedBox(width: 8),
+                                                              DropdownButton<String>(
+                                                                value: task.recurrence ?? '',
+                                                                items: const [
+                                                                  DropdownMenuItem(value: '', child: Text('none')),
+                                                                  DropdownMenuItem(value: 'daily', child: Text('daily')),
+                                                                  DropdownMenuItem(value: 'weekly', child: Text('weekly')),
+                                                                  DropdownMenuItem(value: 'monthly', child: Text('monthly')),
+                                                                ],
+                                                                onChanged: (v) async {
+                                                                  final newRec = (v == null || v.isEmpty) ? null : v;
+                                                                  setState(() {
+                                                                    _today[i] = _today[i].copyWith(recurrence: newRec);
+                                                                  });
+                                                                  await _saveToday();
+                                                                },
+                                                              ),
+                                                            ],
+                                                          ),
                                                           Row(
                                                             children: [
                                                               Expanded(
