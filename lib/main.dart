@@ -435,8 +435,9 @@ class _HomePageState extends State<HomePage> {
   final Set<int> _swiping = <int>{};
   // Minimal view removed.
 
-  // When debugging, prepend filenames with 'debug_' so test data doesn't mix
-  String _storage(String name) => kDebugMode ? 'debug_$name' : name;
+  // Storage filenames should remain stable; DB file may be debug_, but
+  // internal keys/filenames must not use a debug_ prefix.
+  String _storage(String name) => name;
 
   // Zoom state: tile height and font scaling
   double _tileHeight = 16.0;
@@ -2156,7 +2157,11 @@ class _HomePageState extends State<HomePage> {
             _today[idx] = _today[idx].copyWith(scheduledAt: val);
             // if it's not for today, defer moving to backlog until after reorder
             if (!_isSameDay(val, DateTime.now())) {
-              idsToMoveToBacklog.add(id);
+              // Only schedule a move to backlog when we're currently showing Today
+              // (don't move tasks that are being edited while viewing Backlog or Done)
+              if (!_showingBacklog && !_showingDone) {
+                idsToMoveToBacklog.add(id);
+              }
             }
           }
         }
@@ -2226,7 +2231,8 @@ class _HomePageState extends State<HomePage> {
         // find current index for id
         final idx = _today.indexWhere((t) => t.id == id);
         if (idx != -1) {
-          unawaited(_moveToBacklogByIndex(idx));
+          // await the move to ensure it completes and the backlog is updated
+          await _moveToBacklogByIndex(idx);
         }
       }
     }

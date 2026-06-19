@@ -90,22 +90,29 @@ class SqliteStorage {
   }
 
   Future<void> _migrateJsonFiles(Directory dir) async {
-    final prefix = _debugMode ? 'debug_' : '';
+    // Always migrate the canonical filenames; do NOT use internal debug_ prefixes
     final candidates = [
-      '${prefix}simplepresent_today.json',
-      '${prefix}simplepresent_done.json',
-      '${prefix}simplepresent_backlog.json',
-      '${prefix}simplepresent_trash.json',
-      '${prefix}simplepresent_settings.json',
+      'simplepresent_today.json',
+      'simplepresent_done.json',
+      'simplepresent_backlog.json',
+      'simplepresent_trash.json',
+      'simplepresent_settings.json',
     ];
 
     for (final name in candidates) {
-      final f = File('${dir.path}/$name');
-      if (await f.exists()) {
+      // Prefer canonical filename, but accept a debug_ prefixed file on disk
+      final fCanonical = File('${dir.path}/$name');
+      final fDebug = File('${dir.path}/debug_$name');
+      File? sourceFile;
+      if (await fCanonical.exists()) sourceFile = fCanonical;
+      else if (await fDebug.exists()) sourceFile = fDebug;
+
+      if (sourceFile != null) {
         try {
-          final text = await f.readAsString();
+          final text = await sourceFile.readAsString();
           // Validate JSON
           jsonDecode(text);
+          // Store under canonical name inside the DB
           _db!.execute('INSERT OR REPLACE INTO kv_store(name, content) VALUES(?, ?);', [name, text]);
           _db!.execute('INSERT OR REPLACE INTO lists(name, content) VALUES(?, ?);', [name, text]);
         } catch (_) {
@@ -126,12 +133,12 @@ class SqliteStorage {
     final existingCount = (countRs.first['c'] as int?) ?? 0;
     if (existingCount > 0) return;
 
-    final prefix = _debugMode ? 'debug_' : '';
+    // Use canonical list names inside the DB; do not include debug_ prefix
     final listNames = <String>{
-      '${prefix}simplepresent_today.json',
-      '${prefix}simplepresent_done.json',
-      '${prefix}simplepresent_backlog.json',
-      '${prefix}simplepresent_trash.json',
+      'simplepresent_today.json',
+      'simplepresent_done.json',
+      'simplepresent_backlog.json',
+      'simplepresent_trash.json',
     };
 
     for (final listName in listNames) {
@@ -150,10 +157,17 @@ class SqliteStorage {
       }
 
       if (raw == null) {
-        final f = File('${dir.path}/$listName');
-        if (await f.exists()) {
+        final fCanonical = File('${dir.path}/$listName');
+        final fDebug = File('${dir.path}/debug_$listName');
+        if (await fCanonical.exists()) {
           try {
-            raw = await f.readAsString();
+            raw = await fCanonical.readAsString();
+          } catch (_) {
+            raw = null;
+          }
+        } else if (await fDebug.exists()) {
+          try {
+            raw = await fDebug.readAsString();
           } catch (_) {
             raw = null;
           }
