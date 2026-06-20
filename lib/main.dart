@@ -393,6 +393,8 @@ class _HomePageState extends State<HomePage> {
   // Staged inProgress and done flag changes (apply when delayed reorder fires)
   final Map<String, bool> _stagedInProgress = {};
   final Map<String, bool> _stagedDone = {};
+  // Pending timers for delayed backlog->done moves (keyed by task id)
+  final Map<String, Timer?> _backlogDoneTimers = {};
   // Staged scheduled date/time changes (apply when delayed reorder fires)
   final Map<String, DateTime?> _stagedScheduled = {};
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -402,7 +404,7 @@ class _HomePageState extends State<HomePage> {
   Timer? _idleTimer;
   Timer? _attentionTimer;
   Timer? _delayedReorderTimer;
-  static const int _delayedReorderMilliseconds = 750;
+  static const int _delayedReorderMilliseconds = 900;
   int _idleMinutes = 45;
   int _attentionMinutes = 60;
   Timer? _reminderTimer;
@@ -3585,6 +3587,39 @@ class _HomePageState extends State<HomePage> {
                                                             await _setDone(i, newVal);
                                                             return;
                                                           }
+                                                           // If we're in Backlog view and marking done, mirror Today behavior:
+                                                           // set the radio button immediately (via _stagedDone) and start a short timer
+                                                           if (_currentFile == 'simplepresent_backlog.json' && !task.done) {
+                                                              if (newVal) {
+                                                                // set visual state immediately
+                                                                setState(() => _stagedDone[task.id] = true);
+                                                                // cancel any existing pending timer for this task
+                                                                try {
+                                                                  _backlogDoneTimers[task.id]?.cancel();
+                                                                } catch (_) {}
+                                                                final timer = Timer(Duration(milliseconds: _delayedReorderMilliseconds), () async {
+                                                                  // re-resolve index in case list changed
+                                                                  if (!mounted) return;
+                                                                  final idx = _today.indexWhere((t) => t.id == task.id);
+                                                                  // remove stored timer reference
+                                                                  _backlogDoneTimers.remove(task.id);
+                                                                  if (idx == -1) return;
+                                                                  try {
+                                                                    await _setDone(idx, true);
+                                                                  } catch (_) {}
+                                                                });
+                                                                _backlogDoneTimers[task.id] = timer;
+                                                                return;
+                                                              } else {
+                                                                // user unchecked before timer fired: cancel timer and clear staged state
+                                                                try {
+                                                                  _backlogDoneTimers[task.id]?.cancel();
+                                                                } catch (_) {}
+                                                                _backlogDoneTimers.remove(task.id);
+                                                                setState(() => _stagedDone.remove(task.id));
+                                                                return;
+                                                              }
+                                                           }
                                                           // Stage the change and schedule delayed reorder
                                                           setState(() => _stagedDone[task.id] = newVal);
                                                           _scheduleDelayedReorder();
