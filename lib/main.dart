@@ -3583,11 +3583,12 @@ class _HomePageState extends State<HomePage> {
                                                   _removeFromToday(i),
                                               child: Column(
                                                 children: [
-                                                  Card(
-                                                    color: task.inProgress
-                                                        ? Colors.green
-                                                            .withValues(alpha: 0.10)
-                                                        : null,
+                                                    Card(
+                                                    color: task.important
+                                                      ? Colors.amber.withOpacity(0.12)
+                                                      : (task.inProgress
+                                                        ? Colors.green.withOpacity(0.10)
+                                                        : null),
                                                     child: ListTile(
                                                       contentPadding:
                                                           EdgeInsets.symmetric(
@@ -3891,29 +3892,14 @@ class _HomePageState extends State<HomePage> {
                                                                     ),
                                                                   ),
                                                                 
-                                                                IconButton(
-                                                                  tooltip:
-                                                                      'Important',
-                                                                    icon: Icon(
-                                                                      ( _stagedImportant[task.id] ?? task.important)
-                                                                          ? Icons.star
-                                                                          : Icons.star_border,
-                                                                      color: (_stagedImportant[task.id] ?? task.important)
-                                                                          ? Colors.amber
-                                                                          : Theme.of(context).colorScheme.onSurfaceVariant),
-                                                                  onPressed: () {
-                                                                    final newVal = !(_stagedImportant[task.id] ?? task.important);
-                                                                    setState(() => _stagedImportant[task.id] = newVal);
-                                                                    _scheduleDelayedReorder();
-                                                                  },
-                                                                ),
+                                                              // Important button: moved into expanded editor
                                                                 // Custom D&D handle (reduced left padding)
                                                                 Padding(
                                                                   padding: const EdgeInsets.only(left: 2.0),
                                                                   child: Opacity(
                                                                     opacity: _swiping.contains(i) ? 0.0 : 1.0,
                                                                     child: ReorderableDragStartListener(
-                                                                      index: vi,
+                                                                      index: i,
                                                                       child: const Icon(Icons.drag_handle, size: 18),
                                                                     ),
                                                                   ),
@@ -3960,6 +3946,7 @@ class _HomePageState extends State<HomePage> {
                                                                 _saveEditedTitle(
                                                                     i),
                                                           ),
+                                                          // (Important button moved to recurrence row)
                                                           const SizedBox(
                                                               height: 8),
                                                           // Notes field (moved above timestamps)
@@ -4339,7 +4326,18 @@ class _HomePageState extends State<HomePage> {
                                                                   });
                                                                   await _saveToday();
                                                                 },
-                                                              ),
+                                                                  ),
+                                                                  const Spacer(),
+                                                                  IconButton(
+                                                                    tooltip: 'Important',
+                                                                    icon: Icon((_stagedImportant[task.id] ?? task.important) ? Icons.star : Icons.star_border,
+                                                                        color: (_stagedImportant[task.id] ?? task.important) ? Colors.amber : Theme.of(context).colorScheme.onSurfaceVariant),
+                                                                    onPressed: () {
+                                                                      final newVal = !(_stagedImportant[task.id] ?? task.important);
+                                                                      setState(() => _stagedImportant[task.id] = newVal);
+                                                                      _scheduleDelayedReorder();
+                                                                    },
+                                                                  ),
                                                             ],
                                                           ),
                                                         ],

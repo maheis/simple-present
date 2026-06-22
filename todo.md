@@ -170,7 +170,7 @@
 - [x] Verschieben in backlog soll stopuhr stoppen
 - [x] Datum im Backlog unterhalb von der Uhrzeit anzeigen
 - [x] Button für "in Arbeit" nicht im Backlog anzeigen.
-- [ ] Wichtig markierte Aufgaben soll die Kachel gelb werden und den Stern-Button im Ausgeklappten Editor verschoben sein
+- [x] Wichtig markierte Aufgaben soll die Kachel gelb werden und den Stern-Button im Ausgeklappten Editor verschoben sein
 - [x] Aufklappen soll komplettes Aufgabenformular im Bild anzeigen und nicht außerhalb des Bildes aufklappen.
 - [ ] Aufräumen von alten Aufgaben: Möglichkeit, erledigte Aufgaben nach einer bestimmten Zeit automatisch zu archivieren oder zu löschen (z.B. nach 30 Tagen). Optional könnte es auch eine Archiv-Ansicht geben, in der man alte Aufgaben einsehen kann, bevor sie endgültig gelöscht werden.
 - [x] immer nur eine aufgabe aufklappen, wenn eine andere aufgeklappt wird, soll die vorherige automatisch zugeklappt werden
