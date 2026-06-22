@@ -53,6 +53,13 @@ jobs:
           storeFile=${GITHUB_WORKSPACE}/keystore.jks
           EOF
 
+      - name: verify release keystore is present
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "ERROR: KEYSTORE_BASE64 secret is empty. The build would be debug-signed. Aborting to avoid uploading a debug-signed build." >&2
+            exit 1
+          fi
+
       - name: build app bundle
         run: flutter build appbundle --release
 

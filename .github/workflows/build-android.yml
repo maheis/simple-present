@@ -12,8 +12,18 @@ jobs:
     android:
         name: Build Android APK
         runs-on: ubuntu-latest
+        env:
+            KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+            KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+            KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+            KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         steps:
             - uses: actions/checkout@v4
+            - name: set up java
+              uses: actions/setup-java@v4
+              with:
+                  distribution: "temurin"
+                  java-version: "17"
             - name: Setup Flutter
               uses: subosito/flutter-action@v2
               with:
@@ -23,6 +33,28 @@ jobs:
                   yes | flutter doctor --android-licenses || true
             - name: Flutter pub get
               run: flutter pub get
+            - name: restore keystore (from secret KEYSTORE_BASE64)
+              if: ${{ env.KEYSTORE_BASE64 != '' }}
+              run: |
+                  echo "$KEYSTORE_BASE64" | base64 --decode > ./keystore.jks
+
+            - name: write android/key.properties
+              if: ${{ env.KEYSTORE_BASE64 != '' }}
+              run: |
+                  mkdir -p android
+                  cat > android/key.properties <<EOF
+                  storePassword=$KEYSTORE_PASSWORD
+                  keyPassword=$KEY_PASSWORD
+                  keyAlias=$KEY_ALIAS
+                  storeFile=${GITHUB_WORKSPACE}/keystore.jks
+                  EOF
+
+            - name: verify release keystore is present
+              run: |
+                  if [ -z "$KEYSTORE_BASE64" ]; then
+                    echo "ERROR: KEYSTORE_BASE64 secret is empty. The build would be debug-signed. Aborting to avoid uploading a debug-signed build." >&2
+                    exit 1
+                  fi
             - name: Build Android release APK
               run: flutter build apk --release
             - name: Package APK

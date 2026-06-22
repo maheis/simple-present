@@ -175,7 +175,7 @@
 - [ ] Worklog an Aufgaben...
 - [ ] Reihenfolge auch über andere Gruppen hinaus und dann optisch einsortieren
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
-- [ ] Web Applikationich
+- [ ] Web Applikation
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [x] Aufräumen von alten Aufgaben: Möglichkeit, erledigte Aufgaben nach einer bestimmten Zeit automatisch zu löschen (z.B. nach 30 Tagen). Eine Funktion in den Einstellungen in der man die Aufbewahrungsdauer für erledigte Aufgaben festlegen kann, wäre hier sinnvoll.
 - [ ] animation: aufklappen, zuklappen, erledigt, wichtig, in arbeit, löschen, etc. (z.B. sanftes Ein-/Ausblenden, Farbänderungen, etc.) um die Benutzererfahrung zu verbessern und visuelles Feedback zu geben.
