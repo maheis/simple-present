@@ -1954,7 +1954,17 @@ class _HomePageState extends State<HomePage> {
         _expanded.remove(taskId);
       });
     } else {
+      // When opening a task, ensure any other expanded task is closed
+      // and its edits are saved.
+      final currentlyOpen = _expanded.toList();
+      for (final openId in currentlyOpen) {
+        final openIdx = _today.indexWhere((t) => t.id == openId);
+        if (openIdx != -1) {
+          _saveEditedTitle(openIdx);
+        }
+      }
       setState(() {
+        _expanded.clear();
         _expanded.add(taskId);
         _editControllers.putIfAbsent(taskId, () {
           final c = TextEditingController(text: _today[index].text.trim());
