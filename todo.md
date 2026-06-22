@@ -177,6 +177,7 @@
 - [ ] animation: aufklappen, zuklappen, erledigt, wichtig, in arbeit, löschen, etc. (z.B. sanftes Ein-/Ausblenden, Farbänderungen, etc.) um die Benutzererfahrung zu verbessern und visuelles Feedback zu geben.
 - [x] bei fertigen aufgaben soll wichtigkeit nicht gelb hinterlegt sein!
 - [x] schriftfarbe bei fertigen aufgaben soll mehr ins graue gehen.
+- [ ] aufgaben aus done sollen erst wieder ins backlog und nicht in today!
 
 
 ## notes

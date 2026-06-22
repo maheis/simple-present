@@ -3766,7 +3766,7 @@ class _HomePageState extends State<HomePage> {
                                                                   MainAxisSize
                                                                       .min,
                                                               children: [
-                                                                if (task.scheduledAt != null)
+                                                                if (!(_stagedDone[task.id] ?? task.done) && task.scheduledAt != null)
                                                                   Tooltip(
                                                                     message: DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!),
                                                                     child: InkWell(
@@ -3800,17 +3800,18 @@ class _HomePageState extends State<HomePage> {
                                                                       ),
                                                                     ),
                                                                   ),
-                                                                // Always show small calendar button on the tile so user can set schedule without expanding
-                                                                Padding(
-                                                                  padding: const EdgeInsets.only(left: 4.0, right: 2.0),
+                                                                // Small calendar button on the tile (hidden for done tasks)
+                                                                if (!(_stagedDone[task.id] ?? task.done))
+                                                                  Padding(
+                                                                    padding: const EdgeInsets.only(left: 4.0, right: 2.0),
                                                                     child: IconButton(
-                                                                    padding: const EdgeInsets.all(4),
-                                                                    constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                                                                    tooltip: 'set schedule',
-                                                                    icon: Icon(Icons.calendar_today, size: 18, color: _iconColor),
-                                                                    onPressed: () => _pickSchedule(i),
+                                                                      padding: const EdgeInsets.all(4),
+                                                                      constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                                                                      tooltip: 'set schedule',
+                                                                      icon: Icon(Icons.calendar_today, size: 18, color: _iconColor),
+                                                                      onPressed: () => _pickSchedule(i),
+                                                                    ),
                                                                   ),
-                                                                ),
                                                                 if (_currentFile ==
                                                                         'simplepresent_backlog.json' ||
                                                                     _showingBacklog)
