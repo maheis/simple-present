@@ -3396,6 +3396,16 @@ class _HomePageState extends State<HomePage> {
                                             final i = originalIndex;
                                             // Minimal-mode removed: always render the full task Dismissible below.
                                             final containerKey = _tileKeys.putIfAbsent(task.id, () => GlobalKey());
+                                            final bool _isDimmed = _stagedDone[task.id] ?? task.done;
+                                            final Color _iconColor = _isDimmed
+                                              ? Theme.of(context).colorScheme.onSurface.withOpacity(0.30)
+                                              : Theme.of(context).colorScheme.onSurface;
+                                            final Color _primaryTextColor = _isDimmed
+                                              ? Theme.of(context).colorScheme.onSurface.withOpacity(0.30)
+                                              : Theme.of(context).colorScheme.onSurface;
+                                            final Color _variantColor = _isDimmed
+                                              ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.30)
+                                              : Theme.of(context).colorScheme.onSurfaceVariant;
                                             return Dismissible(
                                               key: containerKey,
                                               background: Container(
@@ -3677,9 +3687,7 @@ class _HomePageState extends State<HomePage> {
                                                                             decoration: task.done
                                                                                 ? TextDecoration.lineThrough
                                                                                 : TextDecoration.none,
-                                                                            color: task.done
-                                                                                ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65)
-                                                                                : Theme.of(context).colorScheme.onSurface,
+                                                                            color: _primaryTextColor,
                                                                           ),
                                                                         ),
                                                                       ),
@@ -3695,7 +3703,7 @@ class _HomePageState extends State<HomePage> {
                                                                             style:
                                                                                 TextStyle(
                                                                               fontSize: 12,
-                                                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                                              color: _variantColor,
                                                                             ),
                                                                           ),
                                                                         ),
@@ -3712,7 +3720,7 @@ class _HomePageState extends State<HomePage> {
                                                                             style:
                                                                                 TextStyle(
                                                                               fontSize: 12,
-                                                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                                              color: _variantColor,
                                                                             ),
                                                                           ),
                                                                         ),
@@ -3738,7 +3746,7 @@ class _HomePageState extends State<HomePage> {
                                                                               'spent: $label',
                                                                               style: TextStyle(
                                                                                 fontSize: 12,
-                                                                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                                                  color: _variantColor,
                                                                               ),
                                                                             ),
                                                                           );
@@ -3795,11 +3803,11 @@ class _HomePageState extends State<HomePage> {
                                                                 // Always show small calendar button on the tile so user can set schedule without expanding
                                                                 Padding(
                                                                   padding: const EdgeInsets.only(left: 4.0, right: 2.0),
-                                                                  child: IconButton(
+                                                                    child: IconButton(
                                                                     padding: const EdgeInsets.all(4),
                                                                     constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
                                                                     tooltip: 'set schedule',
-                                                                    icon: const Icon(Icons.calendar_today, size: 18),
+                                                                    icon: Icon(Icons.calendar_today, size: 18, color: _iconColor),
                                                                     onPressed: () => _pickSchedule(i),
                                                                   ),
                                                                 ),
@@ -3812,7 +3820,7 @@ class _HomePageState extends State<HomePage> {
                                                                       padding: const EdgeInsets.all(4),
                                                                       constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
                                                                       tooltip: 'move to today',
-                                                                      icon: const Icon(Icons.arrow_circle_left, size: 20),
+                                                                      icon: Icon(Icons.arrow_circle_left, size: 20, color: _iconColor),
                                                                       onPressed: () async {
                                                                         await _moveFromBacklog(i);
                                                                       },
@@ -3837,7 +3845,7 @@ class _HomePageState extends State<HomePage> {
                                                                         },
                                                                         icon: Icon(
                                                                           Icons.timer,
-                                                                          color: task.stopwatchRunning ? Colors.redAccent : Theme.of(context).colorScheme.onSurfaceVariant,
+                                                                          color: task.stopwatchRunning ? Colors.redAccent : _iconColor,
                                                                           size: 18,
                                                                         ),
                                                                       ),
@@ -3898,9 +3906,9 @@ class _HomePageState extends State<HomePage> {
                                                                   padding: const EdgeInsets.only(left: 2.0),
                                                                   child: Opacity(
                                                                     opacity: _swiping.contains(i) ? 0.0 : 1.0,
-                                                                    child: ReorderableDragStartListener(
+                                                                          child: ReorderableDragStartListener(
                                                                       index: i,
-                                                                      child: const Icon(Icons.drag_handle, size: 18),
+                                                                      child: Icon(Icons.drag_handle, size: 18, color: _iconColor),
                                                                     ),
                                                                   ),
                                                                 ),
