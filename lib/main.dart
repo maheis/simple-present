@@ -2482,6 +2482,89 @@ class _HomePageState extends State<HomePage> {
     _registerActivity();
   }
 
+  Future<void> _duplicateTask(int index) async {
+    try {
+      final item = _today[index];
+      final newId = '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+      final newItem = item.copyWith(
+        id: newId,
+        createdAt: DateTime.now(),
+        done: false,
+        completedAt: null,
+        inProgress: false,
+        inProgressAt: null,
+        stopwatchAccumulatedSeconds: 0,
+        stopwatchRunning: false,
+        stopwatchStartedAt: null,
+      );
+
+      // Insert into the same logical list where we're currently viewing, default to backlog for Done view
+      String targetFile;
+      if (_currentFile == 'simplepresent_backlog.json') {
+        targetFile = 'simplepresent_backlog.json';
+        final List<TaskItem> backlogList = [];
+        await _loadList(targetFile, backlogList);
+        backlogList.insert(0, newItem);
+        await _saveList(targetFile, backlogList);
+        _upsertTimeEntry(newItem);
+      } else if (_currentFile == 'simplepresent_done.json') {
+        // when duplicating from Done, put the copy in Backlog and switch view to Backlog
+        targetFile = 'simplepresent_backlog.json';
+        final List<TaskItem> backlogList = [];
+        await _loadList(targetFile, backlogList);
+        backlogList.insert(0, newItem);
+        await _saveList(targetFile, backlogList);
+        _upsertTimeEntry(newItem);
+      } else {
+        targetFile = 'simplepresent_today.json';
+        final List<TaskItem> todayList = [];
+        await _loadList(targetFile, todayList);
+        todayList.insert(0, newItem);
+        await _saveList(targetFile, todayList);
+        _upsertTimeEntry(newItem);
+      }
+
+      // Ensure the UI shows the target list and expand the new item for editing
+      final switchToTarget = _currentFile != targetFile;
+      if (switchToTarget) {
+        _currentFile = targetFile;
+      }
+      await _loadToday();
+      setState(() {
+        _expanded.clear();
+        _expanded.add(newId);
+        _editControllers.putIfAbsent(newId, () {
+          final c = TextEditingController(text: newItem.text);
+          c.addListener(() {
+            if (mounted) setState(() {});
+            _scheduleAutoSave(newId);
+          });
+          return c;
+        });
+        _notesControllers.putIfAbsent(newId, () {
+          final n = TextEditingController(text: newItem.notes ?? '');
+          n.addListener(() {
+            if (mounted) setState(() {});
+            _scheduleAutoSave(newId);
+          });
+          return n;
+        });
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final k = _tileKeys[newId];
+        if (k != null && k.currentContext != null) {
+          try {
+            Scrollable.ensureVisible(k.currentContext!, duration: const Duration(milliseconds: 300), alignment: 0.08);
+          } catch (_) {}
+        }
+      });
+      _showTopToast('task duplicated');
+    } catch (_) {
+      _showTopToast('failed to duplicate task');
+    }
+    _registerActivity();
+  }
+
   Future<void> _clearSchedule(int index) async {
     // capture id before mutating list item
     final id = _today[index].id;
@@ -4339,6 +4422,13 @@ class _HomePageState extends State<HomePage> {
                                                                 },
                                                                   ),
                                                                   const Spacer(),
+                                                                  IconButton(
+                                                                    tooltip: 'Duplicate',
+                                                                    icon: Icon(Icons.copy, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                                                    onPressed: () async {
+                                                                      await _duplicateTask(i);
+                                                                    },
+                                                                  ),
                                                                   IconButton(
                                                                     tooltip: 'Important',
                                                                     icon: Icon((_stagedImportant[task.id] ?? task.important) ? Icons.star : Icons.star_border,

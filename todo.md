@@ -178,7 +178,7 @@
 - [x] bei fertigen aufgaben soll wichtigkeit nicht gelb hinterlegt sein!
 - [x] schriftfarbe bei fertigen aufgaben soll mehr ins graue gehen.
 - [x] aufgaben aus done sollen erst wieder ins backlog und nicht in today!
-
+- [x] aufgabe duplizieren: Möglichkeit, eine bestehende Aufgabe zu duplizieren, um schnell ähnliche Aufgaben anzulegen (z.B. für wiederkehrende Aufgaben oder Aufgaben mit ähnlichen Eigenschaften).
 
 ## notes
 
