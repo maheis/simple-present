@@ -1,3 +1,7 @@
+import java.io.FileInputStream
+import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -15,10 +19,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
-
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.simple_present"
@@ -34,8 +34,8 @@ android {
     val possibleKeys = listOf(rootProject.file("key.properties"), rootProject.file("android/key.properties"))
     val keystorePropertiesFile = possibleKeys.firstOrNull { it.exists() }
     if (keystorePropertiesFile != null) {
-        val keystoreProperties = java.util.Properties()
-        keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+        val keystoreProperties = Properties()
+        keystoreProperties.load(FileInputStream(keystorePropertiesFile))
         signingConfigs {
             create("release") {
                 val storeFileProp = keystoreProperties.getProperty("storeFile")
@@ -56,6 +56,13 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        // Keep Kotlin bytecode target aligned with Java 17 toolchain used in CI.
+        jvmTarget = JvmTarget.JVM_17
     }
 }
 
