@@ -3827,7 +3827,8 @@ class _HomePageState extends State<HomePage> {
                                                                     ),
                                                                   ),
                                                                 if (!_showingBacklog &&
-                                                                    !_showingDone)
+                                                                  !_showingDone &&
+                                                                  !(_stagedDone[task.id] ?? task.done))
                                                                   Padding(
                                                                     padding: const EdgeInsets.only(left: 2.0, right: 2.0),
                                                                     child: Tooltip(
@@ -3851,7 +3852,8 @@ class _HomePageState extends State<HomePage> {
                                                                       ),
                                                                     ),
                                                                   ),
-                                                                if (!_showingBacklog)
+                                                                if (!_showingBacklog &&
+                                                                  !(_stagedDone[task.id] ?? task.done))
                                                                   Padding(
                                                                     padding: const EdgeInsets.only(left: 2.0, right: 2.0),
                                                                     child: IconButton(
