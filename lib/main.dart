@@ -3735,17 +3735,31 @@ class _HomePageState extends State<HomePage> {
                                                                     message: DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!),
                                                                     child: InkWell(
                                                                       onTap: () => _pickSchedule(i),
-                                                                      child: Row(
+                                                                          child: Row(
                                                                         mainAxisSize: MainAxisSize.min,
                                                                         children: [
                                                                           Icon(Icons.event, color: _scheduleIconColor(task.scheduledAt!), size: 16),
-                                                                          const SizedBox(width: 4),
-                                                                          Text(
-                                                                            (_showingBacklog || _currentFile == 'simplepresent_backlog.json')
-                                                                                ? DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!)
-                                                                                : DateFormat('HH:mm').format(task.scheduledAt!),
-                                                                            style: TextStyle(fontSize: 11, color: _scheduleIconColor(task.scheduledAt!)),
-                                                                          ),
+                                                                          const SizedBox(width: 6),
+                                                                          if (_showingBacklog || _currentFile == 'simplepresent_backlog.json')
+                                                                            Column(
+                                                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                                                              mainAxisSize: MainAxisSize.min,
+                                                                              children: [
+                                                                                Text(
+                                                                                  DateFormat('HH:mm').format(task.scheduledAt!),
+                                                                                  style: TextStyle(fontSize: 11, color: _scheduleIconColor(task.scheduledAt!)),
+                                                                                ),
+                                                                                Text(
+                                                                                  DateFormat('yyyy-MM-dd').format(task.scheduledAt!),
+                                                                                  style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                                                                ),
+                                                                              ],
+                                                                            )
+                                                                          else
+                                                                            Text(
+                                                                              DateFormat('HH:mm').format(task.scheduledAt!),
+                                                                              style: TextStyle(fontSize: 11, color: _scheduleIconColor(task.scheduledAt!)),
+                                                                            ),
                                                                         ],
                                                                       ),
                                                                     ),

@@ -168,11 +168,12 @@
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [x] Wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.) Wird eine Wiederkehrende Aufgabe erledigt, soll eine neue neu Aufgabe mit den gleichen Eigenschaften (Wiederkehrend, Titel, Notizen, etc.) auf das nächste Interall angelegt werden.
 - [x] Verschieben in backlog soll stopuhr stoppen
-- [ ] Datum im Backlog unterhalb von der Uhrzeit anzeigen
-- [ ] Button für "in Arbeit" nicht im Backlog anzeigen.
+- [x] Datum im Backlog unterhalb von der Uhrzeit anzeigen
+- [x] Button für "in Arbeit" nicht im Backlog anzeigen.
 - [ ] Wichtig markierte Aufgaben soll die Kachel gelb werden und den Stern-Button im Ausgeklappten Editor verschoben sein
 - [ ] Aufklappen soll komplettes Aufgabenformular im Bild anzeigen und nicht außerhalb des Bildes aufklappen.
 - [ ] Aufräumen von alten Aufgaben: Möglichkeit, erledigte Aufgaben nach einer bestimmten Zeit automatisch zu archivieren oder zu löschen (z.B. nach 30 Tagen). Optional könnte es auch eine Archiv-Ansicht geben, in der man alte Aufgaben einsehen kann, bevor sie endgültig gelöscht werden.
+- [ ] immer nur eine aufgabe aufklappen, wenn eine andere aufgeklappt wird, soll die vorherige automatisch zugeklappt werden
 
 ## notes
 
