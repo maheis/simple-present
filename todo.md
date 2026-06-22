@@ -171,9 +171,10 @@
 - [x] Datum im Backlog unterhalb von der Uhrzeit anzeigen
 - [x] Button für "in Arbeit" nicht im Backlog anzeigen.
 - [ ] Wichtig markierte Aufgaben soll die Kachel gelb werden und den Stern-Button im Ausgeklappten Editor verschoben sein
-- [ ] Aufklappen soll komplettes Aufgabenformular im Bild anzeigen und nicht außerhalb des Bildes aufklappen.
+- [x] Aufklappen soll komplettes Aufgabenformular im Bild anzeigen und nicht außerhalb des Bildes aufklappen.
 - [ ] Aufräumen von alten Aufgaben: Möglichkeit, erledigte Aufgaben nach einer bestimmten Zeit automatisch zu archivieren oder zu löschen (z.B. nach 30 Tagen). Optional könnte es auch eine Archiv-Ansicht geben, in der man alte Aufgaben einsehen kann, bevor sie endgültig gelöscht werden.
 - [x] immer nur eine aufgabe aufklappen, wenn eine andere aufgeklappt wird, soll die vorherige automatisch zugeklappt werden
+- [ ] animation: aufklappen, zuklappen, erledigt, wichtig, in arbeit, löschen, etc. (z.B. sanftes Ein-/Ausblenden, Farbänderungen, etc.) um die Benutzererfahrung zu verbessern und visuelles Feedback zu geben.
 
 ## notes
 

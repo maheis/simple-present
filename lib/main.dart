@@ -446,6 +446,10 @@ class _HomePageState extends State<HomePage> {
   final Set<String> _notified15 = <String>{};
   final Set<String> _notifiedDue = <String>{};
   final Set<int> _swiping = <int>{};
+  // Scroll controller for the main task list so we can bring expanded items into view
+  final ScrollController _listScrollController = ScrollController();
+  // Per-task keys to locate tiles in the list for scrolling
+  final Map<String, GlobalKey> _tileKeys = {};
   // Minimal view removed.
 
   // Storage filenames should remain stable; DB file may be debug_, but
@@ -1620,6 +1624,9 @@ class _HomePageState extends State<HomePage> {
     for (final c in _workControllers.values) {
       c.dispose();
     }
+    try {
+      _listScrollController.dispose();
+    } catch (_) {}
     _toastTimer?.cancel();
     _toastEntry?.remove();
     _stopwatchTicker?.cancel();
@@ -1982,6 +1989,15 @@ class _HomePageState extends State<HomePage> {
           });
           return n;
         });
+      });
+      // After the frame is rendered, ensure the newly expanded tile is visible
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final k = _tileKeys[taskId];
+        if (k != null && k.currentContext != null) {
+          try {
+            Scrollable.ensureVisible(k.currentContext!, duration: const Duration(milliseconds: 300), alignment: 0.08);
+          } catch (_) {}
+        }
       });
     }
     _registerActivity();
@@ -3258,6 +3274,7 @@ class _HomePageState extends State<HomePage> {
                                         ];
 
                                         return ReorderableListView(
+                                          scrollController: _listScrollController,
                                           buildDefaultDragHandles: false,
                                           onReorderItem: (oldIndex, newIndex) {
                                             final srcEntry = sorted[oldIndex];
@@ -3378,9 +3395,9 @@ class _HomePageState extends State<HomePage> {
                                                 task.subtasks.length;
                                             final i = originalIndex;
                                             // Minimal-mode removed: always render the full task Dismissible below.
+                                            final containerKey = _tileKeys.putIfAbsent(task.id, () => GlobalKey());
                                             return Dismissible(
-                                              key: ValueKey(
-                                                  'today_${i}_${task.text}_${task.done}'),
+                                              key: containerKey,
                                               background: Container(
                                                 color: Colors.green,
                                                 alignment: Alignment.centerLeft,
