@@ -153,6 +153,17 @@
 - [x] Datums button soll immer das aktuelle Datum anzeigen, nicht das Datum der Aufgabe
 - [x] Datum im backlog mit anzeigen
 - [x] Debug.json umbauen auf only db-file debug_
+- [x] Wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.) Wird eine Wiederkehrende Aufgabe erledigt, soll eine neue neu Aufgabe mit den gleichen Eigenschaften (Wiederkehrend, Titel, Notizen, etc.) auf das nächste Interall angelegt werden.
+- [x] Verschieben in backlog soll stopuhr stoppen
+- [x] Datum im Backlog unterhalb von der Uhrzeit anzeigen
+- [x] Button für "in Arbeit" nicht im Backlog anzeigen.
+- [x] Wichtig markierte Aufgaben soll die Kachel gelb werden und den Stern-Button im Ausgeklappten Editor verschoben sein
+- [x] Aufklappen soll komplettes Aufgabenformular im Bild anzeigen und nicht außerhalb des Bildes aufklappen.
+- [x] immer nur eine aufgabe aufklappen, wenn eine andere aufgeklappt wird, soll die vorherige automatisch zugeklappt werden
+- [x] bei fertigen aufgaben soll wichtigkeit nicht gelb hinterlegt sein!
+- [x] schriftfarbe bei fertigen aufgaben soll mehr ins graue gehen.
+- [x] aufgaben aus done sollen erst wieder ins backlog und nicht in today!
+- [x] aufgabe duplizieren: Möglichkeit, eine bestehende Aufgabe zu duplizieren, um schnell ähnliche Aufgaben anzulegen (z.B. für wiederkehrende Aufgaben oder Aufgaben mit ähnlichen Eigenschaften).
 - [ ] Android APK Testen
   - [x] icon
   - [x] den header ein bisschen runter mit der app, damit platz für die android statusleiste ist
@@ -166,19 +177,8 @@
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [ ] Web Applikationich
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [x] Wiederkehrende Aufgaben: Möglichkeit, Aufgaben als wiederkehrend zu markieren (täglich, wöchentlich, monatlich, etc.) Wird eine Wiederkehrende Aufgabe erledigt, soll eine neue neu Aufgabe mit den gleichen Eigenschaften (Wiederkehrend, Titel, Notizen, etc.) auf das nächste Interall angelegt werden.
-- [x] Verschieben in backlog soll stopuhr stoppen
-- [x] Datum im Backlog unterhalb von der Uhrzeit anzeigen
-- [x] Button für "in Arbeit" nicht im Backlog anzeigen.
-- [x] Wichtig markierte Aufgaben soll die Kachel gelb werden und den Stern-Button im Ausgeklappten Editor verschoben sein
-- [x] Aufklappen soll komplettes Aufgabenformular im Bild anzeigen und nicht außerhalb des Bildes aufklappen.
 - [ ] Aufräumen von alten Aufgaben: Möglichkeit, erledigte Aufgaben nach einer bestimmten Zeit automatisch zu archivieren oder zu löschen (z.B. nach 30 Tagen). Optional könnte es auch eine Archiv-Ansicht geben, in der man alte Aufgaben einsehen kann, bevor sie endgültig gelöscht werden.
-- [x] immer nur eine aufgabe aufklappen, wenn eine andere aufgeklappt wird, soll die vorherige automatisch zugeklappt werden
 - [ ] animation: aufklappen, zuklappen, erledigt, wichtig, in arbeit, löschen, etc. (z.B. sanftes Ein-/Ausblenden, Farbänderungen, etc.) um die Benutzererfahrung zu verbessern und visuelles Feedback zu geben.
-- [x] bei fertigen aufgaben soll wichtigkeit nicht gelb hinterlegt sein!
-- [x] schriftfarbe bei fertigen aufgaben soll mehr ins graue gehen.
-- [x] aufgaben aus done sollen erst wieder ins backlog und nicht in today!
-- [x] aufgabe duplizieren: Möglichkeit, eine bestehende Aufgabe zu duplizieren, um schnell ähnliche Aufgaben anzulegen (z.B. für wiederkehrende Aufgaben oder Aufgaben mit ähnlichen Eigenschaften).
 
 ## notes
 

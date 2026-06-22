@@ -384,6 +384,7 @@ class _HomePageState extends State<HomePage> {
   final Set<String> _expanded = <String>{};
   final Map<String, TextEditingController> _editControllers = {};
   final Map<String, TextEditingController> _notesControllers = {};
+  final Map<String, FocusNode> _editFocusNodes = {};
   final Map<String, Timer?> _autosaveTimers = {};
   final Map<String, TextEditingController> _subtaskInputControllers = {};
   final Map<String, FocusNode> _subtaskFocusNodes = {};
@@ -2558,6 +2559,12 @@ class _HomePageState extends State<HomePage> {
           } catch (_) {}
         }
       });
+      // Ensure the title field has focus
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          _editFocusNodes.putIfAbsent(newId, () => FocusNode()).requestFocus();
+        } catch (_) {}
+      });
       _showTopToast('task duplicated');
     } catch (_) {
       _showTopToast('failed to duplicate task');
@@ -4028,6 +4035,7 @@ class _HomePageState extends State<HomePage> {
                                                                     });
                                                                     return c;
                                                                   }),
+                                                            focusNode: _editFocusNodes.putIfAbsent(task.id, () => FocusNode()),
                                                             autofocus: true,
                                                             decoration:
                                                                 const InputDecoration(
