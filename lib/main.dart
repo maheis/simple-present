@@ -3584,11 +3584,11 @@ class _HomePageState extends State<HomePage> {
                                               child: Column(
                                                 children: [
                                                     Card(
-                                                    color: task.important
-                                                      ? Colors.amber.withOpacity(0.12)
-                                                      : (task.inProgress
-                                                        ? Colors.green.withOpacity(0.10)
-                                                        : null),
+                                                      color: (task.important && !task.done)
+                                                          ? Colors.amber.withOpacity(0.12)
+                                                          : (task.inProgress
+                                                              ? Colors.green.withOpacity(0.10)
+                                                              : null),
                                                     child: ListTile(
                                                       contentPadding:
                                                           EdgeInsets.symmetric(
