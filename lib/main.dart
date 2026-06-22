@@ -2673,7 +2673,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _setDone(int index, bool value) async {
-    // If we're in the Done view and the user unchecks done, move the task back to Today
+    // If we're in the Done view and the user unchecks done, move the task to Backlog
     final original = _today[index];
     if (!value && _currentFile == 'simplepresent_done.json') {
       try {
@@ -2684,12 +2684,12 @@ class _HomePageState extends State<HomePage> {
         });
         await _saveToday(); // persist removal from done file
 
-        final List<TaskItem> todayList = [];
-        await _loadList('simplepresent_today.json', todayList);
-        todayList.insert(0, restored);
-        await _saveList('simplepresent_today.json', todayList);
+        final List<TaskItem> backlogList = [];
+        await _loadList('simplepresent_backlog.json', backlogList);
+        backlogList.insert(0, restored);
+        await _saveList('simplepresent_backlog.json', backlogList);
 
-        _showTopToast('task moved to today');
+        _showTopToast('task moved to backlog');
       } catch (_) {
         _showTopToast('failed to move task');
       }
