@@ -177,7 +177,7 @@
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [ ] Web Applikationich
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [ ] Aufräumen von alten Aufgaben: Möglichkeit, erledigte Aufgaben nach einer bestimmten Zeit automatisch zu archivieren oder zu löschen (z.B. nach 30 Tagen). Optional könnte es auch eine Archiv-Ansicht geben, in der man alte Aufgaben einsehen kann, bevor sie endgültig gelöscht werden.
+- [x] Aufräumen von alten Aufgaben: Möglichkeit, erledigte Aufgaben nach einer bestimmten Zeit automatisch zu löschen (z.B. nach 30 Tagen). Eine Funktion in den Einstellungen in der man die Aufbewahrungsdauer für erledigte Aufgaben festlegen kann, wäre hier sinnvoll.
 - [ ] animation: aufklappen, zuklappen, erledigt, wichtig, in arbeit, löschen, etc. (z.B. sanftes Ein-/Ausblenden, Farbänderungen, etc.) um die Benutzererfahrung zu verbessern und visuelles Feedback zu geben.
 
 ## notes

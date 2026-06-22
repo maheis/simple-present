@@ -475,6 +475,9 @@ class _HomePageState extends State<HomePage> {
   String _cloudWordPhrase = '';
   String _cloudDeviceName = Platform.localHostname;
   String _cloudPIN = '';
+  // Auto-clean settings for Done list
+  bool _autoPurgeDoneEnabled = false;
+  int _doneRetentionDays = 30;
   
   bool _versionWarningShown = false;
   bool _cloudSyncFailed = false;
@@ -703,6 +706,8 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
 
     await _loadToday();
+    // Run cleanup of old Done tasks if enabled
+    unawaited(_purgeOldDoneTasksIfEnabled());
     await _syncPullFromCloud();
     unawaited(_fetchServerVersion());
     _startCloudPullTimer();
@@ -721,6 +726,34 @@ class _HomePageState extends State<HomePage> {
         final text = await f.readAsString();
         final data = jsonDecode(text) as List<dynamic>;
         target.addAll(data.map(TaskItem.fromJson));
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _purgeOldDoneTasksIfEnabled() async {
+    if (!_autoPurgeDoneEnabled || _doneRetentionDays <= 0) return;
+    await _purgeOldDoneTasks(_doneRetentionDays);
+  }
+
+  Future<void> _purgeOldDoneTasks(int days) async {
+    try {
+      final List<TaskItem> doneList = [];
+      await _loadList(_storage('simplepresent_done.json'), doneList);
+      if (doneList.isEmpty) return;
+      final now = DateTime.now();
+      final cutoff = now.subtract(Duration(days: days));
+      final before = doneList.length;
+      final remaining = doneList.where((t) {
+        final c = t.completedAt;
+        if (c == null) return true; // preserve items without timestamp
+        return !c.isBefore(cutoff);
+      }).toList();
+      final removed = before - remaining.length;
+      if (removed > 0) {
+        await _saveList(_storage('simplepresent_done.json'), remaining);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showTopToast('removed $removed old done task(s)');
+        });
       }
     } catch (_) {}
   }
@@ -1412,6 +1445,8 @@ class _HomePageState extends State<HomePage> {
         _urgentBringToFrontEnabled =
             readBool('urgentBringToFrontEnabled', _urgentBringToFrontEnabled);
         _swipeEnabled = readBool('swipeEnabled', _swipeEnabled);
+        _autoPurgeDoneEnabled = readBool('autoPurgeDoneEnabled', _autoPurgeDoneEnabled);
+        _doneRetentionDays = readInt('doneRetentionDays', _doneRetentionDays);
         // Restore persisted UI text scale factor if present
         _uiTextScaleFactor = _clampUiTextScaleFactor(readDouble('uiTextScaleFactor', _uiTextScaleFactor));
         final font = data['fontFamily'];
@@ -1554,6 +1589,8 @@ class _HomePageState extends State<HomePage> {
         'cloudKnownBacklogIds': _cloudKnownBacklogIds.toList(),
         'cloudKnownDoneIds': _cloudKnownDoneIds.toList(),
         'scheduledReminderSoundEnabled': _scheduledReminderSoundEnabled,
+        'autoPurgeDoneEnabled': _autoPurgeDoneEnabled,
+        'doneRetentionDays': _doneRetentionDays,
       };
 
       // Preserve lastRunDate if present in existing settings so daily-reset runs only once per day
@@ -1870,6 +1907,8 @@ class _HomePageState extends State<HomePage> {
             'cloudSyncFailed': _cloudSyncFailed,
             'cloudSyncLastError': _cloudSyncLastError,
             'scheduledReminderSoundEnabled': _scheduledReminderSoundEnabled,
+            'autoPurgeDoneEnabled': _autoPurgeDoneEnabled,
+            'doneRetentionDays': _doneRetentionDays,
           },
         ),
       ),
@@ -1915,6 +1954,8 @@ class _HomePageState extends State<HomePage> {
       _urgentNotifyEnabled = result['urgentNotifyEnabled'] == true;
       _urgentBringToFrontEnabled = result['urgentBringToFrontEnabled'] == true;
       _swipeEnabled = result['swipeEnabled'] == true;
+        _autoPurgeDoneEnabled = result['autoPurgeDoneEnabled'] == true;
+        _doneRetentionDays = clampMin(result['doneRetentionDays'], _doneRetentionDays);
       _uiTextScaleFactor =
           clampTextScale(result['uiTextScaleFactor'], _uiTextScaleFactor);
       if (result['fontFamily'] is String &&
@@ -1947,6 +1988,7 @@ class _HomePageState extends State<HomePage> {
 
     _registerActivity();
     await _saveSettings();
+    unawaited(_purgeOldDoneTasksIfEnabled());
     _startCloudPullTimer();
     unawaited(_syncPullFromCloud());
     unawaited(_fetchServerVersion());
@@ -4684,6 +4726,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late int cloudLastSyncSuccessAt;
   late bool cloudSyncFailed;
   late String cloudSyncLastError;
+  late bool autoPurgeDoneEnabled;
+  late int doneRetentionDays;
   String _cloudStatus = '';
   String _settingsServerVersion = '';
   String _versionWarning = '';
@@ -4722,6 +4766,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late String _initialCloudWordPhrase;
   late String _initialCloudDeviceName;
   late String _initialCloudPIN;
+  late bool _initialAutoPurgeDoneEnabled;
+  late int _initialDoneRetentionDays;
 
   @override
   void initState() {
@@ -4788,6 +4834,8 @@ class _SettingsPageState extends State<SettingsPage> {
     cloudWordPhrase = readString('cloudWordPhrase', '');
     cloudDeviceName = readString('cloudDeviceName', Platform.localHostname);
     cloudPIN = readString('cloudPIN', '');
+    autoPurgeDoneEnabled = readBool('autoPurgeDoneEnabled', false);
+    doneRetentionDays = readInt('doneRetentionDays', 30).clamp(1, 365);
     cloudLastSyncSuccessAt = readInt('cloudLastSyncSuccessAt', 0);
     cloudSyncFailed = readBool('cloudSyncFailed', false);
     cloudSyncLastError = readString('cloudSyncLastError', '');
@@ -4823,6 +4871,8 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialCloudWordPhrase = cloudWordPhrase;
     _initialCloudDeviceName = cloudDeviceName;
     _initialCloudPIN = cloudPIN;
+    _initialAutoPurgeDoneEnabled = autoPurgeDoneEnabled;
+    _initialDoneRetentionDays = doneRetentionDays;
     _fetchServerVersionInSettings();
     unawaited(_refreshCloudAccountStatus());
   }
@@ -4941,9 +4991,11 @@ class _SettingsPageState extends State<SettingsPage> {
         cloudDeviceId != _initialCloudDeviceId ||
         cloudToken != _initialCloudToken ||
         cloudWordPhrase != _initialCloudWordPhrase ||
-        cloudDeviceName != _initialCloudDeviceName ||
-        cloudPIN != _initialCloudPIN;
-  }
+          cloudDeviceName != _initialCloudDeviceName ||
+          cloudPIN != _initialCloudPIN ||
+          autoPurgeDoneEnabled != _initialAutoPurgeDoneEnabled ||
+          doneRetentionDays != _initialDoneRetentionDays;
+        }
 
   String _normalizedServerUrl() {
     final trimmed = cloudServerUrl.trim();
@@ -5246,6 +5298,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     'cloudWordPhrase': cloudWordPhrase,
                     'cloudDeviceName': cloudDeviceName,
                     'cloudPIN': cloudPIN,
+                    'autoPurgeDoneEnabled': autoPurgeDoneEnabled,
+                    'doneRetentionDays': doneRetentionDays,
                   });
                 },
                 child: Text(
@@ -5594,6 +5648,40 @@ class _SettingsPageState extends State<SettingsPage> {
                         ? Colors.redAccent
                         : Colors.greenAccent,
                   ),
+                ),
+              ],
+              const Divider(),
+              const SizedBox(height: 8),
+              const Text(
+                'cleanup',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                value: autoPurgeDoneEnabled,
+                title: const Text('auto-delete old done tasks'),
+                subtitle: const Text('delete done tasks older than x days.'),
+                onChanged: (v) => setState(() => autoPurgeDoneEnabled = v),
+              ),
+              if (autoPurgeDoneEnabled) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Text('days:'),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 100,
+                      child: TextFormField(
+                        initialValue: doneRetentionDays.toString(),
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                        onChanged: (v) {
+                          final parsed = int.tryParse(v);
+                          if (parsed != null) setState(() => doneRetentionDays = parsed.clamp(1, 365));
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ],
