@@ -3616,7 +3616,7 @@ class _HomePageState extends State<HomePage> {
                                                         tooltip: 'done',
                                                         icon: Icon(( _stagedDone[task.id] ?? task.done)
                                                             ? Icons.radio_button_checked
-                                                            : Icons.radio_button_unchecked),
+                                                            : Icons.radio_button_unchecked, color: _iconColor, size: 18),
                                                         onPressed: () async {
                                                           final current = _stagedDone[task.id] ?? task.done;
                                                           final newVal = !current;
