@@ -183,14 +183,14 @@
   - [x] sqlite3.dll
   - [ ] mehr?
 - [ ] android icons näher zusammen
-- [ ] andoid kachel breiter
+- [ ] android kachel breiter
 - [ ] english in den settings (mindestens 1 satz ist noch deutsch)
 - [ ] datenschutzerklärung
 - [ ] wochentag in der statistik kleiner, datum kann man aktuell unter android nicht lesen
 - [ ] inakativitäts reminder per default auf off
 - [ ] inaktivitäts reminder zeitfenster wann er sein soll
 - [ ] beim start keine erinnerungen? oder gesammelte erinnerungen?
-- [ ] done nicht durchstreichen! 
+- [x] done nicht durchstreichen! 
 
 ## notes
 

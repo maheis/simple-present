@@ -3627,15 +3627,13 @@ class _HomePageState extends State<HomePage> {
                                                     ? Text(
                                                         'open',
                                                         style: TextStyle(
-                                                          decoration:
-                                                              TextDecoration
-                                                                  .lineThrough,
-                                                          color:
-                                                              Theme.of(context)
-                                                                  .colorScheme
-                                                                  .onSurface,
-                                                          fontWeight:
-                                                              FontWeight.w600,
+                                                      decoration:
+                                                        TextDecoration.none,
+                                                      color: Theme.of(context)
+                                                        .colorScheme
+                                                        .onSurface,
+                                                      fontWeight:
+                                                        FontWeight.w600,
                                                         ),
                                                       )
                                                     : const Icon(Icons.delete,
@@ -3812,10 +3810,11 @@ class _HomePageState extends State<HomePage> {
                                                                                 _baseFontSize,
                                                                             fontWeight:
                                                                                 FontWeight.normal,
-                                                                            decoration: task.done
-                                                                                ? TextDecoration.lineThrough
-                                                                                : TextDecoration.none,
-                                                                            color: _primaryTextColor,
+                                                                            decoration:
+                                                                                TextDecoration.none,
+                                                                            color: task.done
+                                                                                ? _primaryTextColor.withOpacity(0.6)
+                                                                                : _primaryTextColor,
                                                                           ),
                                                                         ),
                                                                       ),
@@ -4212,8 +4211,8 @@ class _HomePageState extends State<HomePage> {
                                                                                 ? Text(
                                                                                     step.text,
                                                                                     style: TextStyle(
-                                                                                      decoration: TextDecoration.lineThrough,
-                                                                                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                                                                                      decoration: TextDecoration.none,
+                                                                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                                                                                     ),
                                                                                   )
                                                                                 : TextFormField(
