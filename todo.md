@@ -190,7 +190,8 @@
 - [ ] inakativitäts reminder per default auf off
 - [ ] inaktivitäts reminder zeitfenster wann er sein soll
 - [ ] beim start keine erinnerungen? oder gesammelte erinnerungen?
-- [x] done nicht durchstreichen! 
+- [x] done nicht durchstreichen!
+- [ ] install für client
 
 ## notes
 
