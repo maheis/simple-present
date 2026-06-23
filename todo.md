@@ -179,6 +179,18 @@
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [x] Aufräumen von alten Aufgaben: Möglichkeit, erledigte Aufgaben nach einer bestimmten Zeit automatisch zu löschen (z.B. nach 30 Tagen). Eine Funktion in den Einstellungen in der man die Aufbewahrungsdauer für erledigte Aufgaben festlegen kann, wäre hier sinnvoll.
 - [ ] animation: aufklappen, zuklappen, erledigt, wichtig, in arbeit, löschen, etc. (z.B. sanftes Ein-/Ausblenden, Farbänderungen, etc.) um die Benutzererfahrung zu verbessern und visuelles Feedback zu geben.
+- [ ] Abhöängikeiten Reudzieren
+  - [x] sqlite3.dll
+  - [ ] mehr?
+- [ ] android icons näher zusammen
+- [ ] andoid kachel breiter
+- [ ] english in den settings (mindestens 1 satz ist noch deutsch)
+- [ ] datenschutzerklärung
+- [ ] wochentag in der statistik kleiner, datum kann man aktuell unter android nicht lesen
+- [ ] inakativitäts reminder per default auf off
+- [ ] inaktivitäts reminder zeitfenster wann er sein soll
+- [ ] beim start keine erinnerungen? oder gesammelte erinnerungen?
+- [ ] done nicht durchstreichen! 
 
 ## notes
 
