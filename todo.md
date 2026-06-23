@@ -191,7 +191,8 @@
 - [ ] inaktivitäts reminder zeitfenster wann er sein soll
 - [ ] beim start keine erinnerungen? oder gesammelte erinnerungen?
 - [x] done nicht durchstreichen!
-- [ ] install für client
+- [x] install für client
+- [ ] icon linux client
 
 ## notes
 
