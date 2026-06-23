@@ -5908,7 +5908,10 @@ class _StatsPageState extends State<StatsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(DateFormat('EEEE, dd.MM.yyyy').format(_currentDate)),
+        title: Text(
+          DateFormat('EEE, dd.MM.yyyy').format(_currentDate),
+          style: const TextStyle(fontSize: 16),
+        ),
         centerTitle: true,
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
