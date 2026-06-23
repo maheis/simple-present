@@ -5449,7 +5449,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Hinweis: Cloud-Accounts muessen aktiv genutzt werden. Ohne Aktivitaet wird der Account standardmaessig nach 30 Tagen archiviert.',
+                'Note: Cloud accounts must be used actively. Inactive accounts are automatically archived after 30 days.',
                 style: TextStyle(fontSize: 11, color: Colors.orangeAccent),
               ),
               const SizedBox(height: 8),

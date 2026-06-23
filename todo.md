@@ -184,7 +184,7 @@
   - [ ] mehr?
 - [ ] android icons näher zusammen
 - [ ] android kachel breiter
-- [ ] english in den settings (mindestens 1 satz ist noch deutsch)
+- [x] english in den settings (mindestens 1 satz ist noch deutsch)
 - [ ] datenschutzerklärung
 - [ ] wochentag in der statistik kleiner, datum kann man aktuell unter android nicht lesen
 - [ ] inakativitäts reminder per default auf off
