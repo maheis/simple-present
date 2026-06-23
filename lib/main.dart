@@ -108,16 +108,17 @@ class SimplePresentApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'SimplePresent',
-      locale: const Locale('de', 'DE'),
+      // Default to English for broader settings readability
+      locale: const Locale('en', 'US'),
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: [
-        Locale('de', 'DE'),
         Locale('en', 'US'),
         Locale('en', 'GB'),
+        Locale('de', 'DE'),
       ],
       theme: ThemeData(
         fontFamily: 'OpenDyslexic',
