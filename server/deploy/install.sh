@@ -6,11 +6,14 @@ set -euo pipefail
 
 BIN=./simplepresent-server
 INSTALL_BIN=/usr/local/bin/simplepresent-server
-SYSTEMD_UNIT=./systemd/simplepresent-server.service
-SYSTEMD_TARGET=/etc/systemd/system/simplepresent-server.service
+
+DATA_DIR=/var/lib/simplepresent
+
 ETC_DIR=/etc/simplepresent
 ETC_CONFIG=${ETC_DIR}/config.json
-DATA_DIR=/var/lib/simplepresent
+
+SYSTEMD_UNIT=./simplepresent-server.service
+SYSTEMD_TARGET=/etc/systemd/system/simplepresent-server.service
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "This script must be run as root (or with sudo)" >&2
@@ -18,7 +21,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 if [ ! -f "$BIN" ]; then
-  echo "Binary $BIN not found. Build first: cd server && go build -o simplepresent-server" >&2
+  echo "Binary $BIN not found." >&2
   exit 1
 fi
 
@@ -41,7 +44,7 @@ if [ ! -f "$ETC_CONFIG" ]; then
   install -m 0644 ./etc/config.json.example "$ETC_CONFIG"
   echo "Wrote example config to $ETC_CONFIG - edit as needed"
 else
-  echo "$ETC_CONFIG already exists - leaving it in place"
+  echo "$ETC_CONFIG already exists - leaving it in place -> check and edit as needed"
 fi
 
 echo "Installing systemd unit to ${SYSTEMD_TARGET}"
@@ -49,6 +52,6 @@ install -m 0644 "$SYSTEMD_UNIT" "$SYSTEMD_TARGET"
 
 echo "Reloading systemd and enabling service"
 systemctl daemon-reload
-systemctl enable --now simplepresent.service
+systemctl enable --now simplepresent-server.service
 
-echo "Install complete. Check 'journalctl -u simplepresent -f' for logs."
+echo "Install complete. Check 'journalctl -u simplepresent-server -f' for logs."
