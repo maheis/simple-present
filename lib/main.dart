@@ -5323,14 +5323,11 @@ class _SettingsPageState extends State<SettingsPage> {
                     value: fontFamily,
                     items: const [
                       DropdownMenuItem(
-                          value: 'OpenDyslexic', child: Text('OpenDyslexic')),
+                        value: 'OpenDyslexic', child: Text('OpenDyslexic')),
                       DropdownMenuItem(
-                          value: 'OpenSans', child: Text('OpenSans')),
+                        value: 'NotoSans', child: Text('NotoSans')),
                       DropdownMenuItem(
-                          value: 'NotoSans', child: Text('NotoSans')),
-                      DropdownMenuItem(
-                          value: 'CourierPrime', child: Text('CourierPrime')),
-                      DropdownMenuItem(value: 'Ubuntu', child: Text('Ubuntu')),
+                        value: 'CourierPrime', child: Text('CourierPrime')),
                     ],
                     onChanged: (value) {
                       if (value != null) {

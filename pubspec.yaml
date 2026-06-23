@@ -35,16 +35,6 @@ flutter:
         - asset: assets/fonts/OpenDyslexic/OpenDyslexic-Regular.otf
         - asset: assets/fonts/OpenDyslexic/OpenDyslexic-Bold.otf
           weight: 700
-    - family: Ubuntu
-      fonts:
-        - asset: assets/fonts/Ubuntu/Ubuntu-Regular.ttf
-        - asset: assets/fonts/Ubuntu/Ubuntu-Bold.ttf
-          weight: 700
-    - family: OpenSans
-      fonts:
-        - asset: assets/fonts/Open_Sans/static/OpenSans-Regular.ttf
-        - asset: assets/fonts/Open_Sans/static/OpenSans-Bold.ttf
-          weight: 700
     - family: NotoSans
       fonts:
         - asset: assets/fonts/Noto_Sans/static/NotoSans-Regular.ttf
