@@ -15,7 +15,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:simple_present/sync/cloud_sync_client.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:simple_present/storage/sqlite_storage.dart';
+import 'package:simple_present/storage/json_storage.dart';
 
 // sentinel to indicate "no change" in copyWith optional parameters
 const _noChange = Object();
@@ -399,7 +399,7 @@ class _HomePageState extends State<HomePage> {
   // Staged scheduled date/time changes (apply when delayed reorder fires)
   final Map<String, DateTime?> _stagedScheduled = {};
   final AudioPlayer _audioPlayer = AudioPlayer();
-  // SQLite storage (migrates JSON files on first init)
+  // JSON storage (legacy sqlite migration support is handled separately)
   final _sqliteStorage = SqliteStorage();
   bool _useSqlite = false;
   Timer? _idleTimer;
@@ -453,9 +453,10 @@ class _HomePageState extends State<HomePage> {
   final Map<String, GlobalKey> _tileKeys = {};
   // Minimal view removed.
 
-  // Storage filenames should remain stable; DB file may be debug_, but
-  // internal keys/filenames must not use a debug_ prefix.
-  String _storage(String name) => name;
+  // Storage filenames: in debug builds use debug_ prefixed filenames so
+  // debug and production data remain separate. Use _storage(...) everywhere
+  // when accessing file keys.
+  String _storage(String name) => kDebugMode ? 'debug_$name' : name;
 
   // Zoom state: tile height and font scaling
   double _tileHeight = 16.0;
@@ -585,13 +586,8 @@ class _HomePageState extends State<HomePage> {
   Future<void> _initializeApp() async {
     // ensure current file respects debug mode
     _currentFile = _storage('simplepresent_today.json');
-    // initialize sqlite storage and migrate JSON files if needed
-    try {
-      await _sqliteStorage.init(debugMode: kDebugMode);
-      _useSqlite = true;
-    } catch (_) {
-      _useSqlite = false;
-    }
+    // JSON file storage only.
+    _useSqlite = false;
     await _loadSettings();
     await _ensureInitialFiles();
 
