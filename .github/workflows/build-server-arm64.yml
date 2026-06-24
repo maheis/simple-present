@@ -48,9 +48,11 @@ jobs:
                   cp server/README.md release_dist/simplepresent-server/README.md || true
                   cp server/simplepresent-server release_dist/simplepresent-server/simplepresent-server || true
                   cp server/deploy/install.sh release_dist/simplepresent-server/install.sh || true
+                  cp server/deploy/uninstall.sh release_dist/simplepresent-server/uninstall.sh || true
                   cp server/etc/config.json.example release_dist/simplepresent-server/config.json.example || true
                   cp server/systemd/simplepresent-server.service release_dist/simplepresent-server/simplepresent-server.service || true
                   chmod +x release_dist/simplepresent-server/install.sh || true
+                  chmod +x release_dist/simplepresent-server/uninstall.sh || true
                   cd release_dist && zip -r simplepresent-server-arm64.zip simplepresent-server
 
             - name: Upload server artifact
