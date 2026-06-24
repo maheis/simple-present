@@ -1974,6 +1974,24 @@ class _HomePageState extends State<HomePage> {
             'autoPurgeDoneEnabled': _autoPurgeDoneEnabled,
             'doneRetentionDays': _doneRetentionDays,
           },
+          onCloudDeviceRegistered: (Map<String, dynamic> registeredData) {
+            // Sync cloud registration data back to home state immediately
+            if (mounted) {
+              setState(() {
+                if (registeredData.containsKey('cloudAccountId')) {
+                  _cloudAccountId = registeredData['cloudAccountId'] as String;
+                }
+                if (registeredData.containsKey('cloudDeviceId')) {
+                  _cloudDeviceId = registeredData['cloudDeviceId'] as String;
+                }
+                if (registeredData.containsKey('cloudToken')) {
+                  _cloudToken = registeredData['cloudToken'] as String;
+                }
+              });
+              // Save settings immediately so token persists
+              _saveSettings();
+            }
+          },
         ),
       ),
     );
@@ -4880,9 +4898,14 @@ class StatsPage extends StatefulWidget {
 }
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key, required this.initial});
+  const SettingsPage({
+    super.key,
+    required this.initial,
+    this.onCloudDeviceRegistered,
+  });
 
   final Map<String, dynamic> initial;
+  final Function(Map<String, dynamic>)? onCloudDeviceRegistered;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -5430,6 +5453,14 @@ class _SettingsPageState extends State<SettingsPage> {
           ? 'first device registered.'
           : 'first device registered. ${result.notice!}';
       });
+      // Notify parent to sync settings
+      if (widget.onCloudDeviceRegistered != null) {
+        widget.onCloudDeviceRegistered!({
+          'cloudAccountId': cloudAccountId,
+          'cloudDeviceId': cloudDeviceId,
+          'cloudToken': cloudToken,
+        });
+      }
       await _refreshCloudAccountStatus(showToastIfWarning: true);
     } catch (e) {
       setState(() {
@@ -5492,6 +5523,13 @@ class _SettingsPageState extends State<SettingsPage> {
         cloudToken = result.token;
         _cloudStatus = 'device paired successfully.';
       });
+      // Notify parent to sync settings
+      if (widget.onCloudDeviceRegistered != null) {
+        widget.onCloudDeviceRegistered!({
+          'cloudDeviceId': cloudDeviceId,
+          'cloudToken': cloudToken,
+        });
+      }
       await _refreshCloudAccountStatus(showToastIfWarning: true);
     } catch (e) {
       setState(() {
