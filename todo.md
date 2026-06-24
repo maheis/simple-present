@@ -209,7 +209,7 @@
 - [ ] buttons müssen (mindestens unter android) optimiert werden! kontextmenü?
 - [ ] runter sortieren, sortiert "drüber"
 - [ ] sync: eigenes zertifikat führt zu fehler?
-- [ ] sync: neues peering soll warnen das altes verloren geht
+- [x] sync: neues peering soll warnen das altes verloren geht
 
 ## notes
 

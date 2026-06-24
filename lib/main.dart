@@ -5297,8 +5297,26 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// Opens the camera scanner, reads a simplepresent:// pairing URI
   /// and pre-fills server URL + account ID.
-  void _applyPairingUri(String raw, {required String sourceLabel}) {
+  Future<void> _applyPairingUri(String raw, {required String sourceLabel}) async {
     try {
+      // if we already have a paired device, warn before importing pairing info
+      if (cloudDeviceId.trim().isNotEmpty) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('replace existing pairing?'),
+            content: const Text('warning: importing pairing info will replace the previously registered device on the server. continue?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('cancel')),
+              TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('replace')),
+            ],
+          ),
+        );
+        if (proceed != true) {
+          if (mounted) setState(() => _cloudStatus = 'import cancelled');
+          return;
+        }
+      }
       final uri = Uri.parse(raw);
       if (uri.scheme != 'simplepresent' || uri.host != 'pair') {
         setState(() => _cloudStatus = 'invalid pairing link ($sourceLabel).');
@@ -5329,7 +5347,7 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
     if (result == null || !mounted) return;
-    _applyPairingUri(result, sourceLabel: 'QR-Code');
+    await _applyPairingUri(result, sourceLabel: 'QR-Code');
   }
 
   Future<void> _pastePairingLink() async {
@@ -5339,7 +5357,7 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() => _cloudStatus = 'clipboard is empty.');
       return;
     }
-    _applyPairingUri(text, sourceLabel: 'Zwischenablage');
+    await _applyPairingUri(text, sourceLabel: 'Zwischenablage');
   }
 
   Future<void> _registerFirstDevice() async {
@@ -5354,6 +5372,24 @@ class _SettingsPageState extends State<SettingsPage> {
           _cloudBusy = false;
         });
         return;
+      }
+      // warn if a device id already exists: registering will replace existing pairing
+      if (cloudDeviceId.trim().isNotEmpty) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('replace existing pairing?'),
+            content: const Text('warning: creating a new registration will replace the previously registered device on the server. continue?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('cancel')),
+              TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('replace')),
+            ],
+          ),
+        );
+        if (proceed != true) {
+          if (mounted) setState(() => _cloudBusy = false);
+          return;
+        }
       }
       final client = CloudSyncClient(serverBaseUrl: _normalizedServerUrl());
       final result = await client.registerFirstClient(
