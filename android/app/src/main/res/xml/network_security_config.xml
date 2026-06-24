@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <base-config>
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
+            <!-- System CA certificates (Let's Encrypt, DigiCert, etc.) -->
             <certificates src="system" />
+            <!-- User-installed CA certificates (for self-signed and custom CAs) -->
             <certificates src="user" />
         </trust-anchors>
     </base-config>

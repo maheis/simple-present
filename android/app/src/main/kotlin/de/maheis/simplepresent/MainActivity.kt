@@ -41,6 +41,8 @@ class MainActivity : FlutterActivity() {
 					else -> result.notImplemented()
 				}
 			}
+
+		// Cloud Sync HTTP client channel removed - not needed with proper Apache config
 	}
 
 	private fun ensureChannel() {

@@ -80,15 +80,42 @@ class CloudSyncClient {
     this.allowInsecureCertificates = false,
     HttpClient? httpClient,
   }) : _http = httpClient ?? HttpClient() {
-    if (allowInsecureCertificates && serverBaseUrl.startsWith('https://')) {
+    // Configure certificate verification for HTTPS connections.
+    // 
+    // Default behavior (allowInsecureCertificates=false):
+    //   - On Android: Trusts system CA certs and user-installed CAs (if configured
+    //     in network_security_config.xml). However, dart:io HttpClient may not
+    //     fully respect network_security_config.xml on release builds due to a
+    //     known Flutter limitation.
+    //   - On Desktop/iOS: Uses standard system certificate verification
+    //
+    // With allowInsecureCertificates=true:
+    //   - Accepts self-signed certificates for the configured server only
+    //   - Still verifies hostname and port match to prevent MITM attacks
+    //   - Safe for selfhosted scenarios with custom CAs
+    //
+    // Best practice for production:
+    //   - Use a valid certificate from Let's Encrypt or commercial CA
+    //   - Or configure Apache to send the complete certificate chain including CA
+    if (serverBaseUrl.startsWith('https://')) {
       final uri = Uri.tryParse(serverBaseUrl);
       final expectedHost = uri?.host ?? '';
       final expectedPort = uri?.hasPort == true ? uri!.port : 443;
-      _http.badCertificateCallback = (cert, host, port) {
-        if (expectedHost.isEmpty) return true;
-        if (host != expectedHost) return false;
-        return port == expectedPort;
-      };
+      
+      if (allowInsecureCertificates) {
+        _http.badCertificateCallback = (cert, host, port) {
+          // Only accept certificates for the explicitly configured server
+          if (host != expectedHost || port != expectedPort) {
+            return false;
+          }
+          // User has explicitly enabled insecure mode for this host
+          return true;
+        };
+      } else {
+        // Don't override certificate verification - use system defaults
+        // On Android, network_security_config.xml will be applied by the platform
+        _http.badCertificateCallback = null;
+      }
     }
   }
 

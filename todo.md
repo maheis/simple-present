@@ -180,6 +180,12 @@
   - [x] app name ist noch simple_present
   - [x] backlog icon ist faded (datum entfernen?)
   - [x] pin button nur unter windows anzeigen
+- [x] android icons näher zusammen
+- [x] icon linux client
+  - [x] desktop
+  - [x] startmenü
+  - [x] app
+- [x] sync: sync-button geht nicht. erst selbst eine änderung an einer aufgabe im client führt zu sync
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [ ] Worklog an Aufgaben...
@@ -193,22 +199,16 @@
 - [ ] Abhängigkeiten Reduzieren
   - [x] sqlite3.dll
   - [ ] mehr?
-- [x] android icons näher zusammen
 - [ ] datenschutzerklärung
-- [x] icon linux client
-  - [x] desktop
-  - [x] startmenü
-  - [x] app
 - [?] sync: jeder client moved aktuell beim ersten öffnen
-- [x] sync: sync-button geht nicht. erst selbst eine änderung an einer aufgabe im client führt zu sync
-- [?] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
+- [ ] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
 - [x] android: benachrichtungen klappen nicht
 - [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.? 
 - [ ] android: berechtigungen beim start erfragen (z.b. benachrichtigungen)
 - [ ] buttons müssen (mindestens unter android) optimiert werden! kontextmenü?
 - [ ] runter sortieren, sortiert "drüber"
-- [ ] sync: eigenes zertifikat führt zu fehler?
+- [x] sync: eigenes zertifikat führt zu fehler?
 - [x] sync: neues peering soll warnen das altes verloren geht
 
 ## notes
