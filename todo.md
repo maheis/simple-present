@@ -164,6 +164,16 @@
 - [x] schriftfarbe bei fertigen aufgaben soll mehr ins graue gehen.
 - [x] aufgaben aus done sollen erst wieder ins backlog und nicht in today!
 - [x] aufgabe duplizieren: Möglichkeit, eine bestehende Aufgabe zu duplizieren, um schnell ähnliche Aufgaben anzulegen (z.B. für wiederkehrende Aufgaben oder Aufgaben mit ähnlichen Eigenschaften).
+- [x] Aufräumen von alten Aufgaben: Möglichkeit, erledigte Aufgaben nach einer bestimmten Zeit automatisch zu löschen (z.B. nach 30 Tagen). Eine Funktion in den Einstellungen in der man die Aufbewahrungsdauer für erledigte Aufgaben festlegen kann, wäre hier sinnvoll.
+- [x] english in den settings (mindestens 1 satz ist noch deutsch)
+- [x] wochentag in der statistik kleiner, datum kann man aktuell unter android nicht lesen
+- [x] inakativitäts reminder per default auf off
+- [x] inaktivitäts reminder zeitfenster wann er sein soll
+- [x] beim start keine erinnerungen!
+- [x] done nicht durchstreichen!
+- [x] install für client
+- [x] erinnerung 15 minuten vorher ausbauen
+- [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] Android APK Testen
   - [x] icon
   - [x] den header ein bisschen runter mit der app, damit platz für die android statusleiste ist
@@ -176,8 +186,6 @@
 - [ ] Reihenfolge auch über andere Gruppen hinaus und dann optisch einsortieren
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [ ] Web Applikation
-- [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [x] Aufräumen von alten Aufgaben: Möglichkeit, erledigte Aufgaben nach einer bestimmten Zeit automatisch zu löschen (z.B. nach 30 Tagen). Eine Funktion in den Einstellungen in der man die Aufbewahrungsdauer für erledigte Aufgaben festlegen kann, wäre hier sinnvoll.
 - [ ] animation: 
   - [ ] aufklappen/zuklappen
   - [ ] positionsveränderungen
@@ -188,24 +196,16 @@
   - [ ] mehr?
 - [ ] android icons näher zusammen
 - [ ] android kachel breiter
-- [x] english in den settings (mindestens 1 satz ist noch deutsch)
 - [ ] datenschutzerklärung
-- [x] wochentag in der statistik kleiner, datum kann man aktuell unter android nicht lesen
-- [x] inakativitäts reminder per default auf off
-- [x] inaktivitäts reminder zeitfenster wann er sein soll
-- [x] beim start keine erinnerungen!
-- [x] done nicht durchstreichen!
-- [x] install für client
 - [ ] icon linux client
   - [x] desktop
   - [ ] startmenü
-  - [ ] app
+  - [?] app
 - [ ] sync: jeder client moved aktuell beim ersten öffnen
 - [ ] sync: sync-button geht nicht. erst selbst eine änderung im client führt zu sync
-- [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
 - [ ] sync: move von backlog zu today wird nicht synchroniert (wie button-fehler! touch stößt an!)
+- [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
 - [ ] android: benachrichtungen klappen nicht
-- [x] erinnerung 15 minuten vorher ausbauen
 
 ## notes
 

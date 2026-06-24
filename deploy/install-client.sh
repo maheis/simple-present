@@ -126,19 +126,29 @@ for candidate in "$TARGET_DIR/data/flutter_assets/assets/icons/icon.svg" "$TARGE
   fi
 done
 
-ICON_NAME="simplepresent"
+ICON_NAME="simple_present"
 if [ -n "$ICON_SRC" ]; then
-  ICON_DEST_DIR="$HOME/.local/share/icons/hicolor/128x128/apps"
-  mkdir -p "$ICON_DEST_DIR"
-  ICON_DEST="$ICON_DEST_DIR/${ICON_NAME}.png"
-  # convert svg to png if needed using imagemagick (if available)
-  if [[ "$ICON_SRC" == *.svg ]] && command -v convert >/dev/null 2>&1; then
-    convert -background none "$ICON_SRC" -resize 128x128 "$ICON_DEST"
+  # Install SVG (if present) into scalable location and a PNG into 128x128
+  ICON_DEST_DIR_128="$HOME/.local/share/icons/hicolor/128x128/apps"
+  ICON_DEST_DIR_SCALABLE="$HOME/.local/share/icons/hicolor/scalable/apps"
+  mkdir -p "$ICON_DEST_DIR_128" "$ICON_DEST_DIR_SCALABLE"
+  ICON_DEST_PNG="$ICON_DEST_DIR_128/${ICON_NAME}.png"
+  ICON_DEST_SVG="$ICON_DEST_DIR_SCALABLE/${ICON_NAME}.svg"
+  if [[ "$ICON_SRC" == *.svg ]]; then
+    # copy svg to scalable location
+    cp "$ICON_SRC" "$ICON_DEST_SVG"
+    chmod 0644 "$ICON_DEST_SVG"
+    # also create a PNG fallback if convert available
+    if command -v convert >/dev/null 2>&1; then
+      convert -background none "$ICON_SRC" -resize 128x128 "$ICON_DEST_PNG"
+      chmod 0644 "$ICON_DEST_PNG"
+    fi
   else
-    cp "$ICON_SRC" "$ICON_DEST"
+    # source is a png; copy to 128 path and attempt to create svg fallback not possible
+    cp "$ICON_SRC" "$ICON_DEST_PNG"
+    chmod 0644 "$ICON_DEST_PNG"
   fi
-  chmod 0644 "$ICON_DEST"
-  echo "Installed icon to $ICON_DEST"
+  echo "Installed icon(s) to $ICON_DEST_DIR_128 and $ICON_DEST_DIR_SCALABLE"
   # Prefer theme icon name for .desktop entries
   DESKTOP_ICON_VALUE="$ICON_NAME"
 else
@@ -146,7 +156,7 @@ else
 fi
 
 DESKTOP_ENTRY_NAME="SimplePresent.desktop"
-DESKTOP_CONTENT="[Desktop Entry]\nName=SimplePresent\nComment=SimplePresent client\nExec=$LAUNCHER\nIcon=$DESKTOP_ICON_VALUE\nTerminal=false\nType=Application\nCategories=Utility;"
+DESKTOP_CONTENT="[Desktop Entry]\nName=SimplePresent\nComment=SimplePresent client\nExec=$LAUNCHER\nIcon=$DESKTOP_ICON_VALUE\nTerminal=false\nType=Application\nCategories=Utility;\nStartupNotify=true\nStartupWMClass=SimplePresent"
 
 if [ "$CREATE_MENU" -eq 1 ]; then
   APPS_DIR="$HOME/.local/share/applications"
