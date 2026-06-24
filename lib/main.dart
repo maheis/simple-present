@@ -1687,28 +1687,7 @@ class _HomePageState extends State<HomePage> {
         if (t.done) continue;
         final diff = t.scheduledAt!.difference(now);
         final key = _taskNotifyKey(t);
-        // 15-minute warning
-        if (!diff.isNegative &&
-            diff.inMinutes <= 15 &&
-            !_notified15.contains(key)) {
-          _notified15.add(key);
-            try {
-              if (_scheduledReminderSoundEnabled) {
-                await _audioPlayer.play(AssetSource('sounds/pop.mp3'));
-              }
-            } catch (_) {}
-            try {
-              await _nativeWindowChannel.invokeMethod('notify', <String, String>{
-                'title': _appTitle,
-                'body': 'due in 15 minutes: ${t.text}',
-                'icon': 'assets/icons/icon.png',
-              });
-            } catch (_) {}
-            // Persist notified flags so restart doesn't re-notify
-            try {
-              await _saveSettings();
-            } catch (_) {}
-        }
+        // 15-minute warning removed per user request
         // At due time or overdue (first time)
         if (diff.inSeconds <= 0 && !_notifiedDue.contains(key)) {
           _notifiedDue.add(key);

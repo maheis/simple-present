@@ -201,7 +201,7 @@
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
 - [ ] sync: move von backlog zu today wird nicht synchroniert (wie button-fehler! touch stößt an!)
 - [ ] android: benachrichtungen klappen nicht
-- [ ] erinnerung 15 minuten vorher ausbauen
+- [x] erinnerung 15 minuten vorher ausbauen
 
 ## notes
 
