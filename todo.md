@@ -178,7 +178,11 @@
 - [ ] Web Applikation
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [x] Aufräumen von alten Aufgaben: Möglichkeit, erledigte Aufgaben nach einer bestimmten Zeit automatisch zu löschen (z.B. nach 30 Tagen). Eine Funktion in den Einstellungen in der man die Aufbewahrungsdauer für erledigte Aufgaben festlegen kann, wäre hier sinnvoll.
-- [ ] animation: aufklappen, zuklappen, erledigt, wichtig, in arbeit, löschen, etc. (z.B. sanftes Ein-/Ausblenden, Farbänderungen, etc.) um die Benutzererfahrung zu verbessern und visuelles Feedback zu geben.
+- [ ] animation: 
+  - [ ] aufklappen/zuklappen
+  - [ ] positionsveränderungen
+  - [ ] verschieben in andere listen
+  - [ ] wackeln als animation
 - [ ] Abhängigkeiten Reduzieren
   - [x] sqlite3.dll
   - [ ] mehr?
@@ -189,7 +193,7 @@
 - [x] wochentag in der statistik kleiner, datum kann man aktuell unter android nicht lesen
 - [x] inakativitäts reminder per default auf off
 - [x] inaktivitäts reminder zeitfenster wann er sein soll
-- [ ] beim start keine erinnerungen? oder gesammelte erinnerungen?
+- [x] beim start keine erinnerungen!
 - [x] done nicht durchstreichen!
 - [x] install für client
 - [ ] icon linux client

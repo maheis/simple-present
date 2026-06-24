@@ -446,6 +446,9 @@ class _HomePageState extends State<HomePage> {
   Timer? _scheduledCheckTimer;
   Timer? _windowWatcherTimer;
   Timer? _autoSwitchTimer;
+  // Timestamp when the app started; used to avoid firing scheduled reminders
+  // for tasks that became due before the app was started.
+  final DateTime _appStartedAt = DateTime.now();
   final Duration _autoSwitchDuration = const Duration(minutes: 3);
   Timer? _stopwatchTicker;
   final Set<String> _notified15 = <String>{};
@@ -1704,6 +1707,10 @@ class _HomePageState extends State<HomePage> {
         final key = _taskNotifyKey(t);
         // 15-minute warning removed per user request
         // At due time or overdue (first time)
+        // Do not fire reminders for tasks that were already due before the
+        // application was started (avoid popping reminders on app start).
+        if (t.scheduledAt!.isBefore(_appStartedAt)) continue;
+
         if (diff.inSeconds <= 0 && !_notifiedDue.contains(key)) {
           _notifiedDue.add(key);
           try {
