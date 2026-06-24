@@ -432,6 +432,9 @@ class _HomePageState extends State<HomePage> {
   bool _urgentNotifyEnabled = false;
   bool _urgentBringToFrontEnabled = false;
   bool _swipeEnabled = true;
+  // Reminder window (HH:MM) — only remind within this time window when enabled
+  String _reminderWindowFrom = '09:00';
+  String _reminderWindowTo = '17:00';
   String _fontFamily = 'OpenDyslexic';
   // Fired flags to ensure each reminder type fires only once per inactivity period
   bool _idleFired = false;
@@ -1508,6 +1511,14 @@ class _HomePageState extends State<HomePage> {
         if (knownDone is List) {
           _cloudKnownDoneIds = knownDone.map((e) => e.toString()).toSet();
         }
+        final rwFrom = data['reminderWindowFrom'];
+        if (rwFrom is String && rwFrom.isNotEmpty) {
+          _reminderWindowFrom = rwFrom;
+        }
+        final rwTo = data['reminderWindowTo'];
+        if (rwTo is String && rwTo.isNotEmpty) {
+          _reminderWindowTo = rwTo;
+        }
       });
       // Do not restore persisted window geometry or position; OS/window manager
       // determines position. Size is set once on startup elsewhere.
@@ -1585,7 +1596,11 @@ class _HomePageState extends State<HomePage> {
         'cloudKnownTodayIds': _cloudKnownTodayIds.toList(),
         'cloudKnownBacklogIds': _cloudKnownBacklogIds.toList(),
         'cloudKnownDoneIds': _cloudKnownDoneIds.toList(),
-        'scheduledReminderSoundEnabled': _scheduledReminderSoundEnabled,
+        'reminderWindowFrom': _reminderWindowFrom,
+        'reminderWindowTo': _reminderWindowTo,
+            'scheduledReminderSoundEnabled': _scheduledReminderSoundEnabled,
+            'reminderWindowFrom': _reminderWindowFrom,
+            'reminderWindowTo': _reminderWindowTo,
         'autoPurgeDoneEnabled': _autoPurgeDoneEnabled,
         'doneRetentionDays': _doneRetentionDays,
       };
@@ -1713,6 +1728,41 @@ class _HomePageState extends State<HomePage> {
         }
       }
     });
+  }
+
+  bool _isWithinReminderWindow(DateTime now) {
+    try {
+      int parseMin(String s) {
+        final p = s.split(':');
+        final h = int.tryParse(p[0]) ?? 0;
+        final m = int.tryParse(p[1]) ?? 0;
+        return h * 60 + m;
+      }
+      final from = parseMin(_reminderWindowFrom);
+      final to = parseMin(_reminderWindowTo);
+      final nowMin = now.hour * 60 + now.minute;
+      if (from <= to) {
+        return nowMin >= from && nowMin <= to;
+      }
+      // overnight window (e.g. 22:00 - 06:00)
+      return nowMin >= from || nowMin <= to;
+    } catch (_) {
+      return true; // on parse error, default to allow
+    }
+  }
+
+  Duration _durationUntilNextWindowStart(DateTime now) {
+    try {
+      final pFrom = _reminderWindowFrom.split(':');
+      final fh = int.tryParse(pFrom[0]) ?? 9;
+      final fm = int.tryParse(pFrom[1]) ?? 0;
+      final start = DateTime(now.year, now.month, now.day, fh, fm);
+      if (now.isBefore(start)) return start.difference(now);
+      final next = start.add(const Duration(days: 1));
+      return next.difference(now);
+    } catch (_) {
+      return const Duration(minutes: 1);
+    }
   }
 
   void _startAutoSwitchTimer() {
@@ -1883,6 +1933,8 @@ class _HomePageState extends State<HomePage> {
             'cloudSyncFailed': _cloudSyncFailed,
             'cloudSyncLastError': _cloudSyncLastError,
             'scheduledReminderSoundEnabled': _scheduledReminderSoundEnabled,
+            'reminderWindowFrom': _reminderWindowFrom,
+            'reminderWindowTo': _reminderWindowTo,
             'autoPurgeDoneEnabled': _autoPurgeDoneEnabled,
             'doneRetentionDays': _doneRetentionDays,
           },
@@ -1952,6 +2004,12 @@ class _HomePageState extends State<HomePage> {
       }
       if (result['cloudWordPhrase'] is String) {
         _cloudWordPhrase = result['cloudWordPhrase'] as String;
+      }
+      if (result['reminderWindowFrom'] is String) {
+        _reminderWindowFrom = result['reminderWindowFrom'] as String;
+      }
+      if (result['reminderWindowTo'] is String) {
+        _reminderWindowTo = result['reminderWindowTo'] as String;
       }
       if (result['cloudDeviceName'] is String &&
           (result['cloudDeviceName'] as String).isNotEmpty) {
@@ -2958,6 +3016,41 @@ class _HomePageState extends State<HomePage> {
   void _startIdleTimer() {
     _idleTimer = Timer(_idleDuration, () async {
       if (_idleFired) return;
+      final now = DateTime.now();
+      if (!_isWithinReminderWindow(now)) {
+        final delay = _durationUntilNextWindowStart(now);
+        _idleTimer = Timer(delay, () async {
+          if (_idleFired) return;
+          if (_idleSoundEnabled) {
+            try {
+              await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+            } catch (_) {
+              SystemSound.play(SystemSoundType.alert);
+            }
+          }
+          if (_idleFlashEnabled) {
+            try {
+              await _nativeWindowChannel.invokeMethod('flashTaskbar');
+            } catch (_) {}
+          }
+          if (_idleNotifyEnabled) {
+            try {
+              await _nativeWindowChannel.invokeMethod('notify', <String, String>{
+                'title': _appTitle,
+                'body': 'You have been inactive for $_idleMinutes minutes',
+                'icon': 'assets/icons/icon.png',
+              });
+            } catch (_) {}
+          }
+          if (_idleBringToFrontEnabled) {
+            try {
+              await _nativeWindowChannel.invokeMethod('bringToFront');
+            } catch (_) {}
+          }
+          _idleFired = true;
+        });
+        return;
+      }
       if (_idleSoundEnabled) {
         try {
           await _audioPlayer.play(AssetSource('sounds/there.mp3'));
@@ -3019,6 +3112,39 @@ class _HomePageState extends State<HomePage> {
   void _startAttentionTimer() {
     _attentionTimer = Timer(_attentionDuration, () async {
       if (_attentionFired) return;
+      final now = DateTime.now();
+      if (!_isWithinReminderWindow(now)) {
+        final delay = _durationUntilNextWindowStart(now);
+        _attentionTimer = Timer(delay, () async {
+          if (_attentionFired) return;
+          if (_attentionSoundEnabled) {
+            try {
+              await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+            } catch (_) {}
+          }
+          if (_attentionFlashEnabled) {
+            try {
+              await _nativeWindowChannel.invokeMethod('flashTaskbar');
+            } catch (_) {}
+          }
+          if (_attentionNotifyEnabled) {
+            try {
+              await _nativeWindowChannel.invokeMethod('notify', <String, String>{
+                'title': _appTitle,
+                'body': 'You have been inactive for $_attentionMinutes minutes',
+                'icon': 'assets/icons/icon.png',
+              });
+            } catch (_) {}
+          }
+          if (_attentionBringToFrontEnabled) {
+            try {
+              await _nativeWindowChannel.invokeMethod('bringToFront');
+            } catch (_) {}
+          }
+          _attentionFired = true;
+        });
+        return;
+      }
       if (_attentionSoundEnabled) {
         try {
           await _audioPlayer.play(AssetSource('sounds/there.mp3'));
@@ -3051,6 +3177,39 @@ class _HomePageState extends State<HomePage> {
   void _startReminderTimer() {
     _reminderTimer = Timer(_reminderDuration, () async {
       if (_reminderFired) return;
+      final now = DateTime.now();
+      if (!_isWithinReminderWindow(now)) {
+        final delay = _durationUntilNextWindowStart(now);
+        _reminderTimer = Timer(delay, () async {
+          if (_reminderFired) return;
+          if (_reminderSoundEnabled) {
+            try {
+              await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+            } catch (_) {}
+          }
+          if (_reminderFlashEnabled) {
+            try {
+              await _nativeWindowChannel.invokeMethod('flashTaskbar');
+            } catch (_) {}
+          }
+          if (_reminderNotifyEnabled) {
+            try {
+              await _nativeWindowChannel.invokeMethod('notify', <String, String>{
+                'title': _appTitle,
+                'body': 'You have been inactive for $_reminderMinutes minutes',
+                'icon': 'assets/icons/icon.png',
+              });
+            } catch (_) {}
+          }
+          if (_reminderBringToFrontEnabled) {
+            try {
+              await _nativeWindowChannel.invokeMethod('bringToFront');
+            } catch (_) {}
+          }
+          _reminderFired = true;
+        });
+        return;
+      }
       if (_reminderSoundEnabled) {
         try {
           await _audioPlayer.play(AssetSource('sounds/there.mp3'));
@@ -3083,6 +3242,39 @@ class _HomePageState extends State<HomePage> {
   void _startUrgentTimer() {
     _urgentTimer = Timer(_urgentDuration, () async {
       if (_urgentFired) return;
+      final now = DateTime.now();
+      if (!_isWithinReminderWindow(now)) {
+        final delay = _durationUntilNextWindowStart(now);
+        _urgentTimer = Timer(delay, () async {
+          if (_urgentFired) return;
+          if (_urgentSoundEnabled) {
+            try {
+              await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+            } catch (_) {}
+          }
+          if (_urgentFlashEnabled) {
+            try {
+              await _nativeWindowChannel.invokeMethod('flashTaskbar');
+            } catch (_) {}
+          }
+          if (_urgentNotifyEnabled) {
+            try {
+              await _nativeWindowChannel.invokeMethod('notify', <String, String>{
+                'title': _appTitle,
+                'body': 'You have been inactive for $_urgentMinutes minutes',
+                'icon': 'assets/icons/icon.png',
+              });
+            } catch (_) {}
+          }
+          if (_urgentBringToFrontEnabled) {
+            try {
+              await _nativeWindowChannel.invokeMethod('bringToFront');
+            } catch (_) {}
+          }
+          _urgentFired = true;
+        });
+        return;
+      }
       if (_urgentSoundEnabled) {
         try {
           await _audioPlayer.play(AssetSource('sounds/there.mp3'));
@@ -4689,6 +4881,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool urgentBringToFrontEnabled;
   late bool swipeEnabled;
   late bool scheduledReminderSoundEnabled;
+  late String reminderWindowFrom;
+  late String reminderWindowTo;
   late double textScaleFactor;
   late String fontFamily;
   late String cloudServerUrl;
@@ -4732,6 +4926,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool _initialUrgentBringToFrontEnabled;
   late bool _initialSwipeEnabled;
   late bool _initialScheduledReminderSoundEnabled;
+  late String _initialReminderWindowFrom;
+  late String _initialReminderWindowTo;
   late double _initialTextScaleFactor;
   late String _initialFontFamily;
   late String _initialCloudServerUrl;
@@ -4800,6 +4996,8 @@ class _SettingsPageState extends State<SettingsPage> {
     urgentFlashEnabled = readBool('urgentFlashEnabled', false);
     swipeEnabled = readBool('swipeEnabled', true);
     scheduledReminderSoundEnabled = readBool('scheduledReminderSoundEnabled', true);
+    reminderWindowFrom = readString('reminderWindowFrom', '09:00');
+    reminderWindowTo = readString('reminderWindowTo', '17:00');
     textScaleFactor = readDouble('uiTextScaleFactor', 1.0).clamp(0.5, 1.6);
     fontFamily = readString('fontFamily', 'OpenDyslexic');
     cloudServerUrl = readString('cloudServerUrl', '');
@@ -4837,6 +5035,8 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialUrgentBringToFrontEnabled = urgentBringToFrontEnabled;
     _initialSwipeEnabled = swipeEnabled;
     _initialScheduledReminderSoundEnabled = scheduledReminderSoundEnabled;
+    _initialReminderWindowFrom = reminderWindowFrom;
+    _initialReminderWindowTo = reminderWindowTo;
     _initialTextScaleFactor = textScaleFactor;
     _initialFontFamily = fontFamily;
     _initialCloudServerUrl = cloudServerUrl;
@@ -4966,11 +5166,13 @@ class _SettingsPageState extends State<SettingsPage> {
         cloudDeviceId != _initialCloudDeviceId ||
         cloudToken != _initialCloudToken ||
         cloudWordPhrase != _initialCloudWordPhrase ||
-          cloudDeviceName != _initialCloudDeviceName ||
-          cloudPIN != _initialCloudPIN ||
-          autoPurgeDoneEnabled != _initialAutoPurgeDoneEnabled ||
-          doneRetentionDays != _initialDoneRetentionDays;
-        }
+        cloudDeviceName != _initialCloudDeviceName ||
+        cloudPIN != _initialCloudPIN ||
+        autoPurgeDoneEnabled != _initialAutoPurgeDoneEnabled ||
+        doneRetentionDays != _initialDoneRetentionDays ||
+        reminderWindowFrom != _initialReminderWindowFrom ||
+        reminderWindowTo != _initialReminderWindowTo;
+  }
 
   String _normalizedServerUrl() {
     final trimmed = cloudServerUrl.trim();
@@ -5400,6 +5602,57 @@ class _SettingsPageState extends State<SettingsPage> {
                 bringToFrontEnabled: urgentBringToFrontEnabled,
                 onBringToFrontChanged: (v) =>
                     setState(() => urgentBringToFrontEnabled = v),
+              ),
+              const SizedBox(height: 8),
+              Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('reminder time window', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 6),
+                      const Text('Only fire inactivity reminders within this time window.'),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Text('from:'),
+                          const SizedBox(width: 8),
+                          OutlinedButton(
+                            onPressed: () async {
+                              final parts = reminderWindowFrom.split(':');
+                              final initial = TimeOfDay(
+                                  hour: int.tryParse(parts[0]) ?? 9,
+                                  minute: int.tryParse(parts[1]) ?? 0);
+                              final picked = await showTimePicker(context: context, initialTime: initial);
+                              if (picked != null) {
+                                setState(() => reminderWindowFrom = '${picked.hour.toString().padLeft(2,'0')}:${picked.minute.toString().padLeft(2,'0')}');
+                              }
+                            },
+                            child: Text(reminderWindowFrom),
+                          ),
+                          const SizedBox(width: 16),
+                          const Text('to:'),
+                          const SizedBox(width: 8),
+                          OutlinedButton(
+                            onPressed: () async {
+                              final parts = reminderWindowTo.split(':');
+                              final initial = TimeOfDay(
+                                  hour: int.tryParse(parts[0]) ?? 17,
+                                  minute: int.tryParse(parts[1]) ?? 0);
+                              final picked = await showTimePicker(context: context, initialTime: initial);
+                              if (picked != null) {
+                                setState(() => reminderWindowTo = '${picked.hour.toString().padLeft(2,'0')}:${picked.minute.toString().padLeft(2,'0')}');
+                              }
+                            },
+                            child: Text(reminderWindowTo),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 8),
               const Divider(),
