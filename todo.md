@@ -199,7 +199,7 @@
 - [ ] datenschutzerklärung
 - [ ] icon linux client
   - [x] desktop
-  - [ ] startmenü
+  - [x] startmenü
   - [?] app
 - [ ] sync: jeder client moved aktuell beim ersten öffnen
 - [ ] sync: sync-button geht nicht. erst selbst eine änderung im client führt zu sync

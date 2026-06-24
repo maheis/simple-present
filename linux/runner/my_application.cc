@@ -359,10 +359,9 @@ static void my_application_activate(GApplication *application)
         g_warning("Failed to set icon from %s: %s", path, err ? err->message : "unknown");
       }
       // Also set the specific window icon to improve taskbar integration
-      if (g_main_window)
       {
         g_autoptr(GError) ierr = NULL;
-        if (!gtk_window_set_icon_from_file(g_main_window, path, &ierr))
+        if (!gtk_window_set_icon_from_file(window, path, &ierr))
         {
           g_warning("Failed to set window icon from %s: %s", path, ierr ? ierr->message : "unknown");
         }

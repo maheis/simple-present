@@ -120,7 +120,7 @@ fi
 
 # Install icon into user icon theme if an asset exists
 ICON_SRC=""
-for candidate in "$TARGET_DIR/data/flutter_assets/assets/icons/icon.svg" "$TARGET_DIR/data/flutter_assets/assets/icons/icon.png" "$TARGET_DIR/icon.png"; do  if [ -f "$candidate" ]; then
+for candidate in "$TARGET_DIR/data/flutter_assets/assets/icons/icon.png" "$TARGET_DIR/icon.png"; do  if [ -f "$candidate" ]; then
     ICON_SRC="$candidate"
     break
   fi
@@ -128,26 +128,12 @@ done
 
 ICON_NAME="simple_present"
 if [ -n "$ICON_SRC" ]; then
-  # Install SVG (if present) into scalable location and a PNG into 128x128
   ICON_DEST_DIR_128="$HOME/.local/share/icons/hicolor/128x128/apps"
   ICON_DEST_DIR_SCALABLE="$HOME/.local/share/icons/hicolor/scalable/apps"
   mkdir -p "$ICON_DEST_DIR_128" "$ICON_DEST_DIR_SCALABLE"
   ICON_DEST_PNG="$ICON_DEST_DIR_128/${ICON_NAME}.png"
-  ICON_DEST_SVG="$ICON_DEST_DIR_SCALABLE/${ICON_NAME}.svg"
-  if [[ "$ICON_SRC" == *.svg ]]; then
-    # copy svg to scalable location
-    cp "$ICON_SRC" "$ICON_DEST_SVG"
-    chmod 0644 "$ICON_DEST_SVG"
-    # also create a PNG fallback if convert available
-    if command -v convert >/dev/null 2>&1; then
-      convert -background none "$ICON_SRC" -resize 128x128 "$ICON_DEST_PNG"
-      chmod 0644 "$ICON_DEST_PNG"
-    fi
-  else
-    # source is a png; copy to 128 path and attempt to create svg fallback not possible
-    cp "$ICON_SRC" "$ICON_DEST_PNG"
-    chmod 0644 "$ICON_DEST_PNG"
-  fi
+  cp "$ICON_SRC" "$ICON_DEST_PNG"
+  chmod 0644 "$ICON_DEST_PNG"
   echo "Installed icon(s) to $ICON_DEST_DIR_128 and $ICON_DEST_DIR_SCALABLE"
   # Prefer theme icon name for .desktop entries
   DESKTOP_ICON_VALUE="$ICON_NAME"
