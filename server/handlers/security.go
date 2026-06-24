@@ -109,13 +109,13 @@ func (s *Server) RateLimitByIP(next http.Handler) http.Handler {
 
 func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		header := r.Header.Get("Authorization")
-		if !strings.HasPrefix(header, "Bearer ") {
+		token, ok := bearerTokenFromRequest(r)
+		if !ok {
 			http.Error(w, "missing bearer token", http.StatusUnauthorized)
 			return
 		}
 
-		claims, err := s.parseToken(strings.TrimPrefix(header, "Bearer "))
+		claims, err := s.parseToken(token)
 		if err != nil {
 			http.Error(w, "invalid token", http.StatusUnauthorized)
 			return
@@ -159,6 +159,20 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 		})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func bearerTokenFromRequest(r *http.Request) (string, bool) {
+	// Prefer the standard Authorization header.
+	for _, key := range []string{"Authorization", "X-Authorization", "X-Forwarded-Authorization", "X-Original-Authorization"} {
+		header := strings.TrimSpace(r.Header.Get(key))
+		if strings.HasPrefix(strings.ToLower(header), "bearer ") {
+			token := strings.TrimSpace(header[len("Bearer "):])
+			if token != "" {
+				return token, true
+			}
+		}
+	}
+	return "", false
 }
 
 func (s *Server) issueToken(accountID, deviceID string, tokenVersion int) (string, error) {

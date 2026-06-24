@@ -554,7 +554,11 @@ class CloudSyncClient {
     final request = await _http.postUrl(uri);
     request.headers.contentType = ContentType.json;
     if (bearerToken != null && bearerToken.isNotEmpty) {
-      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $bearerToken');
+      final authValue = 'Bearer $bearerToken';
+      request.headers.set(HttpHeaders.authorizationHeader, authValue);
+      // Fallback headers for reverse proxies that don't forward Authorization.
+      request.headers.set('X-Authorization', authValue);
+      request.headers.set('X-Forwarded-Authorization', authValue);
     }
     request.write(jsonEncode(payload));
 
@@ -580,7 +584,10 @@ class CloudSyncClient {
   }) async {
     final uri = Uri.parse('$serverBaseUrl$path');
     final request = await _http.getUrl(uri);
-    request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $bearerToken');
+    final authValue = 'Bearer $bearerToken';
+    request.headers.set(HttpHeaders.authorizationHeader, authValue);
+    request.headers.set('X-Authorization', authValue);
+    request.headers.set('X-Forwarded-Authorization', authValue);
 
     final response = await request.close();
     final body = await response.transform(utf8.decoder).join();
