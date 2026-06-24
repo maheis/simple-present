@@ -3,6 +3,7 @@
 #include <flutter_linux/flutter_linux.h>
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
+#include <X11/Xlib.h>
 #endif
 
 #include <libnotify/notify.h>
@@ -320,6 +321,33 @@ static void my_application_activate(GApplication *application)
   }
 
   gtk_window_set_default_size(window, 600, 900);
+
+  /* Ensure the running application is recognized with a human-friendly name
+   * and set the WM_CLASS on X11 so desktop environments (KDE, GNOME, etc.)
+   * can match this window to the .desktop StartupWMClass entry. This
+   * improves taskbar/launcher icon persistence. */
+  g_set_application_name("SimplePresent");
+
+#ifdef GDK_WINDOWING_X11
+  /* Realize the window so a GdkWindow / X11 Window may exist for class hinting.
+   * At runtime the session may be Wayland; guard with GDK_IS_X11_WINDOW to
+   * avoid calling X11 helpers on non-X11 windows. */
+  gtk_widget_realize(GTK_WIDGET(window));
+  GdkWindow *gdk_win = gtk_widget_get_window(GTK_WIDGET(window));
+  if (gdk_win && GDK_IS_X11_WINDOW(gdk_win))
+  {
+    Display *dpy = GDK_WINDOW_XDISPLAY(gdk_win);
+    Window xid = GDK_WINDOW_XID(gdk_win);
+    XClassHint *ch = XAllocClassHint();
+    if (ch)
+    {
+      ch->res_name = (char *)"simplepresent";
+      ch->res_class = (char *)"SimplePresent";
+      XSetClassHint(dpy, xid, ch);
+      XFree(ch);
+    }
+  }
+#endif
 
   // Attempt to set a custom application icon (used by taskbar/launcher).
   // Check several likely locations where the build/install process may place

@@ -32,3 +32,10 @@ if (LIBNOTIFY_FOUND)
 endif()
 
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
+
+# If building on X11, link against X11 to resolve Xlib symbols used for WM_CLASS.
+find_package(X11)
+if (X11_FOUND)
+  target_include_directories(${BINARY_NAME} PRIVATE ${X11_INCLUDE_DIR})
+  target_link_libraries(${BINARY_NAME} PRIVATE ${X11_LIBRARIES})
+endif()
