@@ -1260,6 +1260,23 @@ class _HomePageState extends State<HomePage> {
           await _saveList(_storage('simplepresent_done.json'), done,
             triggerCloudSync: false);
           await _loadToday();
+
+          // Update known ID sets to reflect server state we just applied.
+          // This prevents new clients from later pushing their local ordering
+          // as changes (which causes every client to 'move' items on first open).
+          _cloudKnownTodayIds
+            ..clear()
+            ..addAll(today.map((t) => t.id));
+          _cloudKnownBacklogIds
+            ..clear()
+            ..addAll(backlog.map((t) => t.id));
+          _cloudKnownDoneIds
+            ..clear()
+            ..addAll(done.map((t) => t.id));
+          // Persist updated known-id lists so subsequent pushes are no-ops
+          try {
+            await _saveSettings();
+          } catch (_) {}
         }
       } finally {
         _applyingCloudState = false;
