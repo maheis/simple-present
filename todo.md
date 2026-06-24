@@ -201,8 +201,8 @@
   - [x] startmenü
   - [?] app
 - [?] sync: jeder client moved aktuell beim ersten öffnen
-- [ ] sync: sync-button geht nicht. erst selbst eine änderung im client führt zu sync
-- [ ] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!)
+- [?] sync: sync-button geht nicht. erst selbst eine änderung an einer aufgabe im client führt zu sync
+- [?] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!)
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
 - [?] android: benachrichtungen klappen nicht
 - [ ] android: icon fritte (muss es einen hintergrund haben?)

@@ -2492,7 +2492,7 @@ class _HomePageState extends State<HomePage> {
       final List<TaskItem> todayList = [];
       await _loadList(_storage('simplepresent_today.json'), todayList);
       todayList.insert(0, item.copyWith(done: false, inProgress: false));
-      await _saveList('simplepresent_today.json', todayList);
+      await _saveList(_storage('simplepresent_today.json'), todayList);
 
       _showTopToast('task moved to today');
     } catch (_) {
@@ -3470,56 +3470,38 @@ class _HomePageState extends State<HomePage> {
                                       );
                                     }),
                                   ),
-                                  // adjust icon padding tighter on Android to bring icons closer
-                                  final iconPaddingSym =
-                                      Platform.isAndroid
-                                          ? const EdgeInsets.symmetric(
-                                              horizontal: 2.0)
-                                          : const EdgeInsets.symmetric(
-                                              horizontal: 6.0);
-                                  final iconPaddingForward =
-                                      Platform.isAndroid
-                                          ? const EdgeInsets.only(
-                                              left: 2.0, right: 0.0)
-                                          : const EdgeInsets.only(
-                                              left: 6.0, right: 0.0);
-
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       IconButton(
                                         icon: const Icon(Icons.bar_chart),
                                         tooltip: 'Statistics',
-                                        padding: iconPaddingSym,
-                                        constraints: const BoxConstraints(
-                                            minWidth: 28, minHeight: 28),
+                                        padding: Platform.isAndroid
+                                            ? const EdgeInsets.symmetric(horizontal: 2.0)
+                                            : const EdgeInsets.symmetric(horizontal: 6.0),
+                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
-                                        onPressed: () async {
-                                          await _openStats();
-                                        },
+                                        onPressed: () async { await _openStats(); },
                                       ),
                                       IconButton(
                                         icon: const Icon(Icons.settings),
                                         tooltip: 'Settings',
-                                        padding: iconPaddingSym,
-                                        constraints: const BoxConstraints(
-                                            minWidth: 28, minHeight: 28),
+                                        padding: Platform.isAndroid
+                                            ? const EdgeInsets.symmetric(horizontal: 2.0)
+                                            : const EdgeInsets.symmetric(horizontal: 6.0),
+                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
-                                        onPressed: () async {
-                                          await _openSettings();
-                                        },
+                                        onPressed: () async { await _openSettings(); },
                                       ),
                                       IconButton(
-                                        icon:
-                                            const Icon(Icons.arrow_forward_ios),
+                                        icon: const Icon(Icons.arrow_forward_ios),
                                         tooltip: 'Next',
-                                        padding: iconPaddingForward,
-                                        constraints: const BoxConstraints(
-                                            minWidth: 28, minHeight: 28),
+                                        padding: Platform.isAndroid
+                                            ? const EdgeInsets.only(left: 2.0, right: 0.0)
+                                            : const EdgeInsets.only(left: 6.0, right: 0.0),
+                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
-                                        onPressed: () async {
-                                          await _cycleView(true);
-                                        },
+                                        onPressed: () async { await _cycleView(true); },
                                       ),
                                     ],
                                   ),
@@ -4772,12 +4754,12 @@ class _HomePageState extends State<HomePage> {
                                                 child: InkWell(
                                                   onTap:
                                                       _cloudSyncBusy ? null : _manualSyncNow,
-                                                  borderRadius: BorderRadius.circular(10),
+                                                  borderRadius: BorderRadius.circular(14),
                                                   child: Padding(
-                                                    padding: const EdgeInsets.all(2),
+                                                    padding: const EdgeInsets.all(8),
                                                     child: Icon(
                                                       Icons.sync,
-                                                      size: 14,
+                                                      size: 18,
                                                       color: _cloudSyncBusy
                                                           ? Theme.of(context)
                                                               .colorScheme
