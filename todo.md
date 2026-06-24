@@ -199,7 +199,7 @@
 - [ ] icon linux client
   - [x] desktop
   - [x] startmenü
-  - [?] app
+  - [ ] app
 - [?] sync: jeder client moved aktuell beim ersten öffnen
 - [?] sync: sync-button geht nicht. erst selbst eine änderung an einer aufgabe im client führt zu sync
 - [?] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!)

@@ -82,20 +82,7 @@ class MainActivity : FlutterActivity() {
 			flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
 		}
 
-		override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-			super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-			if (requestCode == 1001) {
-				if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-					val t = pendingTitle
-					val b = pendingBody
-					if (t != null || b != null) {
-						showNotification(t ?: "SimplePresent", b ?: "")
-					}
-				}
-				pendingTitle = null
-				pendingBody = null
-			}
-		}
+
 		val pendingIntent: PendingIntent = PendingIntent.getActivity(
 			this,
 			0,
@@ -120,5 +107,20 @@ class MainActivity : FlutterActivity() {
 		val intent = Intent(this, MainActivity::class.java)
 		intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
 		startActivity(intent)
+	}
+
+	override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+		super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+		if (requestCode == 1001) {
+			if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+				val t = pendingTitle
+				val b = pendingBody
+				if (t != null || b != null) {
+					showNotification(t ?: "SimplePresent", b ?: "")
+				}
+			}
+			pendingTitle = null
+			pendingBody = null
+		}
 	}
 }
