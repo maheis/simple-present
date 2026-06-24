@@ -91,7 +91,7 @@ class MainActivity : FlutterActivity() {
 		)
 
 		val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-			.setSmallIcon(R.mipmap.ic_launcher)
+			.setSmallIcon(R.mipmap.ic_launcher_scaled)
 			.setContentTitle(title)
 			.setContentText(body)
 			.setPriority(NotificationCompat.PRIORITY_DEFAULT)
