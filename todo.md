@@ -193,6 +193,15 @@
 - [x] done nicht durchstreichen!
 - [x] install für client
 - [ ] icon linux client
+  - [x] desktop
+  - [ ] startmenü
+  - [ ] app
+- [ ] sync: jeder client moved aktuell beim ersten öffnen
+- [ ] sync: sync-button geht nicht. erst selbst eine änderung im client führt zu sync
+- [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
+- [ ] sync: move von backlog zu today wird nicht synchroniert (wie button-fehler! touch stößt an!)
+- [ ] android: benachrichtungen klappen nicht
+- [ ] erinnerung 15 minuten vorher ausbauen
 
 ## notes
 

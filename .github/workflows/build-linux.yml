@@ -53,9 +53,8 @@ jobs:
 
             # Include client installer script if present
             if [ -f "deploy/install-client.sh" ]; then
-              mkdir -p "${stage_dir}/deploy"
-              cp "deploy/install-client.sh" "${stage_dir}/deploy/install-client.sh"
-              chmod +x "${stage_dir}/deploy/install-client.sh"
+              cp "deploy/install-client.sh" "${stage_dir}/install-client.sh"
+              chmod +x "${stage_dir}/install-client.sh"
             else
               echo "Note: deploy/install-client.sh not found, skipping"
             fi

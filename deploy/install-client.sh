@@ -117,14 +117,36 @@ else
   echo "$JSON_TIMES already exists; leaving in place"
 fi
 
-ICON_PATH="$TARGET_DIR/assets/icon.png"
-if [ ! -f "$ICON_PATH" ]; then
-  # fallback to a generic icon name; desktop environments will substitute
-  ICON_PATH=""
+
+# Install icon into user icon theme if an asset exists
+ICON_SRC=""
+for candidate in "$TARGET_DIR/data/flutter_assets/assets/icons/icon.svg" "$TARGET_DIR/data/flutter_assets/assets/icons/icon.png" "$TARGET_DIR/icon.png"; do  if [ -f "$candidate" ]; then
+    ICON_SRC="$candidate"
+    break
+  fi
+done
+
+ICON_NAME="simplepresent"
+if [ -n "$ICON_SRC" ]; then
+  ICON_DEST_DIR="$HOME/.local/share/icons/hicolor/128x128/apps"
+  mkdir -p "$ICON_DEST_DIR"
+  ICON_DEST="$ICON_DEST_DIR/${ICON_NAME}.png"
+  # convert svg to png if needed using imagemagick (if available)
+  if [[ "$ICON_SRC" == *.svg ]] && command -v convert >/dev/null 2>&1; then
+    convert -background none "$ICON_SRC" -resize 128x128 "$ICON_DEST"
+  else
+    cp "$ICON_SRC" "$ICON_DEST"
+  fi
+  chmod 0644 "$ICON_DEST"
+  echo "Installed icon to $ICON_DEST"
+  # Prefer theme icon name for .desktop entries
+  DESKTOP_ICON_VALUE="$ICON_NAME"
+else
+  DESKTOP_ICON_VALUE=""
 fi
 
-DESKTOP_ENTRY_NAME="simplepresent.desktop"
-DESKTOP_CONTENT="[Desktop Entry]\nName=SimplePresent\nComment=SimplePresent client\nExec=$LAUNCHER\nIcon=$ICON_PATH\nTerminal=false\nType=Application\nCategories=Utility;"
+DESKTOP_ENTRY_NAME="SimplePresent.desktop"
+DESKTOP_CONTENT="[Desktop Entry]\nName=SimplePresent\nComment=SimplePresent client\nExec=$LAUNCHER\nIcon=$DESKTOP_ICON_VALUE\nTerminal=false\nType=Application\nCategories=Utility;"
 
 if [ "$CREATE_MENU" -eq 1 ]; then
   APPS_DIR="$HOME/.local/share/applications"
