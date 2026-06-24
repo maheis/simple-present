@@ -193,19 +193,21 @@
 - [ ] Abhängigkeiten Reduzieren
   - [x] sqlite3.dll
   - [ ] mehr?
-- [?] android icons näher zusammen
-- [ ] android kachel breiter
+- [x] android icons näher zusammen
 - [ ] datenschutzerklärung
-- [ ] icon linux client
+- [x] icon linux client
   - [x] desktop
   - [x] startmenü
-  - [ ] app
+  - [x] app
 - [?] sync: jeder client moved aktuell beim ersten öffnen
-- [?] sync: sync-button geht nicht. erst selbst eine änderung an einer aufgabe im client führt zu sync
-- [?] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!)
+- [x] sync: sync-button geht nicht. erst selbst eine änderung an einer aufgabe im client führt zu sync
+- [?] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
-- [?] android: benachrichtungen klappen nicht
-- [ ] android: icon fritte (muss es einen hintergrund haben?)
+- [x] android: benachrichtungen klappen nicht
+- [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.? 
+- [ ] android: berechtigungen beim start erfragen (z.b. benachrichtigungen)
+- [ ] buttons müssen (mindestens unter android) optimiert werden! kontextmenü?
+- [ ] runter sortieren, sortiert "drüber"
 
 ## notes
 
