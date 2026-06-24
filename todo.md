@@ -173,18 +173,17 @@
 - [x] done nicht durchstreichen!
 - [x] install für client
 - [x] erinnerung 15 minuten vorher ausbauen
-- [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [ ] Android APK Testen
+- [x] Android APK Testen
   - [x] icon
   - [x] den header ein bisschen runter mit der app, damit platz für die android statusleiste ist
   - [x] spent time feld rutscht rechts aus dem bild
   - [x] app name ist noch simple_present
   - [x] backlog icon ist faded (datum entfernen?)
   - [x] pin button nur unter windows anzeigen
-  - [ ] icon fritte
+- [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
+- [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [ ] Worklog an Aufgaben...
 - [ ] Reihenfolge auch über andere Gruppen hinaus und dann optisch einsortieren
-- [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [ ] Web Applikation
 - [ ] animation: 
   - [ ] aufklappen/zuklappen
@@ -194,7 +193,7 @@
 - [ ] Abhängigkeiten Reduzieren
   - [x] sqlite3.dll
   - [ ] mehr?
-- [ ] android icons näher zusammen
+- [?] android icons näher zusammen
 - [ ] android kachel breiter
 - [ ] datenschutzerklärung
 - [ ] icon linux client
@@ -206,6 +205,7 @@
 - [ ] sync: move von backlog zu today wird nicht synchroniert (wie button-fehler! touch stößt an!)
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
 - [ ] android: benachrichtungen klappen nicht
+- [ ] android: icon fritte (muss es einen hintergrund haben?)
 
 ## notes
 

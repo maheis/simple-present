@@ -3453,14 +3453,27 @@ class _HomePageState extends State<HomePage> {
                                       );
                                     }),
                                   ),
+                                  // adjust icon padding tighter on Android to bring icons closer
+                                  final iconPaddingSym =
+                                      Platform.isAndroid
+                                          ? const EdgeInsets.symmetric(
+                                              horizontal: 2.0)
+                                          : const EdgeInsets.symmetric(
+                                              horizontal: 6.0);
+                                  final iconPaddingForward =
+                                      Platform.isAndroid
+                                          ? const EdgeInsets.only(
+                                              left: 2.0, right: 0.0)
+                                          : const EdgeInsets.only(
+                                              left: 6.0, right: 0.0);
+
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       IconButton(
                                         icon: const Icon(Icons.bar_chart),
                                         tooltip: 'Statistics',
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 6.0),
+                                        padding: iconPaddingSym,
                                         constraints: const BoxConstraints(
                                             minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
@@ -3471,8 +3484,7 @@ class _HomePageState extends State<HomePage> {
                                       IconButton(
                                         icon: const Icon(Icons.settings),
                                         tooltip: 'Settings',
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 6.0),
+                                        padding: iconPaddingSym,
                                         constraints: const BoxConstraints(
                                             minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
@@ -3484,8 +3496,7 @@ class _HomePageState extends State<HomePage> {
                                         icon:
                                             const Icon(Icons.arrow_forward_ios),
                                         tooltip: 'Next',
-                                        padding: const EdgeInsets.only(
-                                            left: 6.0, right: 0.0),
+                                        padding: iconPaddingForward,
                                         constraints: const BoxConstraints(
                                             minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
