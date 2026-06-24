@@ -120,7 +120,8 @@ fi
 
 # Install icon into user icon theme if an asset exists
 ICON_SRC=""
-for candidate in "$TARGET_DIR/data/flutter_assets/assets/icons/icon.png" "$TARGET_DIR/icon.png"; do  if [ -f "$candidate" ]; then
+for candidate in "$TARGET_DIR/data/flutter_assets/assets/icons/icon.png" "$TARGET_DIR/assets/icons/icon.png" "$TARGET_DIR/icon.png"; do
+  if [ -f "$candidate" ]; then
     ICON_SRC="$candidate"
     break
   fi
@@ -141,12 +142,15 @@ else
   DESKTOP_ICON_VALUE=""
 fi
 
-DESKTOP_ENTRY_NAME="SimplePresent.desktop"
-DESKTOP_CONTENT="[Desktop Entry]\nName=SimplePresent\nComment=SimplePresent client\nExec=$LAUNCHER\nIcon=$DESKTOP_ICON_VALUE\nTerminal=false\nType=Application\nCategories=Utility;\nStartupNotify=true\nStartupWMClass=SimplePresent"
+APP_ID="de.maheis.simplepresent"
+DESKTOP_ENTRY_NAME="$APP_ID.desktop"
+DESKTOP_CONTENT="[Desktop Entry]\nName=SimplePresent\nComment=SimplePresent client\nExec=$LAUNCHER\nIcon=$DESKTOP_ICON_VALUE\nTerminal=false\nType=Application\nCategories=Utility;\nStartupNotify=true\nStartupWMClass=SimplePresent\nX-GNOME-WMClass=SimplePresent"
 
 if [ "$CREATE_MENU" -eq 1 ]; then
   APPS_DIR="$HOME/.local/share/applications"
   mkdir -p "$APPS_DIR"
+  # Remove legacy desktop filename to avoid duplicate launcher entries.
+  rm -f "$APPS_DIR/SimplePresent.desktop"
   printf "%b" "$DESKTOP_CONTENT" > "$APPS_DIR/$DESKTOP_ENTRY_NAME"
   chmod 0644 "$APPS_DIR/$DESKTOP_ENTRY_NAME"
   echo "Installed menu entry: $APPS_DIR/$DESKTOP_ENTRY_NAME"

@@ -322,37 +322,12 @@ static void my_application_activate(GApplication *application)
 
   gtk_window_set_default_size(window, 600, 900);
 
-  /* Ensure the running application is recognized with a human-friendly name
-   * and set the WM_CLASS on X11 so desktop environments (KDE, GNOME, etc.)
-   * can match this window to the .desktop StartupWMClass entry. This
-   * improves taskbar/launcher icon persistence. */
+  /* Set application name early for WM recognition. */
   g_set_application_name("SimplePresent");
 
-#ifdef GDK_WINDOWING_X11
-  /* Realize the window so a GdkWindow / X11 Window may exist for class hinting.
-   * At runtime the session may be Wayland; guard with GDK_IS_X11_WINDOW to
-   * avoid calling X11 helpers on non-X11 windows. */
-  gtk_widget_realize(GTK_WIDGET(window));
-  GdkWindow *gdk_win = gtk_widget_get_window(GTK_WIDGET(window));
-  if (gdk_win && GDK_IS_X11_WINDOW(gdk_win))
-  {
-    Display *dpy = GDK_WINDOW_XDISPLAY(gdk_win);
-    Window xid = GDK_WINDOW_XID(gdk_win);
-    XClassHint *ch = XAllocClassHint();
-    if (ch)
-    {
-      ch->res_name = (char *)"simplepresent";
-      ch->res_class = (char *)"SimplePresent";
-      XSetClassHint(dpy, xid, ch);
-      XFree(ch);
-    }
-  }
-#endif
-
-  // Attempt to set a custom application icon (used by taskbar/launcher).
-  // Check several likely locations where the build/install process may place
-  // the Flutter assets so the icon file can be found both in development and
-  // in the installed bundle.
+  /* Load and set a custom application icon BEFORE realizing the window.
+   * This ensures the WM sees the icon when it classifies the window, so the
+   * taskbar icon appears immediately without flickering. */
   const char *icon_candidates[] = {
       // direct asset locations (development)
       "assets/icons/icon.png",
@@ -397,6 +372,27 @@ static void my_application_activate(GApplication *application)
       break;
     }
   }
+
+#ifdef GDK_WINDOWING_X11
+  /* Realize the window so a GdkWindow / X11 Window may exist for class hinting.
+   * At runtime the session may be Wayland; guard with GDK_IS_X11_WINDOW to
+   * avoid calling X11 helpers on non-X11 windows. Now the icon is already set. */
+  gtk_widget_realize(GTK_WIDGET(window));
+  GdkWindow *gdk_win = gtk_widget_get_window(GTK_WIDGET(window));
+  if (gdk_win && GDK_IS_X11_WINDOW(gdk_win))
+  {
+    Display *dpy = GDK_WINDOW_XDISPLAY(gdk_win);
+    Window xid = GDK_WINDOW_XID(gdk_win);
+    XClassHint *ch = XAllocClassHint();
+    if (ch)
+    {
+      ch->res_name = (char *)"simplepresent";
+      ch->res_class = (char *)"SimplePresent";
+      XSetClassHint(dpy, xid, ch);
+      XFree(ch);
+    }
+  }
+#endif
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(project, self->dart_entrypoint_arguments);
