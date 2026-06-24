@@ -5398,6 +5398,24 @@ class _SettingsPageState extends State<SettingsPage> {
         });
         return;
       }
+      // If we already have a device id, warn the user that pairing will replace it.
+      if (cloudDeviceId.trim().isNotEmpty) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('replace existing pairing?'),
+            content: const Text('warning: creating a new pairing will replace the previously registered device on the server. continue?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('cancel')),
+              TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('replace')),
+            ],
+          ),
+        );
+        if (proceed != true) {
+          if (mounted) setState(() => _cloudBusy = false);
+          return;
+        }
+      }
       final client = CloudSyncClient(serverBaseUrl: _normalizedServerUrl());
       final result = await client.pairClient(
         accountId: cloudAccountId.trim(),

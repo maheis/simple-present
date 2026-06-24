@@ -208,6 +208,8 @@
 - [ ] android: berechtigungen beim start erfragen (z.b. benachrichtigungen)
 - [ ] buttons müssen (mindestens unter android) optimiert werden! kontextmenü?
 - [ ] runter sortieren, sortiert "drüber"
+- [ ] sync: eigenes zertifikat führt zu fehler?
+- [ ] sync: neues peering soll warnen das altes verloren geht
 
 ## notes
 
