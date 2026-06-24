@@ -77,10 +77,23 @@ class CloudPulledItem {
 class CloudSyncClient {
   CloudSyncClient({
     required this.serverBaseUrl,
+    this.allowInsecureCertificates = false,
     HttpClient? httpClient,
-  }) : _http = httpClient ?? HttpClient();
+  }) : _http = httpClient ?? HttpClient() {
+    if (allowInsecureCertificates && serverBaseUrl.startsWith('https://')) {
+      final uri = Uri.tryParse(serverBaseUrl);
+      final expectedHost = uri?.host ?? '';
+      final expectedPort = uri?.hasPort == true ? uri!.port : 443;
+      _http.badCertificateCallback = (cert, host, port) {
+        if (expectedHost.isEmpty) return true;
+        if (host != expectedHost) return false;
+        return port == expectedPort;
+      };
+    }
+  }
 
   final String serverBaseUrl;
+  final bool allowInsecureCertificates;
   final HttpClient _http;
 
   static final Ed25519 _ed25519 = Ed25519();

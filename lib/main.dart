@@ -483,6 +483,7 @@ class _HomePageState extends State<HomePage> {
   String _cloudWordPhrase = '';
   String _cloudDeviceName = Platform.localHostname;
   String _cloudPIN = '';
+  bool _cloudAllowInsecureTls = false;
   // Auto-clean settings for Done list
   bool _autoPurgeDoneEnabled = false;
   int _doneRetentionDays = 30;
@@ -860,6 +861,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final client = CloudSyncClient(
         serverBaseUrl: _cloudServerUrl.trim(),
+        allowInsecureCertificates: _cloudAllowInsecureTls,
       );
       final modifiedAt = DateTime.now().millisecondsSinceEpoch;
       _cloudStateVersion += 1;
@@ -956,6 +958,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final client = CloudSyncClient(
         serverBaseUrl: _cloudServerUrl.trim(),
+        allowInsecureCertificates: _cloudAllowInsecureTls,
       );
       final date = DateFormat('yyyy-MM-dd').format(DateTime.now());
       final modifiedAt = DateTime.now().millisecondsSinceEpoch;
@@ -1019,6 +1022,10 @@ class _HomePageState extends State<HomePage> {
     final msg = e.toString();
     final short = msg.contains('SocketException') || msg.contains('Connection refused') || msg.contains('Failed host lookup')
       ? 'Server nicht erreichbar.'
+        : msg.contains('HandshakeException') || msg.contains('CERTIFICATE_VERIFY_FAILED')
+            ? 'TLS-Handshake fehlgeschlagen. Zertifikat/CA pruefen (oder unsichere Zertifikate erlauben).'
+      : msg.contains('missing bearer token')
+        ? 'Sync: Authentifizierung fehlgeschlagen (Authorization-Header fehlt, Proxy-Konfiguration pruefen).'
         : msg.contains('401') || msg.contains('403')
             ? 'Sync: Authentifizierung fehlgeschlagen.'
             : msg.contains('Server error')
@@ -1090,6 +1097,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final client = CloudSyncClient(
         serverBaseUrl: _cloudServerUrl.trim(),
+        allowInsecureCertificates: _cloudAllowInsecureTls,
       );
       final health = await client.getHealth();
       if (health != null && mounted) {
@@ -1112,6 +1120,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final client = CloudSyncClient(
         serverBaseUrl: _cloudServerUrl.trim(),
+        allowInsecureCertificates: _cloudAllowInsecureTls,
       );
       final status = await client.getAccountStatus(token: _cloudToken.trim());
       final days = status.daysUntilArchive;
@@ -1136,6 +1145,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final client = CloudSyncClient(
         serverBaseUrl: _cloudServerUrl.trim(),
+        allowInsecureCertificates: _cloudAllowInsecureTls,
       );
       final pulledItems = await client.pullChangedItems(
         token: _cloudToken.trim(),
@@ -1501,6 +1511,8 @@ class _HomePageState extends State<HomePage> {
         if (cloudPin is String) {
           _cloudPIN = cloudPin;
         }
+        _cloudAllowInsecureTls =
+            readBool('cloudAllowInsecureTls', _cloudAllowInsecureTls);
         final cloudVersion = data['cloudStateVersion'];
         if (cloudVersion is num) {
           _cloudStateVersion = cloudVersion.toInt();
@@ -1608,6 +1620,7 @@ class _HomePageState extends State<HomePage> {
         'cloudWordPhrase': _cloudWordPhrase,
         'cloudDeviceName': _cloudDeviceName,
         'cloudPIN': _cloudPIN,
+        'cloudAllowInsecureTls': _cloudAllowInsecureTls,
         'cloudStateVersion': _cloudStateVersion,
         'cloudLastSyncModifiedAt': _cloudLastSyncModifiedAt,
         'cloudLastSyncSuccessAt': _cloudLastSyncSuccessAt,
@@ -1616,11 +1629,9 @@ class _HomePageState extends State<HomePage> {
         'cloudKnownTodayIds': _cloudKnownTodayIds.toList(),
         'cloudKnownBacklogIds': _cloudKnownBacklogIds.toList(),
         'cloudKnownDoneIds': _cloudKnownDoneIds.toList(),
+        'scheduledReminderSoundEnabled': _scheduledReminderSoundEnabled,
         'reminderWindowFrom': _reminderWindowFrom,
         'reminderWindowTo': _reminderWindowTo,
-            'scheduledReminderSoundEnabled': _scheduledReminderSoundEnabled,
-            'reminderWindowFrom': _reminderWindowFrom,
-            'reminderWindowTo': _reminderWindowTo,
         'autoPurgeDoneEnabled': _autoPurgeDoneEnabled,
         'doneRetentionDays': _doneRetentionDays,
       };
@@ -1953,6 +1964,7 @@ class _HomePageState extends State<HomePage> {
             'cloudWordPhrase': _cloudWordPhrase,
             'cloudDeviceName': _cloudDeviceName,
             'cloudPIN': _cloudPIN,
+            'cloudAllowInsecureTls': _cloudAllowInsecureTls,
             'cloudLastSyncSuccessAt': _cloudLastSyncSuccessAt,
             'cloudSyncFailed': _cloudSyncFailed,
             'cloudSyncLastError': _cloudSyncLastError,
@@ -2042,6 +2054,7 @@ class _HomePageState extends State<HomePage> {
       if (result['cloudPIN'] is String) {
         _cloudPIN = result['cloudPIN'] as String;
       }
+      _cloudAllowInsecureTls = result['cloudAllowInsecureTls'] == true;
     });
 
     _registerActivity();
@@ -4909,6 +4922,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late String cloudWordPhrase;
   late String cloudDeviceName;
   late String cloudPIN;
+  late bool cloudAllowInsecureTls;
   late int cloudLastSyncSuccessAt;
   late bool cloudSyncFailed;
   late String cloudSyncLastError;
@@ -4954,6 +4968,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late String _initialCloudWordPhrase;
   late String _initialCloudDeviceName;
   late String _initialCloudPIN;
+  late bool _initialCloudAllowInsecureTls;
   late bool _initialAutoPurgeDoneEnabled;
   late int _initialDoneRetentionDays;
 
@@ -5024,6 +5039,7 @@ class _SettingsPageState extends State<SettingsPage> {
     cloudWordPhrase = readString('cloudWordPhrase', '');
     cloudDeviceName = readString('cloudDeviceName', Platform.localHostname);
     cloudPIN = readString('cloudPIN', '');
+    cloudAllowInsecureTls = readBool('cloudAllowInsecureTls', false);
     autoPurgeDoneEnabled = readBool('autoPurgeDoneEnabled', false);
     doneRetentionDays = readInt('doneRetentionDays', 30).clamp(1, 365);
     cloudLastSyncSuccessAt = readInt('cloudLastSyncSuccessAt', 0);
@@ -5063,6 +5079,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialCloudWordPhrase = cloudWordPhrase;
     _initialCloudDeviceName = cloudDeviceName;
     _initialCloudPIN = cloudPIN;
+    _initialCloudAllowInsecureTls = cloudAllowInsecureTls;
     _initialAutoPurgeDoneEnabled = autoPurgeDoneEnabled;
     _initialDoneRetentionDays = doneRetentionDays;
     _fetchServerVersionInSettings();
@@ -5074,6 +5091,7 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       final client = CloudSyncClient(
         serverBaseUrl: cloudServerUrl.trim(),
+        allowInsecureCertificates: cloudAllowInsecureTls,
       );
       final version = await client.getHealth();
       if (version != null && mounted) {
@@ -5096,6 +5114,7 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       final client = CloudSyncClient(
         serverBaseUrl: cloudServerUrl.trim(),
+        allowInsecureCertificates: cloudAllowInsecureTls,
       );
       final status = await client.getAccountStatus(token: cloudToken.trim());
         final days = status.daysUntilArchive;
@@ -5185,6 +5204,7 @@ class _SettingsPageState extends State<SettingsPage> {
         cloudWordPhrase != _initialCloudWordPhrase ||
         cloudDeviceName != _initialCloudDeviceName ||
         cloudPIN != _initialCloudPIN ||
+        cloudAllowInsecureTls != _initialCloudAllowInsecureTls ||
         autoPurgeDoneEnabled != _initialAutoPurgeDoneEnabled ||
         doneRetentionDays != _initialDoneRetentionDays ||
         reminderWindowFrom != _initialReminderWindowFrom ||
@@ -5391,7 +5411,10 @@ class _SettingsPageState extends State<SettingsPage> {
           return;
         }
       }
-      final client = CloudSyncClient(serverBaseUrl: _normalizedServerUrl());
+      final client = CloudSyncClient(
+        serverBaseUrl: _normalizedServerUrl(),
+        allowInsecureCertificates: cloudAllowInsecureTls,
+      );
       final result = await client.registerFirstClient(
         deviceName: cloudDeviceName.trim().isEmpty
             ? Platform.localHostname
@@ -5452,7 +5475,10 @@ class _SettingsPageState extends State<SettingsPage> {
           return;
         }
       }
-      final client = CloudSyncClient(serverBaseUrl: _normalizedServerUrl());
+      final client = CloudSyncClient(
+        serverBaseUrl: _normalizedServerUrl(),
+        allowInsecureCertificates: cloudAllowInsecureTls,
+      );
       final result = await client.pairClient(
         accountId: cloudAccountId.trim(),
         deviceName: cloudDeviceName.trim().isEmpty
@@ -5543,6 +5569,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     'cloudWordPhrase': cloudWordPhrase,
                     'cloudDeviceName': cloudDeviceName,
                     'cloudPIN': cloudPIN,
+                    'cloudAllowInsecureTls': cloudAllowInsecureTls,
                     'autoPurgeDoneEnabled': autoPurgeDoneEnabled,
                     'doneRetentionDays': doneRetentionDays,
                   });
@@ -5786,6 +5813,14 @@ class _SettingsPageState extends State<SettingsPage> {
                   border: OutlineInputBorder(),
                 ),
                 onChanged: (value) => setState(() => cloudPIN = value),
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                value: cloudAllowInsecureTls,
+                title: const Text('accept insecure certificates'),
+                subtitle: const Text(
+                    'only enable this for trusted self-signed/private ca setups.'),
+                onChanged: (v) => setState(() => cloudAllowInsecureTls = v),
               ),
               const SizedBox(height: 8),
               TextField(
