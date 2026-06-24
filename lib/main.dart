@@ -413,14 +413,14 @@ class _HomePageState extends State<HomePage> {
   int _reminderMinutes = 75;
   Timer? _urgentTimer;
   int _urgentMinutes = 90;
-  bool _idleSoundEnabled = true;
-  bool _attentionSoundEnabled = true;
-  bool _attentionFlashEnabled = true;
-  bool _reminderSoundEnabled = true;
-  bool _reminderNotifyEnabled = true;
+  bool _idleSoundEnabled = false;
+  bool _attentionSoundEnabled = false;
+  bool _attentionFlashEnabled = false;
+  bool _reminderSoundEnabled = false;
+  bool _reminderNotifyEnabled = false;
   bool _idleFlashEnabled = false;
   // play sound for scheduled task reminders (15min / due)
-  bool _scheduledReminderSoundEnabled = true;
+  bool _scheduledReminderSoundEnabled = false;
   bool _idleNotifyEnabled = false;
   bool _idleBringToFrontEnabled = false;
   bool _attentionNotifyEnabled = false;
@@ -428,9 +428,9 @@ class _HomePageState extends State<HomePage> {
   bool _reminderFlashEnabled = false;
   bool _reminderBringToFrontEnabled = false;
   bool _urgentFlashEnabled = false;
-  bool _urgentSoundEnabled = true;
-  bool _urgentNotifyEnabled = true;
-  bool _urgentBringToFrontEnabled = true;
+  bool _urgentSoundEnabled = false;
+  bool _urgentNotifyEnabled = false;
+  bool _urgentBringToFrontEnabled = false;
   bool _swipeEnabled = true;
   String _fontFamily = 'OpenDyslexic';
   // Fired flags to ensure each reminder type fires only once per inactivity period
