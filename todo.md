@@ -204,7 +204,7 @@
 - [ ] sync: sync-button geht nicht. erst selbst eine änderung im client führt zu sync
 - [ ] sync: move von backlog zu today wird nicht synchroniert (wie button-fehler! touch stößt an!)
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
-- [ ] android: benachrichtungen klappen nicht
+- [?] android: benachrichtungen klappen nicht
 - [ ] android: icon fritte (muss es einen hintergrund haben?)
 
 ## notes
