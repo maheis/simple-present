@@ -1015,7 +1015,7 @@ class _HomePageState extends State<HomePage> {
   void _onCloudSyncError(Object e) {
     final msg = e.toString();
     final short = msg.contains('SocketException') || msg.contains('Connection refused') || msg.contains('Failed host lookup')
-        ? 'Server nicht erreichbar.'
+      ? 'Server nicht erreichbar.'
         : msg.contains('401') || msg.contains('403')
             ? 'Sync: Authentifizierung fehlgeschlagen.'
             : msg.contains('Server error')
@@ -5063,7 +5063,7 @@ class _SettingsPageState extends State<SettingsPage> {
         setState(() {
           _settingsServerVersion = version;
           _versionWarning = _isClientOlderThanServer(kClientVersion, version)
-              ? 'Warnung: Client ist älter als Server. Bitte Client aktualisieren.'
+              ? 'warning: client is older than server. please update client.'
               : '';
         });
       }
@@ -5081,12 +5081,12 @@ class _SettingsPageState extends State<SettingsPage> {
         serverBaseUrl: cloudServerUrl.trim(),
       );
       final status = await client.getAccountStatus(token: cloudToken.trim());
-      final days = status.daysUntilArchive;
-      final warningText = status.archived
-          ? 'Cloud-Account wurde archiviert. Bitte neu registrieren oder Admin kontaktieren.'
+        final days = status.daysUntilArchive;
+        final warningText = status.archived
+          ? 'cloud account archived. please re-register or contact admin.'
           : (status.warning && days >= 0
-              ? 'Warnung: Cloud-Account wird in $days Tagen archiviert, wenn keine Nutzung erfolgt.'
-              : '');
+            ? 'warning: cloud account will be archived in $days days without activity.'
+            : '');
 
       if (!mounted) return;
       setState(() {
@@ -5119,16 +5119,16 @@ class _SettingsPageState extends State<SettingsPage> {
     final shouldLeave = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Änderungen nicht gespeichert'),
-        content: const Text('Es gibt ungespeicherte Einstellungen. Wirklich verlassen?'),
+        title: const Text('changes not saved'),
+        content: const Text('there are unsaved settings. really leave?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Abbrechen'),
+            child: const Text('cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Verwerfen'),
+            child: const Text('discard'),
           ),
         ],
       ),
@@ -5221,14 +5221,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text(
-                    'Weiteres Gerät anbinden',
+                    'pair another device',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    'Scanne diesen QR-Code auf dem neuen Gerät, um Server-URL und Account ID zu übertragen. '
-                    'Die 9-Wort-Phrase wird ebenfalls übertragen.',
+                    'scan this qr code on the new device to transfer server url and account id. the 9-word phrase will also be transferred.',
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
@@ -5257,17 +5256,16 @@ class _SettingsPageState extends State<SettingsPage> {
                           await Clipboard.setData(ClipboardData(text: uri));
                           if (!mounted) return;
                           setState(() {
-                            _cloudStatus =
-                                'Pairing-Link in Zwischenablage kopiert.';
+                            _cloudStatus = 'pairing link copied to clipboard.';
                           });
                         },
                         icon: const Icon(Icons.copy, size: 18),
-                        label: const Text('Link kopieren'),
+                        label: const Text('copy link'),
                       ),
                       const SizedBox(width: 8),
                       TextButton(
                         onPressed: () => Navigator.of(ctx).pop(),
-                        child: const Text('Schließen'),
+                        child: const Text('close'),
                       ),
                     ],
                   ),
@@ -5286,25 +5284,24 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       final uri = Uri.parse(raw);
       if (uri.scheme != 'simplepresent' || uri.host != 'pair') {
-        setState(() => _cloudStatus = 'Ungültiger Pairing-Link ($sourceLabel).');
+        setState(() => _cloudStatus = 'invalid pairing link ($sourceLabel).');
         return;
       }
       final server = uri.queryParameters['server'] ?? '';
       final account = uri.queryParameters['account'] ?? '';
       final phrase = uri.queryParameters['phrase'] ?? '';
       if (server.isEmpty || account.isEmpty || phrase.isEmpty) {
-        setState(() => _cloudStatus = 'Pairing-Link unvollständig ($sourceLabel).');
+        setState(() => _cloudStatus = 'pairing link incomplete ($sourceLabel).');
         return;
       }
       setState(() {
         cloudServerUrl = server;
         cloudAccountId = account;
         cloudWordPhrase = phrase;
-        _cloudStatus =
-            'Server-URL, Account ID und 9-Wort-Phrase übernommen ($sourceLabel). Jetzt "Gerät anbinden" tippen.';
+        _cloudStatus = 'server url, account id and 9-word phrase imported ($sourceLabel). now tap "pair device".';
       });
     } catch (_) {
-      setState(() => _cloudStatus = 'Pairing-Link konnte nicht gelesen werden ($sourceLabel).');
+      setState(() => _cloudStatus = 'pairing link could not be read ($sourceLabel).');
     }
   }
 
@@ -5322,7 +5319,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final data = await Clipboard.getData('text/plain');
     final text = data?.text?.trim() ?? '';
     if (text.isEmpty) {
-      setState(() => _cloudStatus = 'Zwischenablage ist leer.');
+      setState(() => _cloudStatus = 'clipboard is empty.');
       return;
     }
     _applyPairingUri(text, sourceLabel: 'Zwischenablage');
@@ -5336,7 +5333,7 @@ class _SettingsPageState extends State<SettingsPage> {
       });
       if (cloudPIN.isEmpty || cloudPIN.length < 4) {
         setState(() {
-          _cloudStatus = 'PIN muss mindestens 4 Zeichen lang sein.';
+          _cloudStatus = 'pin must be at least 4 characters.';
           _cloudBusy = false;
         });
         return;
@@ -5354,13 +5351,13 @@ class _SettingsPageState extends State<SettingsPage> {
         cloudDeviceId = result.deviceId;
         cloudToken = result.token;
         _cloudStatus = result.notice == null || result.notice!.isEmpty
-            ? 'Erstgerät registriert.'
-            : 'Erstgerät registriert. ${result.notice!}';
+          ? 'first device registered.'
+          : 'first device registered. ${result.notice!}';
       });
       await _refreshCloudAccountStatus(showToastIfWarning: true);
     } catch (e) {
       setState(() {
-        _cloudStatus = 'Register fehlgeschlagen: $e';
+        _cloudStatus = 'register failed: $e';
       });
     } finally {
       if (mounted) {
@@ -5379,7 +5376,7 @@ class _SettingsPageState extends State<SettingsPage> {
       });
       if (cloudPIN.isEmpty) {
         setState(() {
-          _cloudStatus = 'PIN erforderlich zum Pairing.';
+          _cloudStatus = 'pin required for pairing.';
           _cloudBusy = false;
         });
         return;
@@ -5396,12 +5393,12 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() {
         cloudDeviceId = result.deviceId;
         cloudToken = result.token;
-        _cloudStatus = 'Gerät erfolgreich angebunden.';
+        _cloudStatus = 'device paired successfully.';
       });
       await _refreshCloudAccountStatus(showToastIfWarning: true);
     } catch (e) {
       setState(() {
-        _cloudStatus = 'Pairing fehlgeschlagen: $e';
+        _cloudStatus = 'pairing failed: $e';
       });
     } finally {
       if (mounted) {
@@ -5690,7 +5687,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ..selection = TextSelection.collapsed(
                       offset: cloudServerUrl.length),
                 decoration: const InputDecoration(
-                  labelText: 'Server URL',
+                  labelText: 'server url',
                   hintText: 'https://<simplepresent-cloud-server>',
                   border: OutlineInputBorder(),
                 ),
@@ -5702,7 +5699,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ..selection = TextSelection.collapsed(
                       offset: cloudDeviceName.length),
                 decoration: const InputDecoration(
-                  labelText: 'Gerätename',
+                  labelText: 'device name',
                   border: OutlineInputBorder(),
                 ),
                 onChanged: (value) => setState(() => cloudDeviceName = value),
@@ -5714,7 +5711,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       offset: cloudPIN.length),
                 obscureText: true,
                 decoration: const InputDecoration(
-                  labelText: 'PIN (4-32 Zeichen)',
+                  labelText: 'pin (4-32 chars)',
                   border: OutlineInputBorder(),
                 ),
                 onChanged: (value) => setState(() => cloudPIN = value),
@@ -5725,7 +5722,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ..selection = TextSelection.collapsed(
                       offset: cloudAccountId.length),
                 decoration: const InputDecoration(
-                  labelText: 'Account ID',
+                  labelText: 'account id',
                   border: OutlineInputBorder(),
                 ),
                 onChanged: (value) => setState(() => cloudAccountId = value),
@@ -5738,7 +5735,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 minLines: 2,
                 maxLines: 3,
                 decoration: const InputDecoration(
-                  labelText: '9-Wort-Phrase (lokal)',
+                  labelText: '9-word phrase (local)',
                   border: OutlineInputBorder(),
                 ),
                 onChanged: (value) => setState(() => cloudWordPhrase = value),
@@ -5750,7 +5747,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: OutlinedButton.icon(
                       onPressed: _cloudBusy ? null : _suggestPhrase,
                       icon: const Icon(Icons.lightbulb_outline),
-                      label: const Text('9 Wörter vorschlagen'),
+                      label: const Text('suggest 9 words'),
                     ),
                   ),
                 ],
@@ -5762,7 +5759,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: ElevatedButton.icon(
                       onPressed: _cloudBusy ? null : _registerFirstDevice,
                       icon: const Icon(Icons.person_add_alt_1),
-                      label: const Text('Erstgerät registrieren'),
+                      label: const Text('register first device'),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -5770,7 +5767,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: ElevatedButton.icon(
                       onPressed: _cloudBusy ? null : _pairDevice,
                       icon: const Icon(Icons.link),
-                      label: const Text('Gerät anbinden'),
+                      label: const Text('pair device'),
                     ),
                   ),
                 ],
@@ -5783,7 +5780,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: OutlinedButton.icon(
                       onPressed: _cloudBusy ? null : _showPairingQr,
                       icon: const Icon(Icons.qr_code),
-                      label: const Text('QR-Code anzeigen'),
+                      label: const Text('show qr code'),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -5791,7 +5788,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: OutlinedButton.icon(
                       onPressed: _cloudBusy ? null : _scanPairingQr,
                       icon: const Icon(Icons.qr_code_scanner),
-                      label: const Text('QR-Code scannen'),
+                      label: const Text('scan qr code'),
                     ),
                   ),
                 ],
@@ -5803,14 +5800,14 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: OutlinedButton.icon(
                       onPressed: _cloudBusy ? null : _pastePairingLink,
                       icon: const Icon(Icons.content_paste),
-                      label: const Text('Link einfügen'),
+                      label: const Text('paste link'),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               SelectableText(
-                'Device ID: $cloudDeviceId\nToken: ${cloudToken.isEmpty ? '-' : cloudToken}',
+                'device id: $cloudDeviceId\ntoken: ${cloudToken.isEmpty ? '-' : cloudToken}',
                 style: const TextStyle(fontSize: 12),
               ),
               const SizedBox(height: 6),
@@ -5824,10 +5821,10 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 4),
               Text(
                 cloudSyncFailed
-                    ? 'Sync-Status: fehlgeschlagen'
+                    ? 'sync status: failed'
                     : (cloudLastSyncSuccessAt > 0
-                        ? 'Sync-Status: ok'
-                        : 'Sync-Status: noch nicht synchronisiert'),
+                        ? 'sync status: ok'
+                        : 'sync status: not synchronized'),
                 style: TextStyle(
                   fontSize: 11,
                   color: cloudSyncFailed ? Colors.redAccent : Colors.grey,
@@ -5836,7 +5833,7 @@ class _SettingsPageState extends State<SettingsPage> {
               if (cloudLastSyncSuccessAt > 0) ...[
                 const SizedBox(height: 2),
                 Text(
-                  'Zuletzt synchronisiert: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.fromMillisecondsSinceEpoch(cloudLastSyncSuccessAt))}',
+                  'last sync: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.fromMillisecondsSinceEpoch(cloudLastSyncSuccessAt))}',
                   style: const TextStyle(fontSize: 11, color: Colors.grey),
                 ),
               ],
@@ -5869,7 +5866,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 Text(
                   _cloudStatus,
                   style: TextStyle(
-                    color: _cloudStatus.contains('fehlgeschlagen')
+                    color: _cloudStatus.contains('failed')
                         ? Colors.redAccent
                         : Colors.greenAccent,
                   ),
@@ -6270,7 +6267,7 @@ class _QrScannerPageState extends State<_QrScannerPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('QR-Code scannen'),
+        title: const Text('scan qr code'),
       ),
       body: MobileScanner(
         onDetect: (capture) {

@@ -188,7 +188,7 @@
 - [ ] datenschutzerklärung
 - [x] wochentag in der statistik kleiner, datum kann man aktuell unter android nicht lesen
 - [x] inakativitäts reminder per default auf off
-- [ ] inaktivitäts reminder zeitfenster wann er sein soll
+- [x] inaktivitäts reminder zeitfenster wann er sein soll
 - [ ] beim start keine erinnerungen? oder gesammelte erinnerungen?
 - [x] done nicht durchstreichen!
 - [x] install für client
