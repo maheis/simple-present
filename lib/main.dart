@@ -1827,6 +1827,14 @@ class _HomePageState extends State<HomePage> {
     final t = _today[index];
     if (t.stopwatchRunning) return;
     final now = DateTime.now();
+    // Enforce `inProgress` flag when stopwatch is running or inProgressAt exists.
+    for (var i = 0; i < _today.length; i++) {
+      final t = _today[i];
+      if ((t.stopwatchRunning || t.inProgressAt != null) && !t.inProgress && !t.done) {
+        final inferredAt = t.inProgressAt ?? t.stopwatchStartedAt ?? now;
+        _today[i] = t.copyWith(inProgress: true, inProgressAt: inferredAt);
+      }
+    }
     setState(() => _today[index] = t.copyWith(
         stopwatchRunning: true,
         stopwatchStartedAt: now,
@@ -2384,12 +2392,15 @@ class _HomePageState extends State<HomePage> {
       _stagedScheduled.clear();
     }
     final now = DateTime.now();
-    final bucketOverdue = <TaskItem>[];
     final bucketImportantInProgress = <TaskItem>[];
-    final bucketInProgress = <TaskItem>[];
+    final bucketInProgressScheduledPast = <TaskItem>[];
+    final bucketInProgressNoSchedule = <TaskItem>[];
+    final bucketInProgressScheduledFuture = <TaskItem>[];
     final bucketImportant = <TaskItem>[];
+    final bucketScheduledPast = <TaskItem>[];
     final bucketDueIn1h = <TaskItem>[];
     final bucketRest = <TaskItem>[];
+    final bucketScheduledFuture = <TaskItem>[];
     final bucketDone = <TaskItem>[];
 
     for (final t in _today) {
@@ -2397,46 +2408,102 @@ class _HomePageState extends State<HomePage> {
       final diff = hasSchedule ? t.scheduledAt!.difference(now) : null;
       final isOverdue = hasSchedule && diff!.isNegative;
       final dueWithin1h = hasSchedule && !diff!.isNegative && diff.inMinutes <= 60;
+      final isScheduledFuture = hasSchedule && !isOverdue && !dueWithin1h;
+
       if (t.done) {
         bucketDone.add(t);
         continue;
       }
-      if (isOverdue) {
-        bucketOverdue.add(t);
-        continue;
-      }
-      if (t.important && t.inProgress) {
-        bucketImportantInProgress.add(t);
-        continue;
-      }
+
+      // In-progress handling (split into important + scheduling buckets)
       if (t.inProgress) {
-        bucketInProgress.add(t);
+        if (t.important) {
+          bucketImportantInProgress.add(t);
+        } else if (isOverdue) {
+          bucketInProgressScheduledPast.add(t);
+        } else if (isScheduledFuture) {
+          bucketInProgressScheduledFuture.add(t);
+        } else {
+          // no schedule or dueWithin1h counts as no-schedule here
+          bucketInProgressNoSchedule.add(t);
+        }
         continue;
       }
+
+      // Non in-progress items
       if (t.important) {
         bucketImportant.add(t);
+        continue;
+      }
+      if (isOverdue) {
+        bucketScheduledPast.add(t);
         continue;
       }
       if (dueWithin1h) {
         bucketDueIn1h.add(t);
         continue;
       }
+      if (isScheduledFuture) {
+        bucketScheduledFuture.add(t);
+        continue;
+      }
       bucketRest.add(t);
     }
 
+    // Sort in-progress buckets by most-recently started first
+    int _cmpInProgressStart(TaskItem a, TaskItem b) {
+      final da = a.inProgressAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final db = b.inProgressAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return db.compareTo(da);
+    }
+
+    bucketImportantInProgress.sort(_cmpInProgressStart);
+    bucketInProgressScheduledPast.sort(_cmpInProgressStart);
+    bucketInProgressNoSchedule.sort(_cmpInProgressStart);
+    bucketInProgressScheduledFuture.sort(_cmpInProgressStart);
+
+    // Sort scheduled buckets chronologically: past newest first, dueWithin1h ascending, future ascending
+    bucketScheduledPast.sort((a, b) => (b.scheduledAt ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(a.scheduledAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
+    bucketDueIn1h.sort((a, b) => (a.scheduledAt ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(b.scheduledAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
+    bucketScheduledFuture.sort((a, b) => (a.scheduledAt ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(b.scheduledAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
+
+    // Compose final order per requested sequence
     final newOrder = <TaskItem>[];
-    newOrder.addAll(bucketOverdue);
-    newOrder.addAll(bucketImportantInProgress);
-    newOrder.addAll(bucketInProgress);
-    newOrder.addAll(bucketImportant);
-    newOrder.addAll(bucketDueIn1h);
-    newOrder.addAll(bucketRest);
+    newOrder.addAll(bucketImportantInProgress); // in arbeit - wichtig
+    newOrder.addAll(bucketInProgressScheduledPast); // in arbeit - uhrzeit in vergangenheit
+    newOrder.addAll(bucketInProgressNoSchedule); // in arbeit
+    newOrder.addAll(bucketInProgressScheduledFuture); // in arbeit - uhrzeit in der zukunft
+    newOrder.addAll(bucketImportant); // wichtig
+    newOrder.addAll(bucketScheduledPast); // uhrzeit in vergangenheit
+    newOrder.addAll(bucketDueIn1h); // uhrzeit in naher zukunft
+    newOrder.addAll(bucketRest); // rest
+    newOrder.addAll(bucketScheduledFuture); // uhrzeit in der zukunft rest
     newOrder.addAll(bucketDone);
+
+    // As a safety net, ensure any tasks currently marked inProgress are
+    // placed before non-inProgress tasks (preserve relative ordering).
+    final inProgressFirst = newOrder.where((t) => t.inProgress && !t.done).toList();
+    final restFinal = newOrder.where((t) => !(t.inProgress && !t.done)).toList();
+    final finalOrder = <TaskItem>[]..addAll(inProgressFirst)..addAll(restFinal);
+
+    // Debug: print classification & ordering to console in debug builds.
+    if (kDebugMode) {
+      final buf = StringBuffer();
+      buf.writeln('--- _performDelayedReorder debug ---');
+      buf.writeln('Now: $now');
+      for (var i = 0; i < finalOrder.length; i++) {
+        final t = finalOrder[i];
+        buf.writeln('#$i: "${t.text}" id=${t.id} done=${t.done} inProgress=${t.inProgress} important=${t.important} scheduled=${t.scheduledAt} inProgressAt=${t.inProgressAt}');
+      }
+      buf.writeln('--- end debug ---');
+      // Print asynchronously to avoid blocking UI
+      unawaited(Future(() => print(buf.toString())));
+    }
 
     setState(() {
       _today
         ..clear()
-        ..addAll(newOrder);
+        ..addAll(finalOrder);
     });
     _saveToday();
 
@@ -3563,21 +3630,18 @@ class _HomePageState extends State<HomePage> {
                                                 ? 'No archived tasks'
                                                 : 'No tasks for today')))
                                     : Builder(builder: (ctx) {
-                                        // Build grouped list preserving insertion order within groups
-                                        final bucketOverdue = <MapEntry<int,
-                                            TaskItem>>[]; // tasks past their scheduled time
-                                        final bucketImportantInProgress =
-                                            <MapEntry<int, TaskItem>>[];
-                                        final bucketInProgress =
-                                            <MapEntry<int, TaskItem>>[];
-                                        final bucketImportant =
-                                            <MapEntry<int, TaskItem>>[];
-                                        final bucketDueIn1h =
-                                            <MapEntry<int, TaskItem>>[];
-                                        final bucketRest = <MapEntry<int,
-                                            TaskItem>>[]; // rest (insertion order)
-                                        final bucketDone = <MapEntry<int,
-                                            TaskItem>>[]; // done tasks (always bottom)
+                                        // Build grouped list preserving insertion order within groups.
+                                        // Order must match _performDelayedReorder schema.
+                                        final bucketImportantInProgress = <MapEntry<int, TaskItem>>[];
+                                        final bucketInProgressScheduledPast = <MapEntry<int, TaskItem>>[];
+                                        final bucketInProgressNoSchedule = <MapEntry<int, TaskItem>>[];
+                                        final bucketInProgressScheduledFuture = <MapEntry<int, TaskItem>>[];
+                                        final bucketImportant = <MapEntry<int, TaskItem>>[];
+                                        final bucketScheduledPast = <MapEntry<int, TaskItem>>[];
+                                        final bucketDueIn1h = <MapEntry<int, TaskItem>>[];
+                                        final bucketRest = <MapEntry<int, TaskItem>>[];
+                                        final bucketScheduledFuture = <MapEntry<int, TaskItem>>[];
+                                        final bucketDone = <MapEntry<int, TaskItem>>[];
 
                                         final now = DateTime.now();
                                         final entries = _today.asMap().entries;
@@ -3598,36 +3662,51 @@ class _HomePageState extends State<HomePage> {
                                               !diff!.isNegative &&
                                               diff.inMinutes <= 60;
 
-                                          if (isOverdue) {
-                                            bucketOverdue.add(e);
-                                            continue;
-                                          }
-                                          if (t.important && t.inProgress) {
+                                          final isScheduledFuture = hasSchedule && !isOverdue && !dueWithin1h;
+
+                                          if (t.inProgress && t.important) {
                                             bucketImportantInProgress.add(e);
                                             continue;
                                           }
                                           if (t.inProgress) {
-                                            bucketInProgress.add(e);
+                                            if (isOverdue) {
+                                              bucketInProgressScheduledPast.add(e);
+                                            } else if (isScheduledFuture) {
+                                              bucketInProgressScheduledFuture.add(e);
+                                            } else {
+                                              bucketInProgressNoSchedule.add(e);
+                                            }
                                             continue;
                                           }
                                           if (t.important) {
                                             bucketImportant.add(e);
                                             continue;
                                           }
+                                          if (isOverdue) {
+                                            bucketScheduledPast.add(e);
+                                            continue;
+                                          }
                                           if (dueWithin1h) {
                                             bucketDueIn1h.add(e);
+                                            continue;
+                                          }
+                                          if (isScheduledFuture) {
+                                            bucketScheduledFuture.add(e);
                                             continue;
                                           }
                                           bucketRest.add(e);
                                         }
 
                                         final sorted = [
-                                          ...bucketOverdue,
                                           ...bucketImportantInProgress,
-                                          ...bucketInProgress,
+                                          ...bucketInProgressScheduledPast,
+                                          ...bucketInProgressNoSchedule,
+                                          ...bucketInProgressScheduledFuture,
                                           ...bucketImportant,
+                                          ...bucketScheduledPast,
                                           ...bucketDueIn1h,
                                           ...bucketRest,
+                                          ...bucketScheduledFuture,
                                           ...bucketDone,
                                         ];
 
@@ -3640,19 +3719,25 @@ class _HomePageState extends State<HomePage> {
                                             // Determine bucket membership for src and dst
                                             int bucketOf(
                                                 MapEntry<int, TaskItem> e) {
-                                              if (bucketOverdue.contains(e))
-                                                return 0;
                                               if (bucketImportantInProgress
+                                                  .contains(e)) return 0;
+                                              if (bucketInProgressScheduledPast
                                                   .contains(e)) return 1;
-                                              if (bucketInProgress.contains(e))
-                                                return 2;
+                                              if (bucketInProgressNoSchedule
+                                                  .contains(e)) return 2;
+                                              if (bucketInProgressScheduledFuture
+                                                  .contains(e)) return 3;
                                               if (bucketImportant.contains(e))
-                                                return 3;
-                                              if (bucketDueIn1h.contains(e))
                                                 return 4;
-                                              if (bucketRest.contains(e))
+                                              if (bucketScheduledPast.contains(e))
                                                 return 5;
-                                              return 6; // done
+                                              if (bucketDueIn1h.contains(e))
+                                                return 6;
+                                              if (bucketRest.contains(e))
+                                                return 7;
+                                              if (bucketScheduledFuture.contains(e))
+                                                return 8;
+                                              return 9; // done
                                             }
 
                                             final srcBucket =
@@ -3670,23 +3755,31 @@ class _HomePageState extends State<HomePage> {
                                                 targetBucket;
                                             switch (srcBucket) {
                                               case 0:
-                                                targetBucket = bucketOverdue;
+                                                targetBucket = bucketImportantInProgress;
                                                 break;
                                               case 1:
-                                                targetBucket =
-                                                    bucketImportantInProgress;
+                                                targetBucket = bucketInProgressScheduledPast;
                                                 break;
                                               case 2:
-                                                targetBucket = bucketInProgress;
+                                                targetBucket = bucketInProgressNoSchedule;
                                                 break;
                                               case 3:
-                                                targetBucket = bucketImportant;
+                                                targetBucket = bucketInProgressScheduledFuture;
                                                 break;
                                               case 4:
-                                                targetBucket = bucketDueIn1h;
+                                                targetBucket = bucketImportant;
                                                 break;
                                               case 5:
+                                                targetBucket = bucketScheduledPast;
+                                                break;
+                                              case 6:
+                                                targetBucket = bucketDueIn1h;
+                                                break;
+                                              case 7:
                                                 targetBucket = bucketRest;
+                                                break;
+                                              case 8:
+                                                targetBucket = bucketScheduledFuture;
                                                 break;
                                               default:
                                                 targetBucket = bucketDone;
@@ -3727,13 +3820,16 @@ class _HomePageState extends State<HomePage> {
                                                           b) =>
                                                   newOrder.addAll(
                                                       b.map((e) => e.value));
-                                              appendBucket(bucketOverdue);
                                               appendBucket(
                                                   bucketImportantInProgress);
-                                              appendBucket(bucketInProgress);
+                                                    appendBucket(bucketInProgressScheduledPast);
+                                                    appendBucket(bucketInProgressNoSchedule);
+                                                    appendBucket(bucketInProgressScheduledFuture);
                                               appendBucket(bucketImportant);
+                                                    appendBucket(bucketScheduledPast);
                                               appendBucket(bucketDueIn1h);
                                               appendBucket(bucketRest);
+                                                    appendBucket(bucketScheduledFuture);
                                               appendBucket(bucketDone);
                                               _today.clear();
                                               _today.addAll(newOrder);
