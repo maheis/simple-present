@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App launcher icon background color (dark forest green) -->
+    <color name="ic_launcher_background">#00251a</color>
+    <!-- Notification badge accent color (brighter green, visible on dark backgrounds) -->
+    <color name="ic_notification_color">#489d11</color>
+</resources>

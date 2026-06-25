@@ -81,10 +81,10 @@ for d in "mdpi" "hdpi" "xhdpi" "xxhdpi" "xxxhdpi"; do
   fi
 done
 
-# Adaptive icon: put foreground/background bitmaps into mipmap-anydpi-v26
+# Adaptive icon: foreground bitmap in mipmap-anydpi-v26; background is a solid color resource.
 AD_DIR="$ANDROID_RES/mipmap-anydpi-v26"
 mkdir -p "$AD_DIR"
-# foreground should stay transparent; do not copy full launcher PNG here
+# foreground stays transparent (108dp safe zone = 192px, full canvas = 288px; 192 is fine for compat)
 if [ -f "$SVG_FOREGROUND" ]; then
   FG_OUT="$AD_DIR/ic_launcher_foreground.png"
   if [ "$CONVERTER" = "rsvg-convert" ]; then
@@ -95,29 +95,32 @@ if [ -f "$SVG_FOREGROUND" ]; then
     convert "$SVG_FOREGROUND" -resize 192x192 "$FG_OUT"
   fi
 fi
-if [ -f "$SVG_BACKGROUND" ]; then
-  # generate a background image at 192px
-  BG_OUT="$AD_DIR/ic_launcher_background.png"
-  if [ "$CONVERTER" = "rsvg-convert" ]; then
-    rsvg-convert -w 192 "$SVG_BACKGROUND" -o "$BG_OUT"
-  elif [ "$CONVERTER" = "inkscape" ]; then
-    inkscape "$SVG_BACKGROUND" $CONV_ARGS=192 -o "$BG_OUT"
-  else
-    convert "$SVG_BACKGROUND" -resize 192x192 "$BG_OUT"
-  fi
-fi
+# Remove stale ic_launcher_background.png if present (background is now a color resource)
+rm -f "$AD_DIR/ic_launcher_background.png"
+
+# Write solid background color to values/colors.xml (extracted from icon SVG #00251a)
+mkdir -p "$ANDROID_RES/values"
+cat > "$ANDROID_RES/values/colors.xml" <<'COLORSEOF'
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App launcher icon background color (dark forest green) -->
+    <color name="ic_launcher_background">#00251a</color>
+    <!-- Notification badge accent color (brighter green, visible on dark backgrounds) -->
+    <color name="ic_notification_color">#489d11</color>
+</resources>
+COLORSEOF
 
 # Create adaptive icon XML files
 cat > "$AD_DIR/ic_launcher.xml" <<EOF
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-  <background android:drawable="@mipmap/ic_launcher_background" />
+  <background android:drawable="@color/ic_launcher_background" />
   <foreground android:drawable="@mipmap/ic_launcher_foreground" />
 </adaptive-icon>
 EOF
 
 cat > "$AD_DIR/ic_launcher_round.xml" <<EOF
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-  <background android:drawable="@mipmap/ic_launcher_background" />
+  <background android:drawable="@color/ic_launcher_background" />
   <foreground android:drawable="@mipmap/ic_launcher_foreground" />
 </adaptive-icon>
 EOF

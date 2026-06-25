@@ -106,6 +106,7 @@ class MainActivity : FlutterActivity() {
 
 		val builder = NotificationCompat.Builder(this, CHANNEL_ID)
 			.setSmallIcon(R.drawable.ic_stat_notify)
+			.setColor(ContextCompat.getColor(this, R.color.ic_notification_color))
 			.setContentTitle(title)
 			.setContentText(body)
 			.setPriority(NotificationCompat.PRIORITY_DEFAULT)
