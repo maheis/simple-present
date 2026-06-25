@@ -218,7 +218,7 @@
 - [ ] sync: peering aufheben und löschen
 - [ ] uninstall client: alle dateien löschen
 - [ ] inactivity reminder dynamischer (selbst hinzufügen, anzahl abstände etc.)
-- [ ] sortierung, in arbeit solle immer ganz oben sein
+- [x] sortierung, in arbeit solle immer ganz oben sein
         in arbeit + wichtig
         in arbeit + uhrzeit in vergangenheit
         in arbeit
@@ -230,7 +230,7 @@
         uhrzeit in der zukunft rest
         fertig
 - [x] move backlog kaputt
-- [ ] "wichtig" braucht eine andere kennzeichnung. schrift in gelb!
+- [x] "wichtig" braucht eine andere kennzeichnung. schrift in gelb!
 
 ## notes
 

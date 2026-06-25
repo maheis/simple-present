@@ -4046,9 +4046,7 @@ class _HomePageState extends State<HomePage> {
                                               child: Column(
                                                 children: [
                                                     Card(
-                                                      color: (task.important && !task.done)
-                                                          ? Colors.amber.withOpacity(0.12)
-                                                          : (task.inProgress
+                                                      color: (task.inProgress
                                                               ? Colors.green.withOpacity(0.10)
                                                               : null),
                                                     child: ListTile(
@@ -4065,10 +4063,11 @@ class _HomePageState extends State<HomePage> {
                                                       onTap: () =>
                                                           _toggleExpanded(i),
                                                       leading: IconButton(
-                                                        tooltip: 'done',
-                                                        icon: Icon(( _stagedDone[task.id] ?? task.done)
-                                                            ? Icons.radio_button_checked
-                                                            : Icons.radio_button_unchecked, color: _iconColor, size: 18),
+                                                      tooltip: 'done',
+                                                      icon: Icon(( _stagedDone[task.id] ?? task.done)
+                                                        ? Icons.radio_button_checked
+                                                        : Icons.radio_button_unchecked,
+                                                        color: ( (task.important && !task.done) ? Colors.amber : _iconColor), size: 18),
                                                         onPressed: () async {
                                                           final current = _stagedDone[task.id] ?? task.done;
                                                           final newVal = !current;
@@ -4140,7 +4139,7 @@ class _HomePageState extends State<HomePage> {
                                                                                 TextDecoration.none,
                                                                             color: task.done
                                                                                 ? _primaryTextColor.withOpacity(0.6)
-                                                                                : _primaryTextColor,
+                                                                                : (task.important ? Colors.amber : _primaryTextColor),
                                                                           ),
                                                                         ),
                                                                       ),
