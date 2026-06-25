@@ -9,7 +9,6 @@ Perfect for people who like to work on multiple things at once and who can quick
 
 The app also includes a stopwatch, manual time tracking, reminders, swipe actions, cloud synchronization, and Android notifications.
 
-
 ## Key features
 
 - Three task lists: Today, Backlog, and Done
@@ -20,6 +19,10 @@ The app also includes a stopwatch, manual time tracking, reminders, swipe action
 - Cloud sync with pairing and device management
 - Android notifications and desktop notifications
 - Reminders and alarms
+
+## Why Open Source and MIT?
+
+
 
 ## footnote
 
