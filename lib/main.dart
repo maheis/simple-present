@@ -16,7 +16,6 @@ import 'package:simple_present/sync/cloud_sync_client.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:simple_present/storage/json_storage.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 // sentinel to indicate "no change" in copyWith optional parameters
 const _noChange = Object();
@@ -710,23 +709,11 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
 
     await _loadToday();
-    // Request Android-specific runtime permissions (notifications)
-    unawaited(_requestAndroidPermissions());
     // Run cleanup of old Done tasks if enabled
     unawaited(_purgeOldDoneTasksIfEnabled());
     await _syncPullFromCloud();
     unawaited(_fetchServerVersion());
     _startCloudPullTimer();
-  }
-
-  Future<void> _requestAndroidPermissions() async {
-    try {
-      if (!Platform.isAndroid) return;
-      final status = await Permission.notification.status;
-      if (!status.isGranted) {
-        await Permission.notification.request();
-      }
-    } catch (_) {}
   }
 
   Future<void> _loadList(String filename, List<TaskItem> target) async {
