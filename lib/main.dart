@@ -4123,50 +4123,39 @@ class _HomePageState extends State<HomePage> {
                                                                   MainAxisSize
                                                                       .min,
                                                               children: [
-                                                                if (!(_stagedDone[task.id] ?? task.done) && task.scheduledAt != null)
-                                                                  Tooltip(
-                                                                    message: DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!),
-                                                                    child: InkWell(
-                                                                      onTap: () => _pickSchedule(i),
-                                                                          child: Row(
-                                                                        mainAxisSize: MainAxisSize.min,
-                                                                        children: [
-                                                                          Icon(Icons.event, color: _scheduleIconColor(task.scheduledAt!), size: 16),
-                                                                          const SizedBox(width: 6),
-                                                                          if (_showingBacklog || _currentFile == 'simplepresent_backlog.json')
-                                                                            Column(
-                                                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                                                // Calendar button with time below it (date shown in backlog)
+                                                                if (!(_stagedDone[task.id] ?? task.done))
+                                                                  Padding(
+                                                                    padding: const EdgeInsets.only(left: 4.0, right: 2.0),
+                                                                    child: Column(
+                                                                      mainAxisSize: MainAxisSize.min,
+                                                                      children: [
+                                                                        IconButton(
+                                                                          padding: const EdgeInsets.all(4),
+                                                                          constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                                                                          tooltip: task.scheduledAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!) : 'set schedule',
+                                                                          icon: Icon(Icons.calendar_today, size: 18, color: task.scheduledAt != null ? _scheduleIconColor(task.scheduledAt!) : _iconColor),
+                                                                          onPressed: () => _pickSchedule(i),
+                                                                        ),
+                                                                        if (task.scheduledAt != null)
+                                                                          Padding(
+                                                                            padding: const EdgeInsets.only(top: 2.0),
+                                                                            child: Column(
                                                                               mainAxisSize: MainAxisSize.min,
                                                                               children: [
                                                                                 Text(
                                                                                   DateFormat('HH:mm').format(task.scheduledAt!),
                                                                                   style: TextStyle(fontSize: 11, color: _scheduleIconColor(task.scheduledAt!)),
                                                                                 ),
-                                                                                Text(
-                                                                                  DateFormat('yyyy-MM-dd').format(task.scheduledAt!),
-                                                                                  style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                                                                                ),
+                                                                                if (_showingBacklog || _currentFile == 'simplepresent_backlog.json')
+                                                                                  Text(
+                                                                                    DateFormat('yyyy-MM-dd').format(task.scheduledAt!),
+                                                                                    style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                                                                  ),
                                                                               ],
-                                                                            )
-                                                                          else
-                                                                            Text(
-                                                                              DateFormat('HH:mm').format(task.scheduledAt!),
-                                                                              style: TextStyle(fontSize: 11, color: _scheduleIconColor(task.scheduledAt!)),
                                                                             ),
-                                                                        ],
-                                                                      ),
-                                                                    ),
-                                                                  ),
-                                                                // Small calendar button on the tile (hidden for done tasks)
-                                                                if (!(_stagedDone[task.id] ?? task.done))
-                                                                  Padding(
-                                                                    padding: const EdgeInsets.only(left: 4.0, right: 2.0),
-                                                                    child: IconButton(
-                                                                      padding: const EdgeInsets.all(4),
-                                                                      constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                                                                      tooltip: 'set schedule',
-                                                                      icon: Icon(Icons.calendar_today, size: 18, color: _iconColor),
-                                                                      onPressed: () => _pickSchedule(i),
+                                                                          ),
+                                                                      ],
                                                                     ),
                                                                   ),
                                                                 if (_currentFile ==

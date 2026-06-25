@@ -210,8 +210,7 @@
   - [x] kein stopuhr button mehr. bei in arbeit soll automatisch die stopuhr starten und stoppen wenn es nicht mehr in arbeit ist.
   - [x] kein "in arbeit" button mehr auf der aufgabe. swipen!
   - [ ] kontext menü
-  - [ ] nur kalender button soll angezeigt werden, uhrzeit soll unter den button!
-  - [ ] uhrzeit kein eigenes icon
+  - [x] uhrzeit soll unter den button und kein eigenes icon mehr haben
 - [ ] runter sortieren, sortiert "drüber"
 - [x] sync: eigenes zertifikat führt zu fehler?
 - [x] sync: neues peering soll warnen das altes verloren geht
