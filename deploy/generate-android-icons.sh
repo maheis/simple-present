@@ -115,15 +115,9 @@ cat > "$AD_DIR/ic_launcher_round.xml" <<EOF
 </adaptive-icon>
 EOF
 
-# Create legacy adaptive XML for API <26 by referencing the icon PNG
-for d in "mdpi" "hdpi" "xhdpi" "xxhdpi" "xxxhdpi"; do
-  DIR="$ANDROID_RES/mipmap-$d"
-  cat > "$DIR/ic_launcher.xml" <<EOF
-<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
-  android:src="@mipmap/ic_launcher"
-  android:antialias="true" />
-EOF
-done
+# NOTE: Do NOT place ic_launcher.xml inside mipmap-{dpi} folders when ic_launcher.png
+# already exists there — that causes "Duplicate resources" at Gradle merge time.
+# Adaptive XMLs belong only in mipmap-anydpi-v26/.
 
 # Notification XML (optional) - reference drawable
 DRAWABLE_DIR="$ANDROID_RES/drawable"
