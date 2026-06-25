@@ -224,7 +224,7 @@
 - [?] sync: jeder client moved aktuell beim ersten öffnen
 - [ ] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
-- [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.? 
+- [?] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.? 
 - [?] android: berechtigungen beim start erfragen (z.b. benachrichtigungen)
 - [ ] runter sortieren, sortiert "drüber"
 - [ ] sync: self signed certs prüfen (ca-chain)
