@@ -32,7 +32,7 @@ The stored data is used only to provide the app's functionality (storing your ta
 Processing is based on your consent and on the necessity to provide the app's functionality (contract performance). Local storage is necessary to provide the service and perform pre‑contractual measures.
 
 ## Retention and deletion
- 
+
 - Data remain on your device until you delete them or uninstall the app.
 - There is an optional setting to automatically delete completed tasks after X days (configurable in settings). This function deletes local Done entries according to your setting.
 
