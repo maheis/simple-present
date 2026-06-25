@@ -18,8 +18,10 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
 	private val CHANNEL_ID = "simple_present_channel"
+	private val PERMISSION_REQUEST_CODE = 1001
 	private var pendingTitle: String? = null
 	private var pendingBody: String? = null
+	private var pendingPermissionResult: MethodChannel.Result? = null
 
 	override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
 		super.configureFlutterEngine(flutterEngine)
@@ -37,6 +39,16 @@ class MainActivity : FlutterActivity() {
 					"bringToFront" -> {
 						bringAppToFront()
 						result.success(null)
+					}
+					else -> result.notImplemented()
+				}
+			}
+
+		MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "simple_present/permissions")
+			.setMethodCallHandler { call: MethodCall, result ->
+				when (call.method) {
+					"requestNotificationPermission" -> {
+						resultNotificationPermission(result)
 					}
 					else -> result.notImplemented()
 				}
@@ -72,7 +84,7 @@ class MainActivity : FlutterActivity() {
 				ActivityCompat.requestPermissions(
 					this,
 					arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-					1001
+					PERMISSION_REQUEST_CODE
 				)
 				// Permission requested; will show when user responds.
 				return
@@ -111,10 +123,39 @@ class MainActivity : FlutterActivity() {
 		startActivity(intent)
 	}
 
+	private fun resultNotificationPermission(result: MethodChannel.Result) {
+		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+			result.success(true)
+			return
+		}
+
+		val granted = ContextCompat.checkSelfPermission(
+			this,
+			Manifest.permission.POST_NOTIFICATIONS
+		) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+		if (granted) {
+			result.success(true)
+			return
+		}
+
+		pendingPermissionResult = result
+		ActivityCompat.requestPermissions(
+			this,
+			arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+			PERMISSION_REQUEST_CODE
+		)
+	}
+
 	override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
 		super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-		if (requestCode == 1001) {
-			if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+		if (requestCode == PERMISSION_REQUEST_CODE) {
+			val granted = grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+			pendingPermissionResult?.success(granted)
+			pendingPermissionResult = null
+
+			if (granted) {
 				val t = pendingTitle
 				val b = pendingBody
 				if (t != null || b != null) {

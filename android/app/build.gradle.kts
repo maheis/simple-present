@@ -24,7 +24,8 @@ android {
         applicationId = "de.maheis.simplepresent"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // Android 13+ baseline (API 33) as requested.
+        minSdk = 33
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

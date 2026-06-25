@@ -442,6 +442,8 @@ class _HomePageState extends State<HomePage> {
   bool _urgentFired = false;
   final MethodChannel _nativeWindowChannel =
       const MethodChannel('simple_present/window');
+    final MethodChannel _androidPermissionsChannel =
+      const MethodChannel('simple_present/permissions');
   Timer? _scheduledCheckTimer;
   Timer? _windowWatcherTimer;
   Timer? _autoSwitchTimer;
@@ -709,11 +711,21 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
 
     await _loadToday();
+    // Request Android 13+ notification permission on startup via native channel.
+    unawaited(_requestAndroidNotificationPermission());
     // Run cleanup of old Done tasks if enabled
     unawaited(_purgeOldDoneTasksIfEnabled());
     await _syncPullFromCloud();
     unawaited(_fetchServerVersion());
     _startCloudPullTimer();
+  }
+
+  Future<void> _requestAndroidNotificationPermission() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _androidPermissionsChannel
+          .invokeMethod<bool>('requestNotificationPermission');
+    } catch (_) {}
   }
 
   Future<void> _loadList(String filename, List<TaskItem> target) async {
