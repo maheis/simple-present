@@ -1762,7 +1762,7 @@ class _HomePageState extends State<HomePage> {
             await _nativeWindowChannel.invokeMethod('notify', <String, String>{
               'title': _appTitle,
               'body': 'due: ${t.text}',
-              'icon': 'assets/icons/icon.png',
+              'icon': 'assets/icons/color_transparent_icon.png',
             });
           } catch (_) {}
           try {
@@ -3182,7 +3182,7 @@ class _HomePageState extends State<HomePage> {
               await _nativeWindowChannel.invokeMethod('notify', <String, String>{
                 'title': _appTitle,
                 'body': 'You have been inactive for $_idleMinutes minutes',
-                'icon': 'assets/icons/icon.png',
+                'icon': 'assets/icons/color_transparent_icon.png',
               });
             } catch (_) {}
           }
@@ -3212,7 +3212,7 @@ class _HomePageState extends State<HomePage> {
           await _nativeWindowChannel.invokeMethod('notify', <String, String>{
             'title': _appTitle,
             'body': 'You have been inactive for $_idleMinutes minutes',
-            'icon': 'assets/icons/icon.png',
+            'icon': 'assets/icons/color_transparent_icon.png',
           });
         } catch (_) {}
       }
@@ -3276,7 +3276,7 @@ class _HomePageState extends State<HomePage> {
               await _nativeWindowChannel.invokeMethod('notify', <String, String>{
                 'title': _appTitle,
                 'body': 'You have been inactive for $_attentionMinutes minutes',
-                'icon': 'assets/icons/icon.png',
+                'icon': 'assets/icons/color_transparent_icon.png',
               });
             } catch (_) {}
           }
@@ -3304,7 +3304,7 @@ class _HomePageState extends State<HomePage> {
           await _nativeWindowChannel.invokeMethod('notify', <String, String>{
             'title': _appTitle,
             'body': 'You have been inactive for $_attentionMinutes minutes',
-            'icon': 'assets/icons/icon.png',
+            'icon': 'assets/icons/color_transparent_icon.png',
           });
         } catch (_) {}
       }
@@ -3341,7 +3341,7 @@ class _HomePageState extends State<HomePage> {
               await _nativeWindowChannel.invokeMethod('notify', <String, String>{
                 'title': _appTitle,
                 'body': 'You have been inactive for $_reminderMinutes minutes',
-                'icon': 'assets/icons/icon.png',
+                'icon': 'assets/icons/color_transparent_icon.png',
               });
             } catch (_) {}
           }
@@ -3369,7 +3369,7 @@ class _HomePageState extends State<HomePage> {
           await _nativeWindowChannel.invokeMethod('notify', <String, String>{
             'title': _appTitle,
             'body': 'You have been inactive for $_reminderMinutes minutes',
-            'icon': 'assets/icons/icon.png',
+            'icon': 'assets/icons/color_transparent_icon.png',
           });
         } catch (_) {}
       }
@@ -3406,7 +3406,7 @@ class _HomePageState extends State<HomePage> {
               await _nativeWindowChannel.invokeMethod('notify', <String, String>{
                 'title': _appTitle,
                 'body': 'You have been inactive for $_urgentMinutes minutes',
-                'icon': 'assets/icons/icon.png',
+                'icon': 'assets/icons/color_transparent_icon.png',
               });
             } catch (_) {}
           }
@@ -3434,7 +3434,7 @@ class _HomePageState extends State<HomePage> {
           await _nativeWindowChannel.invokeMethod('notify', <String, String>{
             'title': _appTitle,
             'body': 'You have been inactive for $_urgentMinutes minutes',
-            'icon': 'assets/icons/icon.png',
+            'icon': 'assets/icons/color_transparent_icon.png',
           });
         } catch (_) {}
       }
@@ -3562,10 +3562,10 @@ class _HomePageState extends State<HomePage> {
                                                     showIconFully ? 1.0 : 0.18,
                                                 child: Image.asset(
                                                   _showingBacklog
-                                                      ? 'assets/icons/backlog.png'
+                                                      ? 'assets/icons/color_transparent_backlog.png'
                                                       : (_showingDone
-                                                          ? 'assets/icons/done.png'
-                                                          : 'assets/icons/today.png'),
+                                                          ? 'assets/icons/color_transparent_done.png'
+                                                          : 'assets/icons/color_transparent_today.png'),
                                                   width: iconSize,
                                                   height: iconSize,
                                                 ),

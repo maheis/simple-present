@@ -113,16 +113,16 @@ static void window_method_call(FlMethodChannel *channel,
     {
       // Fallback: try to find a bundled icon from common asset locations
       const char *icon_candidates[] = {
-          "data/flutter_assets/assets/icons/icon.png",
-          "../data/flutter_assets/assets/icons/icon.png",
-          "flutter_assets/assets/icons/icon.png",
+          "data/flutter_assets/assets/icons/color_transparent_icon.png",
+          "../data/flutter_assets/assets/icons/color_transparent_icon.png",
+          "flutter_assets/assets/icons/color_transparent_icon.png",
           // Typical flutter run/build output locations
-          "build/linux/x64/debug/bundle/flutter_assets/assets/icons/icon.png",
-          "build/linux/x64/debug/bundle/flutter_assets/assets/icons/icon.svg",
-          "build/linux/x64/debug/flutter_assets/assets/icons/icon.png",
-          "data/flutter_assets/assets/icons/icon.svg",
-          "../data/flutter_assets/assets/icons/icon.svg",
-          "flutter_assets/assets/icons/icon.svg",
+          "build/linux/x64/debug/bundle/flutter_assets/assets/icons/color_transparent_icon.png",
+          "build/linux/x64/debug/bundle/flutter_assets/assets/icons/color_transparent_icon.svg",
+          "build/linux/x64/debug/flutter_assets/assets/icons/color_transparent_icon.png",
+          "data/flutter_assets/assets/icons/color_transparent_icon.svg",
+          "../data/flutter_assets/assets/icons/color_transparent_icon.svg",
+          "flutter_assets/assets/icons/color_transparent_icon.svg",
           NULL};
       for (int i = 0; icon_candidates[i] != NULL; ++i)
       {
@@ -330,20 +330,20 @@ static void my_application_activate(GApplication *application)
    * taskbar icon appears immediately without flickering. */
   const char *icon_candidates[] = {
       // direct asset locations (development)
-      "assets/icons/icon.png",
-      "../assets/icons/icon.png",
+      "assets/icons/color_transparent_icon.png",
+      "../assets/icons/color_transparent_icon.png",
       // SVG (original)
-      "data/flutter_assets/assets/icons/icon.svg",
-      "../data/flutter_assets/assets/icons/icon.svg",
-      "flutter_assets/assets/icons/icon.svg",
+      "data/flutter_assets/assets/icons/color_transparent_icon.svg",
+      "../data/flutter_assets/assets/icons/color_transparent_icon.svg",
+      "flutter_assets/assets/icons/color_transparent_icon.svg",
       // PNG fallback (added by user)
-      "data/flutter_assets/assets/icons/icon.png",
-      "../data/flutter_assets/assets/icons/icon.png",
-      "flutter_assets/assets/icons/icon.png",
+      "data/flutter_assets/assets/icons/color_transparent_icon.png",
+      "../data/flutter_assets/assets/icons/color_transparent_icon.png",
+      "flutter_assets/assets/icons/color_transparent_icon.png",
       // ICO fallback
-      "data/flutter_assets/assets/icons/icon.ico",
-      "../data/flutter_assets/assets/icons/icon.ico",
-      "flutter_assets/assets/icons/icon.ico",
+      "data/flutter_assets/assets/icons/color_transparent_icon.ico",
+      "../data/flutter_assets/assets/icons/color_transparent_icon.ico",
+      "flutter_assets/assets/icons/color_transparent_icon.ico",
       // System install location
       "/usr/share/icons/hicolor/scalable/apps/simple_present.svg",
       NULL};

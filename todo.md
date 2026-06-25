@@ -229,7 +229,7 @@
 - [ ] runter sortieren, sortiert "drüber"
 - [ ] sync: self signed certs prüfen (ca-chain)
 - [x] sync: peering aufheben und löschen
-- [ ] uninstall client: alle dateien löschen
+- [x] uninstall client: alle dateien löschen
 - [ ] inactivity reminder dynamischer (selbst hinzufügen, anzahl abstände etc.)
 - [?] sync: android soll als client stehen, nicht "localhost"i
 

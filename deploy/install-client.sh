@@ -54,7 +54,7 @@ esac
 
 # Install icon into user icon theme if an asset exists
 ICON_SRC=""
-for candidate in "$TARGET_DIR/data/flutter_assets/assets/icons/icon.png" "$TARGET_DIR/assets/icons/icon.png" "$TARGET_DIR/icon.png"; do
+for candidate in "$TARGET_DIR/data/flutter_assets/assets/icons/color_transparent_icon.png" "$TARGET_DIR/assets/icons/color_transparent_icon.png" "$TARGET_DIR/color_transparent_icon.png"; do
   if [ -f "$candidate" ]; then
     ICON_SRC="$candidate"
     break
