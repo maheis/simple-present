@@ -2268,15 +2268,25 @@ class _HomePageState extends State<HomePage> {
       }
       _stagedImportant.clear();
     }
-    // Apply staged inProgress changes
+    // Apply staged inProgress changes and automatically start/stop stopwatch
     if (_stagedInProgress.isNotEmpty) {
       for (final entry in _stagedInProgress.entries) {
         final id = entry.key;
         final val = entry.value;
         final idx = _today.indexWhere((t) => t.id == id);
         if (idx != -1) {
-          final now = val ? DateTime.now() : null;
-          _today[idx] = _today[idx].copyWith(inProgress: val, inProgressAt: now);
+          if (val == true) {
+            try {
+              await _startStopwatch(idx);
+            } catch (_) {}
+          } else {
+            try {
+              await _stopStopwatch(idx);
+            } catch (_) {}
+            // ensure inProgress flag is cleared
+            final t = _today[idx];
+            setState(() => _today[idx] = t.copyWith(inProgress: false, inProgressAt: null));
+          }
         }
       }
       _stagedInProgress.clear();
@@ -4174,32 +4184,7 @@ class _HomePageState extends State<HomePage> {
                                                                       },
                                                                     ),
                                                                   ),
-                                                                if (!_showingBacklog &&
-                                                                  !_showingDone &&
-                                                                  !(_stagedDone[task.id] ?? task.done))
-                                                                  Padding(
-                                                                    padding: const EdgeInsets.only(left: 2.0, right: 2.0),
-                                                                    child: Tooltip(
-                                                                      message: task.stopwatchRunning ? 'stopwatch running' : 'stopwatch',
-                                                                      child: IconButton(
-                                                                        padding: const EdgeInsets.all(4),
-                                                                        constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                                                                        iconSize: 18,
-                                                                        onPressed: () async {
-                                                                          if (task.stopwatchRunning) {
-                                                                            await _stopStopwatch(i);
-                                                                          } else {
-                                                                            await _startStopwatch(i);
-                                                                          }
-                                                                        },
-                                                                        icon: Icon(
-                                                                          Icons.timer,
-                                                                          color: task.stopwatchRunning ? Colors.redAccent : _iconColor,
-                                                                          size: 18,
-                                                                        ),
-                                                                      ),
-                                                                    ),
-                                                                  ),
+                                                                
                                                                 if (!_showingBacklog &&
                                                                   !(_stagedDone[task.id] ?? task.done))
                                                                   Padding(

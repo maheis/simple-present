@@ -207,9 +207,16 @@
 - [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.? 
 - [ ] android: berechtigungen beim start erfragen (z.b. benachrichtigungen)
 - [ ] buttons müssen (mindestens unter android) optimiert werden! kontextmenü?
+  - [x] kein stopuhr button mehr. bei in arbeit soll automatisch die stopuhr starten und stoppen wenn es nicht mehr in arbeit ist.
+  - [ ] kein "in arbeit" button mehr auf der aufgabe. swipen!
+  - [ ] kontext menü
+  - [ ] nur kalender button soll angezeigt werden, uhrzeit soll unter den button!
+  - [ ] uhrzeit kein eigenes icon
 - [ ] runter sortieren, sortiert "drüber"
 - [x] sync: eigenes zertifikat führt zu fehler?
 - [x] sync: neues peering soll warnen das altes verloren geht
+- [ ] sync: self signed certs prüfen (ca-chain)
+- [ ] uninstall client: alle dateien löschen
 
 ## notes
 
