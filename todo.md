@@ -206,18 +206,31 @@
 - [x] android: benachrichtungen klappen nicht
 - [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.? 
 - [ ] android: berechtigungen beim start erfragen (z.b. benachrichtigungen)
-- [ ] buttons müssen (mindestens unter android) optimiert werden! kontextmenü?
+- [x] buttons müssen (mindestens unter android) optimiert werden! kontextmenü?
   - [x] kein stopuhr button mehr. bei in arbeit soll automatisch die stopuhr starten und stoppen wenn es nicht mehr in arbeit ist.
   - [x] kein "in arbeit" button mehr auf der aufgabe. swipen!
-  - [ ] kontext menü
+  - [-] kontext menü (wird später bei bedarf umgesetzt)
   - [x] uhrzeit soll unter den button und kein eigenes icon mehr haben
 - [ ] runter sortieren, sortiert "drüber"
 - [x] sync: eigenes zertifikat führt zu fehler?
 - [x] sync: neues peering soll warnen das altes verloren geht
 - [ ] sync: self signed certs prüfen (ca-chain)
+- [ ] sync: peering aufheben und löschen
 - [ ] uninstall client: alle dateien löschen
 - [ ] inactivity reminder dynamischer (selbst hinzufügen, anzahl abstände etc.)
 - [ ] sortierung, in arbeit solle immer ganz oben sein
+        in arbeit + wichtig
+        in arbeit + uhrzeit in vergangenheit
+        in arbeit
+        in arbeit + uhrzeit in der zukunft
+        wichtig
+        uhrzeit in vergangenheit
+        uhrzeit in naher zukunft (<= 60 minuten)
+        rest
+        uhrzeit in der zukunft rest
+        fertig
+- [x] move backlog kaputt
+- [ ] "wichtig" braucht eine andere kennzeichnung. schrift in gelb!
 
 ## notes
 
