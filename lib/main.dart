@@ -2340,14 +2340,14 @@ class _HomePageState extends State<HomePage> {
                   // Insert into the appropriate list: Today if next is today, else backlog
                   if (_isSameDay(next, DateTime.now())) {
                     final List<TaskItem> todayList = [];
-                    await _loadList('simplepresent_today.json', todayList);
+                    await _loadList(_storage('simplepresent_today.json'), todayList);
                     todayList.insert(0, newTask);
-                    await _saveList('simplepresent_today.json', todayList);
+                    await _saveList(_storage('simplepresent_today.json'), todayList);
                   } else {
                     final List<TaskItem> backlogList = [];
-                    await _loadList('simplepresent_backlog.json', backlogList);
+                    await _loadList(_storage('simplepresent_backlog.json'), backlogList);
                     backlogList.insert(0, newTask);
-                    await _saveList('simplepresent_backlog.json', backlogList);
+                    await _saveList(_storage('simplepresent_backlog.json'), backlogList);
                   }
                 }
               }
@@ -2566,14 +2566,14 @@ class _HomePageState extends State<HomePage> {
       }
 
       final List<TaskItem> backlogList = [];
-      await _loadList('simplepresent_backlog.json', backlogList);
+      await _loadList(_storage('simplepresent_backlog.json'), backlogList);
       // insert at top so task appears first in backlog
       backlogList.insert(0, toStore);
-      await _saveList('simplepresent_backlog.json', backlogList);
+      await _saveList(_storage('simplepresent_backlog.json'), backlogList);
       // Persist time entry for this task (if using sqlite this appends a row)
       _upsertTimeEntry(toStore);
       // If we're currently showing backlog, reload to reflect the new top item
-      if (_showingBacklog || _currentFile == 'simplepresent_backlog.json') {
+      if (_showingBacklog || _currentFile == _storage('simplepresent_backlog.json')) {
         await _loadToday();
       }
       _showTopToast('task moved to backlog');
@@ -2607,13 +2607,13 @@ class _HomePageState extends State<HomePage> {
       }
 
       final List<TaskItem> backlogList = [];
-      await _loadList('simplepresent_backlog.json', backlogList);
+      await _loadList(_storage('simplepresent_backlog.json'), backlogList);
       // insert at top so task appears first in backlog
       backlogList.insert(0, toStore);
-      await _saveList('simplepresent_backlog.json', backlogList);
+      await _saveList(_storage('simplepresent_backlog.json'), backlogList);
       _upsertTimeEntry(toStore);
       // If we're currently showing backlog, reload to reflect the new top item
-      if (_showingBacklog || _currentFile == 'simplepresent_backlog.json') {
+      if (_showingBacklog || _currentFile == _storage('simplepresent_backlog.json')) {
         await _loadToday();
       }
 
@@ -2642,23 +2642,23 @@ class _HomePageState extends State<HomePage> {
 
       // Insert into the same logical list where we're currently viewing, default to backlog for Done view
       String targetFile;
-      if (_currentFile == 'simplepresent_backlog.json') {
-        targetFile = 'simplepresent_backlog.json';
+      if (_currentFile == _storage('simplepresent_backlog.json')) {
+        targetFile = _storage('simplepresent_backlog.json');
         final List<TaskItem> backlogList = [];
         await _loadList(targetFile, backlogList);
         backlogList.insert(0, newItem);
         await _saveList(targetFile, backlogList);
         _upsertTimeEntry(newItem);
-      } else if (_currentFile == 'simplepresent_done.json') {
+      } else if (_currentFile == _storage('simplepresent_done.json')) {
         // when duplicating from Done, put the copy in Backlog and switch view to Backlog
-        targetFile = 'simplepresent_backlog.json';
+        targetFile = _storage('simplepresent_backlog.json');
         final List<TaskItem> backlogList = [];
         await _loadList(targetFile, backlogList);
         backlogList.insert(0, newItem);
         await _saveList(targetFile, backlogList);
         _upsertTimeEntry(newItem);
       } else {
-        targetFile = 'simplepresent_today.json';
+        targetFile = _storage('simplepresent_today.json');
         final List<TaskItem> todayList = [];
         await _loadList(targetFile, todayList);
         todayList.insert(0, newItem);
@@ -2728,9 +2728,9 @@ class _HomePageState extends State<HomePage> {
     // Ensure persisted lists also have the schedule cleared for this task id
     try {
       final files = [
-        'simplepresent_today.json',
-        'simplepresent_backlog.json',
-        'simplepresent_done.json'
+        _storage('simplepresent_today.json'),
+        _storage('simplepresent_backlog.json'),
+        _storage('simplepresent_done.json')
       ];
       final changedFiles = <String>[];
       for (final f in files) {
@@ -2906,7 +2906,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _setDone(int index, bool value) async {
     // If we're in the Done view and the user unchecks done, move the task to Backlog
     final original = _today[index];
-    if (!value && _currentFile == 'simplepresent_done.json') {
+    if (!value && _currentFile == _storage('simplepresent_done.json')) {
       try {
         final restored = original.copyWith(done: false, completedAt: null);
         setState(() {
@@ -2916,9 +2916,9 @@ class _HomePageState extends State<HomePage> {
         await _saveToday(); // persist removal from done file
 
         final List<TaskItem> backlogList = [];
-        await _loadList('simplepresent_backlog.json', backlogList);
+        await _loadList(_storage('simplepresent_backlog.json'), backlogList);
         backlogList.insert(0, restored);
-        await _saveList('simplepresent_backlog.json', backlogList);
+        await _saveList(_storage('simplepresent_backlog.json'), backlogList);
 
         _showTopToast('task moved to backlog');
       } catch (_) {
@@ -2929,7 +2929,7 @@ class _HomePageState extends State<HomePage> {
     }
 
     // If we're in the Backlog view and the user marks a task done, move it to Done list
-    if (value && _currentFile == 'simplepresent_backlog.json') {
+    if (value && _currentFile == _storage('simplepresent_backlog.json')) {
       try {
         // stop running stopwatch for this task before moving to Done
         await _stopStopwatch(index);
@@ -2962,14 +2962,14 @@ class _HomePageState extends State<HomePage> {
                   scheduledAt: next);
               if (_isSameDay(next, DateTime.now())) {
                 final List<TaskItem> todayList = [];
-                await _loadList('simplepresent_today.json', todayList);
+                await _loadList(_storage('simplepresent_today.json'), todayList);
                 todayList.insert(0, newTask);
-                await _saveList('simplepresent_today.json', todayList);
+                await _saveList(_storage('simplepresent_today.json'), todayList);
               } else {
                 final List<TaskItem> backlogList = [];
-                await _loadList('simplepresent_backlog.json', backlogList);
+                await _loadList(_storage('simplepresent_backlog.json'), backlogList);
                 backlogList.insert(0, newTask);
-                await _saveList('simplepresent_backlog.json', backlogList);
+                await _saveList(_storage('simplepresent_backlog.json'), backlogList);
               }
             }
           }
@@ -3773,7 +3773,7 @@ class _HomePageState extends State<HomePage> {
                                                     left: 20),
                                                 child: (_showingBacklog ||
                                                     _currentFile ==
-                                                      'simplepresent_backlog.json')
+                                                      _storage('simplepresent_backlog.json'))
                                                   ? Row(
                                                     mainAxisSize:
                                                       MainAxisSize.min,
@@ -3877,7 +3877,7 @@ class _HomePageState extends State<HomePage> {
                                                         .startToEnd) {
                                                   // In Backlog view: Right swipe -> move to Today
                                                   if (_currentFile ==
-                                                          'simplepresent_backlog.json' ||
+                                                          _storage('simplepresent_backlog.json') ||
                                                       _showingBacklog) {
                                                     await _moveFromBacklog(i);
                                                     return false;
@@ -3977,13 +3977,13 @@ class _HomePageState extends State<HomePage> {
                                                           final current = _stagedDone[task.id] ?? task.done;
                                                           final newVal = !current;
                                                           // If we're in Done view and unchecking, perform immediate move back to Today
-                                                          if (!newVal && _currentFile == 'simplepresent_done.json' && task.done) {
+                                                          if (!newVal && _currentFile == _storage('simplepresent_done.json') && task.done) {
                                                             await _setDone(i, newVal);
                                                             return;
                                                           }
                                                            // If we're in Backlog view and marking done, mirror Today behavior:
                                                            // set the radio button immediately (via _stagedDone) and start a short timer
-                                                           if (_currentFile == 'simplepresent_backlog.json' && !task.done) {
+                                                           if (_currentFile == _storage('simplepresent_backlog.json') && !task.done) {
                                                               if (newVal) {
                                                                 // set visual state immediately
                                                                 setState(() => _stagedDone[task.id] = true);
@@ -4147,7 +4147,7 @@ class _HomePageState extends State<HomePage> {
                                                                                   DateFormat('HH:mm').format(task.scheduledAt!),
                                                                                   style: TextStyle(fontSize: 11, color: _scheduleIconColor(task.scheduledAt!)),
                                                                                 ),
-                                                                                if (_showingBacklog || _currentFile == 'simplepresent_backlog.json')
+                                                                                if (_showingBacklog || _currentFile == _storage('simplepresent_backlog.json'))
                                                                                   Text(
                                                                                     DateFormat('yyyy-MM-dd').format(task.scheduledAt!),
                                                                                     style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -4159,8 +4159,8 @@ class _HomePageState extends State<HomePage> {
                                                                     ),
                                                                   ),
                                                                 if (_currentFile ==
-                                                                        'simplepresent_backlog.json' ||
-                                                                    _showingBacklog)
+                                                                    _storage('simplepresent_backlog.json') ||
+                                                                  _showingBacklog)
                                                                   Padding(
                                                                     padding: const EdgeInsets.only(left: 4.0, right: 2.0),
                                                                     child: IconButton(
