@@ -1,7 +1,7 @@
 # ToDo
 
 - [x] Programmiersprache, Framework, Frontend etc.
-    Wenn Desktop-first + Go-Kenntnisse: Go + Wails ist gut geeignet — native Desktop-Apps mit moderner Web-UI, einfacher Zugriff auf Go-Bibliotheken, deutlich kleinere Bundles als Electron. Nachteil: keine Android-Unterstützung (Wails ist desktop-only).   
+    Wenn Desktop-first + Go-Kenntnisse: Go + Wails ist gut geeignet — native Desktop-Apps mit moderner Web-UI, einfacher Zugriff auf Go-Bibliotheken, deutlich kleinere Bundles als Electron. Nachteil: keine Android-Unterstützung (Wails ist desktop-only).
     **Wenn Desktop + Mobile (Android) aus einer Hand: Flutter ist die beste Wahl — Windows, Linux und Android mit einem einzigen UI-Framework, sehr gute UI-Design-Tools, starke Cross‑Platform-Qualität. Sprache: Dart.**
     Wenn Web-Stack bevorzugt + schlanke Desktop-Bundles: Tauri (Rust backend + Web-UI) ist sehr leichtgewichtig für Desktop; Mobile ist aber nicht so reif.
     Andere Optionen: React Native / Capacitor (Web → Mobile, Desktop per Electron/Proton), Kotlin Multiplatform/Compose Multiplatform (gute native Mobile-Optionen), .NET MAUI (C#, mobile + desktop aber Linux-Ökosystem schwächer).
@@ -93,8 +93,6 @@
 - [x] Schriftgröße anpassbar machen (und nicht im Zoom)
 - [x] Textfilter -> Wird aktuell nicht umgesetzt, da die Listen nicht so lang werden sollen!
 - [x] kleiner zoomen / Schrift wird in den Einstellungen seperat eingestellt!
-    Ich verstehe jetzt die Ursache vollständig. Das Problem ist nicht die Icongröße, sondern ListTile selbst: Flutter's ListTile hat eine interne Mindesthöhe (~56/36dp) die sich nicht wegdiskutieren lässt. Die sauberste Lösung: Card + ListTile in ein SizedBox(height: _tileHeight) + ClipRect einwickeln. Icons können dabei so groß bleiben wie sie wollen — sie werden einfach abgeschnitten.
-    Die Lösung: Card(clipBehavior: Clip.hardEdge) umschließt jetzt ein SizedBox(height: _tileHeight). Damit wird die Zeile auf genau _tileHeight Pixel abgeschnitten — egal was ListTile, Icons oder Padding intern beanspruchen. Die Icons können also in ihrer ursprünglichen Größe bleiben und müssen nicht mitskalieren.
 - [x] Client Version ausgeben
 - [x] linux binary namen anpassen (simplepresent)
 - [x] times spent und stopuhr sollten doch aufaddiert werden.
@@ -108,16 +106,16 @@
   - [x] eigener api-server (optional hinter Apache Proxy) (linux only applikation in go?)
   - [x] regerngistrierung soll automatisch und anonym erfolgen, man kann als server "maheis.de" auswählen oder eigene serveradresse eingeben (selfhosted)
   - [x] server registrierung serverseitig beschränkt auf x user (mail an den admin bei erreichen von 75%, 90% und 100% der Kapazität)
-  - [x] wenn konto nicht länger als 30(konfigurierbar) tage nicht genutzt wird, soll der account archiviert werden und ein neuer platz frei werden 
+  - [x] wenn konto nicht länger als 30(konfigurierbar) tage nicht genutzt wird, soll der account archiviert werden und ein neuer platz frei werden
   - [x] warnung 14/7 tage vor archivierung an den anwender (in app) und info bei registrierung das der account aktiv zu nutzen ist und nach 30 tagen nicht nutztung archiviert wird
   - [x] bei registrierung wird für den account eine word-phrasen erstellt und im account gespeichert (in app für den anwender sichtbar+qr-code). mit dieser wird der accoutn identifiziert, synchronisiert und verschlüsselt (ende-zu-ende verschlüsselung, server speichert nur die verschlüsselten daten)
-  - [x] andere clients können mit word-phrase angebunden werden und synchronisieren (z.B. über QR-Code scannen oder manuell eingeben) 
+  - [x] andere clients können mit word-phrase angebunden werden und synchronisieren (z.B. über QR-Code scannen oder manuell eingeben)
   - [x] Sicherheit: TLS mandatory, JWT or HMAC device tokens, device revocation endpoint, rate limits, per-account quotas.
   - [x] Sync protocol: push (client → server with item diffs) and pull (since timestamp/version); include tombstones and idempotency keys.
   - [x] Conflict strategy: LWW default + expose conflict list endpoint for manual merge; record original timestamps + origin device for diagnostics.
   - [x] Server müssen nach ändern / koppeln gespeichert werden! (Es kommt jetzt eine Warnung beim schließen wenn es nicht gespeichert ist)
-  - [x] sync stabilisieren! 2 aufgaben gleichzeitig anlegen führt zum verlust einer aufgabe! 
-        ich glaube die aufgaben sollten einzeln synchronsiert und in der db gespeichert werden. aktuell sieht es so aus als würde pro client immer ein ganzer block synchronisiert bzw. in einen datensatz gespeichert#https://www.amazon.de/gp/video/detail/B0BYZ93SHM/ref=atv_hm_hom_c_pEHQ18_5_1?jic=8%7CEgNhbGw%3D
+  - [x] sync stabilisieren! 2 aufgaben gleichzeitig anlegen führt zum verlust einer aufgabe!
+        ich glaube die aufgaben sollten einzeln synchronsiert und in der db gespeichert werden. aktuell sieht es so aus als würde pro client immer ein ganzer block synchronisiert bzw. in einen datensatz gespeichert.
   - [x] Cloud-Profil schützen mit einer PIN die der Server auch kennt und die zwischen den geräten geprüft wird beim einfügen neuer clients.
   - [x] Server Version ausloggen
   - [x] Server / CLient Version abgleichen und Warnung ausgeben wenn Client zu alt ist
@@ -211,31 +209,41 @@
 - [x] sync: peering aufheben und löschen
 - [x] uninstall client: alle dateien löschen
 - [x] sync: android soll als client stehen, nicht "localhost"i
+- [x] datenschutzerklärung
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
+- [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Worklog an Aufgaben...
-- [ ] Reihenfolge auch über andere Gruppen hinaus und dann optisch einsortieren
+- [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
 - [ ] Web Applikation
-- [ ] animation: 
+- [ ] animation:
   - [ ] aufklappen/zuklappen
   - [ ] positionsveränderungen
   - [ ] verschieben in andere listen
   - [ ] wackeln als animation
+- [ ] Reihenfolge auch über andere Gruppen hinaus und dann optisch einsortieren
 - [ ] Abhängigkeiten Reduzieren
   - [x] sqlite3.dll
   - [ ] mehr?
-- [ ] datenschutzerklärung
+  - [ ] Aufräumen (ois)
 - [?] sync: jeder client moved aktuell beim ersten öffnen
 - [ ] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
-- [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
-- [?] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.? 
+- [?] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
+      notification funktioniert mit weißen icon.
+      kleines app icon in der taks auswahl und benachrichtigung klappt auch
+      app icon ist 4 eckig auf weißem grund (rund)
 - [ ] runter sortieren, sortiert "drüber"
 - [ ] sync: self signed certs prüfen (ca-chain)
 - [ ] inactivity reminder dynamischer (selbst hinzufügen, anzahl abstände etc.)
+- [ ] android: aktionen in der notification (erledigt, in arbeit)
+- [ ] combobox "font" breiter!
+- [ ] sync: nur eingerät sollte löschen aktiv haben!
+- [ ] save button in "sie haben änderungen dialog"
+- [ ] toasts müssen weniger werden...(task update, sync, etc.)
+- [ ] swipe muss ohne zeitverzögerung passieren?! braucht es die überhaupt noch?
 
 ## notes
 
-- [ ] Übersetzung
+- [ ] Übersetzung! Deutsch....
 - [ ] LLM-Integration: Automatisches Generieren von Unteraufgaben/Schritten aus der Hauptaufgabe, Vorschläge für Notizen/Lösungen basierend auf der Aufgabe, intelligente Sortierung des Backlogs basierend auf Wichtigkeit und Dringlichkeit.
 - [ ] Dark Mode: Unterstützung für dunkle und helle Designs, um die Benutzererfahrung zu verbessern und die Augenbelastung zu reduzieren.
 - [ ] Barrierefreiheit: Unterstützung für Screenreader, Tastaturnavigation und andere Barrierefreiheitsfunktionen, um die App für alle Benutzer zugänglich zu machen.
