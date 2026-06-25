@@ -59,6 +59,14 @@ jobs:
               echo "Note: deploy/install-client.sh not found, skipping"
             fi
 
+            # Include client uninstaller script if present
+            if [ -f "deploy/uninstall-client.sh" ]; then
+              cp "deploy/uninstall-client.sh" "${stage_dir}/uninstall-client.sh"
+              chmod +x "${stage_dir}/uninstall-client.sh"
+            else
+              echo "Note: deploy/uninstall-client.sh not found, skipping"
+            fi
+
             tar -czf release_dist/simplepresent-linux.tar.gz -C "${stage_dir}" .
           else
             echo "ERROR: build output not found: expected build/linux/**/release/bundle"
