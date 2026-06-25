@@ -16,6 +16,7 @@ import 'package:simple_present/sync/cloud_sync_client.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:simple_present/storage/json_storage.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 // sentinel to indicate "no change" in copyWith optional parameters
 const _noChange = Object();
@@ -51,7 +52,6 @@ class TimeEntry {
         : 0;
     return blocks * 15 + workMinutes;
   }
-
   String get statusLabel {
     if (taskDone) return 'fertig';
     if (taskInProgress) return 'in Arbeit';
@@ -710,11 +710,23 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
 
     await _loadToday();
+    // Request Android-specific runtime permissions (notifications)
+    unawaited(_requestAndroidPermissions());
     // Run cleanup of old Done tasks if enabled
     unawaited(_purgeOldDoneTasksIfEnabled());
     await _syncPullFromCloud();
     unawaited(_fetchServerVersion());
     _startCloudPullTimer();
+  }
+
+  Future<void> _requestAndroidPermissions() async {
+    try {
+      if (!Platform.isAndroid) return;
+      final status = await Permission.notification.status;
+      if (!status.isGranted) {
+        await Permission.notification.request();
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadList(String filename, List<TaskItem> target) async {
@@ -5106,7 +5118,7 @@ class _SettingsPageState extends State<SettingsPage> {
     cloudDeviceId = readString('cloudDeviceId', '');
     cloudToken = readString('cloudToken', '');
     cloudWordPhrase = readString('cloudWordPhrase', '');
-    cloudDeviceName = readString('cloudDeviceName', Platform.localHostname);
+    cloudDeviceName = readString('cloudDeviceName', Platform.isAndroid ? 'android' : Platform.localHostname);
     cloudPIN = readString('cloudPIN', '');
     cloudAllowInsecureTls = readBool('cloudAllowInsecureTls', false);
     autoPurgeDoneEnabled = readBool('autoPurgeDoneEnabled', false);
@@ -5486,7 +5498,7 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       final result = await client.registerFirstClient(
         deviceName: cloudDeviceName.trim().isEmpty
-            ? Platform.localHostname
+            ? (Platform.isAndroid ? 'android' : Platform.localHostname)
             : cloudDeviceName.trim(),
         phrase: cloudWordPhrase,
         pin: cloudPIN,
@@ -5559,7 +5571,7 @@ class _SettingsPageState extends State<SettingsPage> {
       final result = await client.pairClient(
         accountId: cloudAccountId.trim(),
         deviceName: cloudDeviceName.trim().isEmpty
-            ? Platform.localHostname
+            ? (Platform.isAndroid ? 'android' : Platform.localHostname)
             : cloudDeviceName.trim(),
         phrase: cloudWordPhrase,
         pin: cloudPIN,
@@ -5588,6 +5600,34 @@ class _SettingsPageState extends State<SettingsPage> {
         });
       }
     }
+  }
+
+  Future<void> _confirmAndRemovePeering() async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('remove peering?'),
+        content: const Text('This will clear the cloud server, account and device registration from this client. Continue?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('cancel')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('remove')),
+        ],
+      ),
+    );
+    if (proceed != true) return;
+
+    // Return a partial result with cleared cloud fields. _openSettings will apply and persist.
+    final result = <String, dynamic>{
+      'cloudServerUrl': '',
+      'cloudAccountId': '',
+      'cloudDeviceId': '',
+      'cloudToken': '',
+      'cloudWordPhrase': '',
+      'cloudDeviceName': (Platform.isAndroid ? 'android' : Platform.localHostname),
+      'cloudPIN': '',
+      'cloudAllowInsecureTls': false,
+    };
+    if (mounted) Navigator.of(context).pop(result);
   }
 
   @override
@@ -5995,6 +6035,23 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ],
               ),
+                      const SizedBox(height: 8),
+                      // Remove peering / clear cloud configuration
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.redAccent,
+                                side: const BorderSide(color: Colors.redAccent),
+                              ),
+                              onPressed: _cloudBusy ? null : () => _confirmAndRemovePeering(),
+                              icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
+                              label: const Text('remove peering (clear cloud config)', style: TextStyle(color: Colors.redAccent)),
+                            ),
+                          ),
+                        ],
+                      ),
               const SizedBox(height: 8),
               SelectableText(
                 'device id: $cloudDeviceId\ntoken: ${cloudToken.isEmpty ? '-' : cloudToken}',

@@ -186,6 +186,27 @@
   - [x] startmenü
   - [x] app
 - [x] sync: sync-button geht nicht. erst selbst eine änderung an einer aufgabe im client führt zu sync
+- [x] android: benachrichtungen klappen nicht
+- [x] buttons müssen (mindestens unter android) optimiert werden! kontextmenü?
+  - [x] kein stopuhr button mehr. bei in arbeit soll automatisch die stopuhr starten und stoppen wenn es nicht mehr in arbeit ist.
+  - [x] kein "in arbeit" button mehr auf der aufgabe. swipen!
+  - [-] kontext menü (wird später bei bedarf umgesetzt)
+  - [x] uhrzeit soll unter den button und kein eigenes icon mehr haben
+- [x] sync: eigenes zertifikat führt zu fehler?
+- [x] sync: neues peering soll warnen das altes verloren geht
+- [x] sortierung, in arbeit solle immer ganz oben sein
+        in arbeit + wichtig
+        in arbeit + uhrzeit in vergangenheit
+        in arbeit
+        in arbeit + uhrzeit in der zukunft
+        wichtig
+        uhrzeit in vergangenheit
+        uhrzeit in naher zukunft (<= 60 minuten)
+        rest
+        uhrzeit in der zukunft rest
+        fertig
+- [x] move backlog kaputt
+- [x] "wichtig" braucht eine andere kennzeichnung. schrift in gelb!
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [ ] Worklog an Aufgaben...
@@ -203,34 +224,14 @@
 - [?] sync: jeder client moved aktuell beim ersten öffnen
 - [ ] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
-- [x] android: benachrichtungen klappen nicht
 - [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.? 
-- [ ] android: berechtigungen beim start erfragen (z.b. benachrichtigungen)
-- [x] buttons müssen (mindestens unter android) optimiert werden! kontextmenü?
-  - [x] kein stopuhr button mehr. bei in arbeit soll automatisch die stopuhr starten und stoppen wenn es nicht mehr in arbeit ist.
-  - [x] kein "in arbeit" button mehr auf der aufgabe. swipen!
-  - [-] kontext menü (wird später bei bedarf umgesetzt)
-  - [x] uhrzeit soll unter den button und kein eigenes icon mehr haben
+- [?] android: berechtigungen beim start erfragen (z.b. benachrichtigungen)
 - [ ] runter sortieren, sortiert "drüber"
-- [x] sync: eigenes zertifikat führt zu fehler?
-- [x] sync: neues peering soll warnen das altes verloren geht
 - [ ] sync: self signed certs prüfen (ca-chain)
-- [ ] sync: peering aufheben und löschen
+- [x] sync: peering aufheben und löschen
 - [ ] uninstall client: alle dateien löschen
 - [ ] inactivity reminder dynamischer (selbst hinzufügen, anzahl abstände etc.)
-- [x] sortierung, in arbeit solle immer ganz oben sein
-        in arbeit + wichtig
-        in arbeit + uhrzeit in vergangenheit
-        in arbeit
-        in arbeit + uhrzeit in der zukunft
-        wichtig
-        uhrzeit in vergangenheit
-        uhrzeit in naher zukunft (<= 60 minuten)
-        rest
-        uhrzeit in der zukunft rest
-        fertig
-- [x] move backlog kaputt
-- [x] "wichtig" braucht eine andere kennzeichnung. schrift in gelb!
+- [?] sync: android soll als client stehen, nicht "localhost"i
 
 ## notes
 
