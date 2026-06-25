@@ -40,24 +40,24 @@ if [ -f "$SVG_FOREGROUND" ]; then cp "$SVG_FOREGROUND" "$ANDROID_RES/raw/foregro
 if [ -f "$SVG_BACKGROUND" ]; then cp "$SVG_BACKGROUND" "$ANDROID_RES/raw/background_icon.svg"; fi
 if [ -f "$SVG_NOTIFICATION" ]; then cp "$SVG_NOTIFICATION" "$ANDROID_RES/raw/notification_icon.svg"; fi
 
-# Create mipmap dirs and generate launcher PNGs (legacy)
+# Create mipmap dirs and generate launcher PNGs (legacy, fully opaque)
 for d in "mdpi" "hdpi" "xhdpi" "xxhdpi" "xxxhdpi"; do
   DIR="$ANDROID_RES/mipmap-$d"
   mkdir -p "$DIR"
   size=${LAUNCHER_SIZES[$d]}
-  if [ -f "$SVG_FOREGROUND" ]; then
+  if [ -f "$SVG_BACKGROUND" ]; then
     OUT="$DIR/ic_launcher.png"
-    echo "Generating $OUT ($size)x$size from foreground SVG"
+    echo "Generating $OUT ($size)x$size from non-transparent background SVG"
     if [ "$CONVERTER" = "rsvg-convert" ]; then
-      rsvg-convert -w "$size" "$SVG_FOREGROUND" -o "$OUT"
+      rsvg-convert -w "$size" "$SVG_BACKGROUND" -o "$OUT"
     elif [ "$CONVERTER" = "inkscape" ]; then
-      inkscape "$SVG_FOREGROUND" $CONV_ARGS="$size" -o "$OUT"
+      inkscape "$SVG_BACKGROUND" $CONV_ARGS="$size" -o "$OUT"
     else
-      convert "$SVG_FOREGROUND" -resize ${size}x${size} "$OUT"
+      convert "$SVG_BACKGROUND" -resize ${size}x${size} "$OUT"
     fi
   fi
   # create round copy same as launcher
-  if [ -f "$SVG_FOREGROUND" ]; then
+  if [ -f "$SVG_BACKGROUND" ]; then
     OUTR="$DIR/ic_launcher_round.png"
     cp -f "$DIR/ic_launcher.png" "$OUTR"
   fi
@@ -84,9 +84,16 @@ done
 # Adaptive icon: put foreground/background bitmaps into mipmap-anydpi-v26
 AD_DIR="$ANDROID_RES/mipmap-anydpi-v26"
 mkdir -p "$AD_DIR"
-# prefer high-res foreground/background from xxxhdpi if available
-if [ -f "$ANDROID_RES/mipmap-xxxhdpi/ic_launcher.png" ]; then
-  cp "$ANDROID_RES/mipmap-xxxhdpi/ic_launcher.png" "$AD_DIR/ic_launcher_foreground.png"
+# foreground should stay transparent; do not copy full launcher PNG here
+if [ -f "$SVG_FOREGROUND" ]; then
+  FG_OUT="$AD_DIR/ic_launcher_foreground.png"
+  if [ "$CONVERTER" = "rsvg-convert" ]; then
+    rsvg-convert -w 192 "$SVG_FOREGROUND" -o "$FG_OUT"
+  elif [ "$CONVERTER" = "inkscape" ]; then
+    inkscape "$SVG_FOREGROUND" $CONV_ARGS=192 -o "$FG_OUT"
+  else
+    convert "$SVG_FOREGROUND" -resize 192x192 "$FG_OUT"
+  fi
 fi
 if [ -f "$SVG_BACKGROUND" ]; then
   # generate a background image at 192px
@@ -119,17 +126,7 @@ EOF
 # already exists there — that causes "Duplicate resources" at Gradle merge time.
 # Adaptive XMLs belong only in mipmap-anydpi-v26/.
 
-# Notification XML (optional) - reference drawable
-DRAWABLE_DIR="$ANDROID_RES/drawable"
-mkdir -p "$DRAWABLE_DIR"
-cat > "$DRAWABLE_DIR/ic_stat_notify.xml" <<EOF
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <!-- fallback: use bitmap if vector not provided -->
-</vector>
-EOF
+# Remove placeholder default drawable if present; density PNGs should be used.
+rm -f "$ANDROID_RES/drawable/ic_stat_notify.xml"
 
 echo "Icon generation finished. Please review files under $ANDROID_RES/* and commit them."

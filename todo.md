@@ -207,6 +207,10 @@
         fertig
 - [x] move backlog kaputt
 - [x] "wichtig" braucht eine andere kennzeichnung. schrift in gelb!
+- [x] android: berechtigungen beim start erfragen (z.b. benachrichtigungen)
+- [x] sync: peering aufheben und löschen
+- [x] uninstall client: alle dateien löschen
+- [x] sync: android soll als client stehen, nicht "localhost"i
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md)
 - [ ] Worklog an Aufgaben...
@@ -225,13 +229,9 @@
 - [ ] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
 - [?] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.? 
-- [?] android: berechtigungen beim start erfragen (z.b. benachrichtigungen)
 - [ ] runter sortieren, sortiert "drüber"
 - [ ] sync: self signed certs prüfen (ca-chain)
-- [x] sync: peering aufheben und löschen
-- [x] uninstall client: alle dateien löschen
 - [ ] inactivity reminder dynamischer (selbst hinzufügen, anzahl abstände etc.)
-- [?] sync: android soll als client stehen, nicht "localhost"i
 
 ## notes
 
