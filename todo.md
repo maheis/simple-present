@@ -208,7 +208,7 @@
 - [ ] android: berechtigungen beim start erfragen (z.b. benachrichtigungen)
 - [ ] buttons müssen (mindestens unter android) optimiert werden! kontextmenü?
   - [x] kein stopuhr button mehr. bei in arbeit soll automatisch die stopuhr starten und stoppen wenn es nicht mehr in arbeit ist.
-  - [ ] kein "in arbeit" button mehr auf der aufgabe. swipen!
+  - [x] kein "in arbeit" button mehr auf der aufgabe. swipen!
   - [ ] kontext menü
   - [ ] nur kalender button soll angezeigt werden, uhrzeit soll unter den button!
   - [ ] uhrzeit kein eigenes icon
@@ -217,6 +217,8 @@
 - [x] sync: neues peering soll warnen das altes verloren geht
 - [ ] sync: self signed certs prüfen (ca-chain)
 - [ ] uninstall client: alle dateien löschen
+- [ ] inactivity reminder dynamischer (selbst hinzufügen, anzahl abstände etc.)
+- [ ] sortierung, in arbeit solle immer ganz oben sein
 
 ## notes
 

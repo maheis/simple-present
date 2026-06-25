@@ -4185,55 +4185,7 @@ class _HomePageState extends State<HomePage> {
                                                                     ),
                                                                   ),
                                                                 
-                                                                if (!_showingBacklog &&
-                                                                  !(_stagedDone[task.id] ?? task.done))
-                                                                  Padding(
-                                                                    padding: const EdgeInsets.only(left: 2.0, right: 2.0),
-                                                                    child: IconButton(
-                                                                      padding: const EdgeInsets.all(4),
-                                                                      constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                                                                      tooltip: task.inProgress && !task.done ? 'remove in progress' : 'mark in progress',
-                                                                      icon: Icon(
-                                                                          Icons.construction,
-                                                                          color: ((_stagedInProgress[task.id] ?? task.inProgress) && !(_stagedDone[task.id] ?? task.done)) ? Colors.greenAccent.shade200 : Theme.of(context).colorScheme.onSurfaceVariant,
-                                                                        size: 18,
-                                                                      ),
-                                                                      onPressed: () async {
-                                                                          final task = _today[i];
-                                                                          final wasInProgress = _stagedInProgress[task.id] ?? task.inProgress;
-
-                                                                          // If the task is done and we're showing the Done list, move it back to Today as in-progress (keep immediate behavior)
-                                                                          if (( _stagedDone[task.id] ?? task.done) && _currentFile == 'simplepresent_done.json') {
-                                                                            try {
-                                                                              final restored = task.copyWith(done: false, inProgress: true, inProgressAt: DateTime.now(), completedAt: null);
-                                                                              setState(() {
-                                                                                _today.removeAt(i);
-                                                                                _expanded.clear();
-                                                                              });
-                                                                              await _saveToday(); // persist removal from done file
-
-                                                                              final List<TaskItem> todayList = [];
-                                                                              await _loadList(_storage('simplepresent_today.json'), todayList);
-                                                                              todayList.insert(0, restored);
-                                                                              await _saveList('simplepresent_today.json', todayList);
-
-                                                                              _showTopToast('task moved to today (in progress)');
-                                                                            } catch (_) {
-                                                                              _showTopToast('failed to move task');
-                                                                            }
-                                                                            _registerActivity();
-                                                                            return;
-                                                                          }
-
-                                                                          // Stage the inProgress toggle and schedule reorder
-                                                                          setState(() => _stagedInProgress[task.id] = !wasInProgress);
-                                                                          // If staging inProgress=true, ensure stagedDone is false
-                                                                          if (_stagedInProgress[task.id] == true) _stagedDone.remove(task.id);
-                                                                          _scheduleDelayedReorder();
-                                                                          _registerActivity();
-                                                                      },
-                                                                    ),
-                                                                  ),
+                                                                
                                                                 
                                                               // Important button: moved into expanded editor
                                                                 // Custom D&D handle (reduced left padding)
@@ -4677,6 +4629,31 @@ class _HomePageState extends State<HomePage> {
                                                                     icon: Icon(Icons.copy, color: Theme.of(context).colorScheme.onSurfaceVariant),
                                                                     onPressed: () async {
                                                                       await _duplicateTask(i);
+                                                                    },
+                                                                  ),
+                                                                  IconButton(
+                                                                    tooltip: task.inProgress && !task.done ? 'remove in progress' : 'mark in progress',
+                                                                    icon: Icon(
+                                                                      Icons.construction,
+                                                                      color: ((_stagedInProgress[task.id] ?? task.inProgress) && !(_stagedDone[task.id] ?? task.done)) ? Colors.greenAccent.shade200 : Theme.of(context).colorScheme.onSurfaceVariant,
+                                                                    ),
+                                                                    onPressed: () async {
+                                                                      final was = _stagedInProgress[task.id] ?? task.inProgress;
+                                                                      if (!was) {
+                                                                        try {
+                                                                          await _startStopwatch(i);
+                                                                        } catch (_) {}
+                                                                      } else {
+                                                                        try {
+                                                                          await _stopStopwatch(i);
+                                                                        } catch (_) {}
+                                                                        final idx = _today.indexWhere((t) => t.id == task.id);
+                                                                        if (idx != -1) {
+                                                                          setState(() => _today[idx] = _today[idx].copyWith(inProgress: false, inProgressAt: null));
+                                                                          await _saveToday();
+                                                                        }
+                                                                      }
+                                                                      _registerActivity();
                                                                     },
                                                                   ),
                                                                   IconButton(
