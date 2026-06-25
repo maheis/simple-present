@@ -2,6 +2,8 @@
 
 A compact task manager for daily work, quick notes, and time-based task tracking.
 
+![Vorstellungsgrafik](.notes/google-store-vorstellungsgrafik.png)
+
 ## What it does
 
 SimplePresent helps you manage tasks across three lists: Today, Backlog, and Done. It supports important and in-progress flags, notes, subtasks, scheduled dates and times, and automatic sorting so current work stays in focus.
