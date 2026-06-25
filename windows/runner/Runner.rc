@@ -53,7 +53,7 @@ END
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
 // Prefer project asset icon if present (allows using assets/icons/icon.ico)
-IDI_APP_ICON            ICON                    "..\\..\\assets\\icons\\icon.ico"
+IDI_APP_ICON            ICON                    "..\\..\\assets\\icons\\color_transparent_icon.ico"
 
 
 /////////////////////////////////////////////////////////////////////////////
