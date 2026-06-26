@@ -111,7 +111,6 @@ if [ "$CREATE_DESKTOP" -eq 1 ]; then
 fi
 
 echo "Install complete. Launch with: $LAUNCHER"
-echo "Data files: $JSON_TASKS and $JSON_TIMES"
 echo "If you installed the menu entry, you can search for 'SimplePresent' in your application launcher."
 
 exit 0
