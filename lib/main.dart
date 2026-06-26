@@ -835,7 +835,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       final List<TaskItem> tmp = [];
       await _loadList(_storage('simplepresent_today.json'), tmp);
-      _countToday = tmp.length;
+      // Count only tasks that are not done for the Today counter
+      _countToday = tmp.where((t) => !t.done).length;
       tmp.clear();
       await _loadList(_storage('simplepresent_backlog.json'), tmp);
       _countBacklog = tmp.length;

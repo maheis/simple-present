@@ -259,7 +259,7 @@
 - [ ] update.sh oder install soll erkennen und updaten (vorherige version löschen?)
 - [x] viel auf deutsch, alles klein schreiben
 - [ ] Android App name mit leerzeichen (icon, zeilenumbruch)
-- [ ] counter, fertige abziehen
+- [?] counter, fertige abziehen
 - [ ] word-phrase durch buchstaben+zahlensalat ersetzten (maus bewegen um die zufälligkeit zu erhöhen)
 
 ## notes
