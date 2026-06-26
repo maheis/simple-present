@@ -890,7 +890,10 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _saveToday() async {
     try {
-      await _saveList(_storage('simplepresent_today.json'), _today);
+      // Persist the currently loaded list (`_today` holds the in-memory
+      // representation of whatever view is active). Use `_currentFile` so
+      // saving operations write back to the correct file (today/backlog/done).
+      await _saveList(_currentFile, _today);
       unawaited(_updateListCounts());
     } catch (_) {}
   }
@@ -2743,18 +2746,26 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _moveFromBacklog(int index) async {
     try {
-      final item = _today[index];
-      setState(() {
-        _today.removeAt(index);
-        _expanded.clear();
-      });
-      await _saveToday(); // persist removal from backlog file
+      // Load backlog file and remove the item there (index refers to backlog list)
+      final backlogFile = _storage('simplepresent_backlog.json');
+      final List<TaskItem> backlogList = [];
+      await _loadList(backlogFile, backlogList);
+      if (index < 0 || index >= backlogList.length) {
+        _showTopToast('failed to move task to today');
+        return;
+      }
+      final item = backlogList.removeAt(index);
+      await _saveList(backlogFile, backlogList);
 
+      // Insert into today's persisted list at the top
+      final todayFile = _storage('simplepresent_today.json');
       final List<TaskItem> todayList = [];
-      await _loadList(_storage('simplepresent_today.json'), todayList);
+      await _loadList(todayFile, todayList);
       todayList.insert(0, item.copyWith(done: false, inProgress: false));
-      await _saveList(_storage('simplepresent_today.json'), todayList);
+      await _saveList(todayFile, todayList);
 
+      // Reload the currently shown list into memory so the UI updates correctly
+      await _loadToday();
       _showTopToast('task moved to today');
     } catch (_) {
       _showTopToast('failed to move task to today');
