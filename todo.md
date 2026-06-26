@@ -250,7 +250,7 @@
 - [?] sortierung: done
         erledigt nach erledigt-datum sortieren
 - [x] counter von aufgaben in den listen anzeigen (today, backlog, done)
-- [ ] counter rot wenn zuviele aufgaben!
+- [x] counter einfärben wenn zuviele aufgaben sind!
 - [ ] notizen
 - [ ] done als button oben (backlog auch?)
 - [ ] terminieren/editieren von aufgaben die in der vergangehit liegen werden ins backlog geschubst?

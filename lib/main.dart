@@ -495,6 +495,9 @@ class _HomePageState extends State<HomePage> {
   // Auto-clean settings for Done list
   bool _autoPurgeDoneEnabled = false;
   int _doneRetentionDays = 30;
+  // Color-scaling thresholds (configurable in settings)
+  int _maxTasksToday = 25;
+  int _maxTasksBacklog = 50;
   
   bool _versionWarningShown = false;
   bool _cloudSyncFailed = false;
@@ -556,6 +559,8 @@ class _HomePageState extends State<HomePage> {
         _inputFocus.requestFocus();
       }
     });
+
+    // (maxTasks values loaded from settings elsewhere)
     // listen for any keyboard activity to reset idle timers
     try {
       HardwareKeyboard.instance.addHandler(_hardwareKeyHandler);
@@ -774,6 +779,12 @@ class _HomePageState extends State<HomePage> {
     if (mounted) setState(() {});
   }
 
+  Color _interpolateCountColor(int count, int max) {
+    if (max <= 0) return Colors.green;
+    final t = (count / max).clamp(0.0, 1.0);
+    return Color.lerp(Colors.green, Colors.red, t) ?? Colors.green;
+  }
+
   Future<void> _purgeOldDoneTasksIfEnabled() async {
     if (!_autoPurgeDoneEnabled || _doneRetentionDays <= 0) return;
     await _purgeOldDoneTasks(_doneRetentionDays);
@@ -878,7 +889,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _saveToday() async {
-    await _saveList(_currentFile, _today);
+    try {
+      await _saveList(_storage('simplepresent_today.json'), _today);
+      unawaited(_updateListCounts());
+    } catch (_) {}
   }
 
   bool get _cloudSyncConfigured {
@@ -1662,6 +1676,11 @@ class _HomePageState extends State<HomePage> {
               _notifiedDue.add(e.toString());
             }
           }
+          // load optional counters thresholds
+          final mt = data['maxTasksToday'];
+          if (mt is num) _maxTasksToday = mt.toInt();
+          final mb = data['maxTasksBacklog'];
+          if (mb is num) _maxTasksBacklog = mb.toInt();
         }
       } catch (_) {}
     } catch (_) {}
@@ -1724,6 +1743,8 @@ class _HomePageState extends State<HomePage> {
         'inactivityReminders': _inactivityReminders,
         'autoPurgeDoneEnabled': _autoPurgeDoneEnabled,
         'doneRetentionDays': _doneRetentionDays,
+        'maxTasksToday': _maxTasksToday,
+        'maxTasksBacklog': _maxTasksBacklog,
       };
 
       // Preserve lastRunDate if present in existing settings so daily-reset runs only once per day
@@ -2074,6 +2095,8 @@ class _HomePageState extends State<HomePage> {
             'reminderWindowTo': _reminderWindowTo,
             'autoPurgeDoneEnabled': _autoPurgeDoneEnabled,
             'doneRetentionDays': _doneRetentionDays,
+            'maxTasksToday': _maxTasksToday,
+            'maxTasksBacklog': _maxTasksBacklog,
           },
           onCloudDeviceRegistered: (Map<String, dynamic> registeredData) {
             // Sync cloud registration data back to home state immediately
@@ -3703,9 +3726,15 @@ class _HomePageState extends State<HomePage> {
                                       final titleText = _showingBacklog
                                           ? 'backlog'
                                           : (_showingDone ? 'done' : 'today');
-                                      final titleCount = _showingBacklog
+                                        final titleCount = _showingBacklog
                                           ? _countBacklog
                                           : (_showingDone ? _countDone : _countToday);
+                                        // Determine color for count: only Today and Backlog are colored
+                                        final Color? countColor = _showingDone
+                                          ? null
+                                          : (_showingBacklog
+                                            ? _interpolateCountColor(_countBacklog, _maxTasksBacklog)
+                                            : _interpolateCountColor(_countToday, _maxTasksToday));
                                       // Measure required width for the title (without the count)
                                       final titleTp = TextPainter(
                                           text: TextSpan(text: titleText, style: titleStyle),
@@ -3771,6 +3800,7 @@ class _HomePageState extends State<HomePage> {
                                                     style: titleStyle.copyWith(
                                                       fontSize: 14,
                                                       fontWeight: FontWeight.w400,
+                                                      color: countColor,
                                                     ),
                                                   ),
                                                 ],
@@ -5245,6 +5275,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late String cloudSyncLastError;
   late bool autoPurgeDoneEnabled;
   late int doneRetentionDays;
+  late int maxTasksToday;
+  late int maxTasksBacklog;
   String _cloudStatus = '';
   String _settingsServerVersion = '';
   String _versionWarning = '';
@@ -5288,6 +5320,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool _initialCloudAllowInsecureTls;
   late bool _initialAutoPurgeDoneEnabled;
   late int _initialDoneRetentionDays;
+  late int _initialMaxTasksToday;
+  late int _initialMaxTasksBacklog;
   late List<Map<String, dynamic>> _inactivityRemindersLocal;
 
   @override
@@ -5360,6 +5394,8 @@ class _SettingsPageState extends State<SettingsPage> {
     cloudAllowInsecureTls = readBool('cloudAllowInsecureTls', false);
     autoPurgeDoneEnabled = readBool('autoPurgeDoneEnabled', false);
     doneRetentionDays = readInt('doneRetentionDays', 30).clamp(1, 365);
+    maxTasksToday = readInt('maxTasksToday', 25).clamp(1, 9999);
+    maxTasksBacklog = readInt('maxTasksBacklog', 50).clamp(1, 9999);
     cloudLastSyncSuccessAt = readInt('cloudLastSyncSuccessAt', 0);
     cloudSyncFailed = readBool('cloudSyncFailed', false);
     cloudSyncLastError = readString('cloudSyncLastError', '');
@@ -5400,6 +5436,8 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialCloudAllowInsecureTls = cloudAllowInsecureTls;
     _initialAutoPurgeDoneEnabled = autoPurgeDoneEnabled;
     _initialDoneRetentionDays = doneRetentionDays;
+    _initialMaxTasksToday = maxTasksToday;
+    _initialMaxTasksBacklog = maxTasksBacklog;
     _fetchServerVersionInSettings();
     unawaited(_refreshCloudAccountStatus());
     // Initialize local inactivity reminders from parent-provided initial map
@@ -5535,6 +5573,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 'autoPurgeDoneEnabled': false,
                 'doneRetentionDays': 30,
                 'inactivityReminders': _inactivityRemindersLocal,
+                'maxTasksToday': maxTasksToday,
+                'maxTasksBacklog': maxTasksBacklog,
               });
             },
             child: const Text('save'),
@@ -5583,7 +5623,9 @@ class _SettingsPageState extends State<SettingsPage> {
         cloudPIN != _initialCloudPIN ||
         cloudAllowInsecureTls != _initialCloudAllowInsecureTls ||
         autoPurgeDoneEnabled != _initialAutoPurgeDoneEnabled ||
-        doneRetentionDays != _initialDoneRetentionDays ||
+          doneRetentionDays != _initialDoneRetentionDays ||
+          maxTasksToday != _initialMaxTasksToday ||
+          maxTasksBacklog != _initialMaxTasksBacklog ||
         reminderWindowFrom != _initialReminderWindowFrom ||
         reminderWindowTo != _initialReminderWindowTo;
   }
@@ -5993,6 +6035,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     'inactivityReminders': _inactivityRemindersLocal,
                     'autoPurgeDoneEnabled': autoPurgeDoneEnabled,
                     'doneRetentionDays': doneRetentionDays,
+                    'maxTasksToday': maxTasksToday,
+                    'maxTasksBacklog': maxTasksBacklog,
                   });
                 },
                 child: Text(
@@ -6054,6 +6098,60 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const Text('range: 50% to 160%'),
               const SizedBox(height: 8),
+              const Divider(thickness: 1),
+              const SizedBox(height: 8),
+              Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('counters', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 6),
+                      const Text('configure maximum task counts for color scaling (green→red).'),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Text('today max:'),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 100,
+                            child: TextFormField(
+                              initialValue: maxTasksToday.toString(),
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                              onChanged: (v) {
+                                final parsed = int.tryParse(v);
+                                if (parsed != null) setState(() => maxTasksToday = parsed.clamp(1, 9999));
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Text('backlog max:'),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 100,
+                            child: TextFormField(
+                              initialValue: maxTasksBacklog.toString(),
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                              onChanged: (v) {
+                                final parsed = int.tryParse(v);
+                                if (parsed != null) setState(() => maxTasksBacklog = parsed.clamp(1, 9999));
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               const Divider(),
               const SizedBox(height: 8),
               const Text('inactivity reminders',
