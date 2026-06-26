@@ -14,6 +14,18 @@ if [ ! -d "$SRC_DIR" ]; then
   exit 1
 fi
 
+if [ -d "$TARGET_DIR" ]; then
+  read -r -p "Existing installation at $TARGET_DIR found. Update (remove and install)? [y/N] " resp
+  if [[ "$resp" =~ ^[Yy] ]]; then
+    ts=$(date -u +%Y%m%dT%H%M%SZ)
+    backup="${TARGET_DIR}.bak.$ts"
+    echo "Backing up existing installation to $backup"
+    mv "$TARGET_DIR" "$backup"
+  else
+    echo "Aborting installation."; exit 0
+  fi
+fi
+
 echo "Creating target directory..."
 mkdir -p "$TARGET_DIR"
 

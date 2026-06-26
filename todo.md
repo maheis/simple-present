@@ -256,7 +256,7 @@
         manuell sortiert (was von today kam oben!)
 - [?] sortierung: done
         erledigt nach erledigt-datum sortieren
-- [ ] update.sh oder install soll erkennen und updaten (vorherige version löschen?)
+- [x] update.sh oder install soll erkennen und updaten (vorherige version löschen?)
 - [x] viel auf deutsch, alles klein schreiben
 - [ ] Android App name mit leerzeichen (icon, zeilenumbruch)
 - [?] counter, fertige abziehen
