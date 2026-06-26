@@ -670,7 +670,8 @@ class _HomePageState extends State<HomePage> {
           for (int i = todayList.length - 1; i >= 0; i--) {
             final t = todayList[i];
             if (!t.done) {
-              backlogList.add(t);
+              // insert at top so tasks moved from Today appear first in Backlog
+              backlogList.insert(0, t);
               movedToBacklogCount++;
             } else {
               movedToDone.add(t);

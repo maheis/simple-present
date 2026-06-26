@@ -242,7 +242,7 @@
 - [ ] toasts müssen weniger werden...(task update, sync, etc.)
 - [x] swipe muss ohne zeitverzögerung passieren?!
 - [ ] 24 Uhr move today -> backlog
-- [ ] today in backlog muss immer OBEN ins backlog einfügen!
+- [?] today in backlog muss immer OBEN ins backlog einfügen!
 - [ ] scheduled in der vergangenheit soll datum mit anzeigen wenn es nicht heute ist (im  today)
 - [ ] sortierung: backlog 
         alles was "heute" ist, soll oben sein 
