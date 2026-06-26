@@ -1450,15 +1450,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _cycleView(bool forward) async {
-    // Order: 0 = today, 1 = backlog, 2 = done
-    final idx = _showingBacklog ? 1 : (_showingDone ? 2 : 0);
-    final next = (idx + (forward ? 1 : 2)) % 3; // +2 is same as -1 mod 3
+    // Order: 0 = today, 1 = backlog (Done is not part of the carousel)
+    final idx = _showingBacklog ? 1 : 0; // treat _showingDone as today for cycling
+    final next = (idx + 1) % 2; // toggle between 0 and 1
     if (next == 0) {
       await _switchFile(false);
-    } else if (next == 1) {
-      await _switchToBacklog();
     } else {
-      await _switchFile(true);
+      await _switchToBacklog();
     }
   }
 
@@ -3833,6 +3831,21 @@ class _HomePageState extends State<HomePage> {
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
                                         onPressed: () async { await _openSettings(); },
+                                      ),
+                                      // Done button (opens archived/done view)
+                                      IconButton(
+                                        icon: Image.asset(
+                                          'assets/icons/white_transparent_done.png',
+                                          width: 20,
+                                          height: 20,
+                                        ),
+                                        tooltip: 'Done',
+                                        padding: Platform.isAndroid
+                                            ? const EdgeInsets.symmetric(horizontal: 2.0)
+                                            : const EdgeInsets.symmetric(horizontal: 6.0),
+                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                        visualDensity: VisualDensity.compact,
+                                        onPressed: () async { await _switchFile(true); },
                                       ),
                                       IconButton(
                                         icon: const Icon(Icons.arrow_forward_ios),
