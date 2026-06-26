@@ -88,7 +88,7 @@ else
   DESKTOP_ICON_VALUE=""
 fi
 
-APP_ID="de.maheis.simplepresent"
+APP_ID="be.heister.simplepresent"
 DESKTOP_ENTRY_NAME="$APP_ID.desktop"
 DESKTOP_CONTENT="[Desktop Entry]\nName=SimplePresent\nComment=SimplePresent client\nExec=$LAUNCHER\nIcon=$DESKTOP_ICON_VALUE\nTerminal=false\nType=Application\nCategories=Utility;\nStartupNotify=true\nStartupWMClass=SimplePresent\nX-GNOME-WMClass=SimplePresent"
 

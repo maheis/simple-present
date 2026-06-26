@@ -1,4 +1,4 @@
-package de.maheis.simplepresent
+package be.heister.simplepresent
 
 import android.app.NotificationChannel
 import android.app.NotificationManager

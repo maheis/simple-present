@@ -6,7 +6,7 @@ TARGET_DIR="$HOME/.local/share/simplepresent"
 DATA_DIR="$HOME/Documents"
 JSON="$DATA_DIR/simplepresent_*.json"
 
-APP_ID="de.maheis.simplepresent"
+APP_ID="be.heister.simplepresent"
 DESKTOP_ENTRY_NAME="$APP_ID.desktop"
 APPS_DIR="$HOME/.local/share/applications"
 ICON_DIR_128="$HOME/.local/share/icons/hicolor/128x128/apps"

@@ -10,7 +10,7 @@ plugins {
 }
 
 android {
-    namespace = "de.maheis.simplepresent"
+    namespace = "be.heister.simplepresent"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "de.maheis.simplepresent"
+        applicationId = "be.heister.simplepresent"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // Android 13+ baseline (API 33) as requested.

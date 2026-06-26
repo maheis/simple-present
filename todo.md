@@ -261,6 +261,7 @@
 - [ ] Android App name mit leerzeichen (icon, zeilenumbruch)
 - [?] counter, fertige abziehen
 - [ ] word-phrase durch buchstaben+zahlensalat ersetzten (maus bewegen um die zufälligkeit zu erhöhen)
+- [ ] de.maheis.simplepresent -> be.heister.simplepresent
 
 ## notes
 
