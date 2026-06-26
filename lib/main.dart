@@ -534,6 +534,10 @@ class _HomePageState extends State<HomePage> {
   // Backlog view toggle
   bool _showingBacklog = false;
   String _currentFile = 'simplepresent_today.json';
+  // Cached counts for lists shown in header
+  int _countToday = 0;
+  int _countBacklog = 0;
+  int _countDone = 0;
 
   late final Future<void> _initFuture = _initializeApp();
 
@@ -755,6 +759,21 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
   }
 
+  Future<void> _updateListCounts() async {
+    try {
+      final List<TaskItem> tmp = [];
+      await _loadList(_storage('simplepresent_today.json'), tmp);
+      _countToday = tmp.length;
+      tmp.clear();
+      await _loadList(_storage('simplepresent_backlog.json'), tmp);
+      _countBacklog = tmp.length;
+      tmp.clear();
+      await _loadList(_storage('simplepresent_done.json'), tmp);
+      _countDone = tmp.length;
+    } catch (_) {}
+    if (mounted) setState(() {});
+  }
+
   Future<void> _purgeOldDoneTasksIfEnabled() async {
     if (!_autoPurgeDoneEnabled || _doneRetentionDays <= 0) return;
     await _purgeOldDoneTasks(_doneRetentionDays);
@@ -854,6 +873,8 @@ class _HomePageState extends State<HomePage> {
       }
     } catch (_) {}
     setState(() {});
+    // Ensure header counters are up to date
+    unawaited(_updateListCounts());
   }
 
   Future<void> _saveToday() async {
@@ -3679,21 +3700,19 @@ class _HomePageState extends State<HomePage> {
                                         fontSize: 24,
                                         fontWeight: FontWeight.w700,
                                       ).copyWith(fontFamily: _fontFamily);
-                                      final combined = TextSpan(
-                                        text: _showingBacklog
-                                            ? 'backlog'
-                                            : (_showingDone ? 'done' : 'today'),
-                                        style: titleStyle,
-                                      );
-
-                                      // Measure required width for the combined text
-                                      final tp = TextPainter(
-                                          text: combined,
-                                          textDirection:
-                                              Directionality.of(context),
-                                              textScaler: TextScaler.linear(_uiTextScaleFactor));
-                                      tp.layout();
-                                      final textWidth = tp.width;
+                                      final titleText = _showingBacklog
+                                          ? 'backlog'
+                                          : (_showingDone ? 'done' : 'today');
+                                      final titleCount = _showingBacklog
+                                          ? _countBacklog
+                                          : (_showingDone ? _countDone : _countToday);
+                                      // Measure required width for the title (without the count)
+                                      final titleTp = TextPainter(
+                                          text: TextSpan(text: titleText, style: titleStyle),
+                                          textDirection: Directionality.of(context),
+                                          textScaler: TextScaler.linear(_uiTextScaleFactor));
+                                      titleTp.layout();
+                                      final textWidth = titleTp.width;
 
                                       const double iconSize =
                                           28.0; // size allocated for the icon when fully shown
@@ -3729,18 +3748,32 @@ class _HomePageState extends State<HomePage> {
                                                 ),
                                               ),
                                             ),
-                                            // Title text — when icon is fully shown we add left padding so text sits beside the icon,
-                                            // otherwise we let the text occupy full width and visually overlap the faded icon.
+                                            // Title and count — title gets ellipsized, count shown smaller to the right.
                                             Padding(
                                               padding: EdgeInsets.only(
                                                   left: showIconFully
                                                       ? (iconSize + iconGap)
                                                       : 0,
                                                   right: 4.0),
-                                              child: RichText(
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                text: combined,
+                                              child: Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      titleText,
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: titleStyle,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8.0),
+                                                  Text(
+                                                    titleCount.toString(),
+                                                    style: titleStyle.copyWith(
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.w400,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ],

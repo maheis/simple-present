@@ -249,7 +249,7 @@
         manuell sortiert (was von today kam oben!)
 - [?] sortierung: done
         erledigt nach erledigt-datum sortieren
-- [ ] counter von aufgaben in den listen anzeigen (today, backlog, done)
+- [x] counter von aufgaben in den listen anzeigen (today, backlog, done)
 - [ ] counter rot wenn zuviele aufgaben!
 - [ ] notizen
 - [ ] done als button oben (backlog auch?)
