@@ -2295,9 +2295,14 @@ class _HomePageState extends State<HomePage> {
     _scheduleDelayedReorder();
     _upsertTimeEntry(_today[index]);
     final scheduled = _today[index].scheduledAt;
-    if (scheduled != null && !_isSameDay(scheduled, DateTime.now())) {
-      await _moveToBacklogByIndex(index);
-      return;
+    if (scheduled != null) {
+      final scheduledKey = DateFormat('yyyy-MM-dd').format(scheduled.toLocal());
+      final todayKey = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      if (scheduledKey.compareTo(todayKey) > 0) {
+        // only move to backlog if scheduled strictly in the future
+        await _moveToBacklogByIndex(index);
+        return;
+      }
     }
 
     _registerActivity();
@@ -2383,6 +2388,7 @@ class _HomePageState extends State<HomePage> {
     try {
       _delayedReorderTimer?.cancel();
     } catch (_) {}
+    if (kDebugMode) print('_scheduleDelayedReorder: stagedKeys=${_stagedScheduled.keys.toList()}');
     _delayedReorderTimer = Timer(Duration(milliseconds: _delayedReorderMilliseconds), () {
       if (!mounted) return;
       _performDelayedReorder();
@@ -2505,13 +2511,20 @@ class _HomePageState extends State<HomePage> {
           } else {
             // apply the scheduledAt change
             _today[idx] = _today[idx].copyWith(scheduledAt: val);
-            // if it's not for today, defer moving to backlog until after reorder
-            if (!_isSameDay(val, DateTime.now())) {
+            // Only move to backlog when the scheduled date is strictly in the future.
+            // Tasks scheduled for today or in the past should remain in Today
+            // when edited.
+            final scheduledKey = DateFormat('yyyy-MM-dd').format(val.toLocal());
+            final todayKeyLocal = DateFormat('yyyy-MM-dd').format(DateTime.now());
+            if (scheduledKey.compareTo(todayKeyLocal) > 0) {
+              if (kDebugMode) print('_performDelayedReorder: staging move id=$id scheduled=$scheduledKey today=$todayKeyLocal');
               // Only schedule a move to backlog when we're currently showing Today
               // (don't move tasks that are being edited while viewing Backlog or Done)
               if (!_showingBacklog && !_showingDone) {
                 idsToMoveToBacklog.add(id);
               }
+            } else {
+              if (kDebugMode) print('_performDelayedReorder: skip staging id=$id scheduled=$scheduledKey today=$todayKeyLocal');
             }
           }
         }
@@ -2634,14 +2647,26 @@ class _HomePageState extends State<HomePage> {
     });
     _saveToday();
 
-    // After reordering, move any tasks with scheduled dates outside today into backlog
+    // After reordering, move any tasks with scheduled dates strictly in the future
+    // into backlog. Double-check the item's scheduled date at move-time to
+    // avoid races where the staged value differs from the current item.
     if (idsToMoveToBacklog.isNotEmpty) {
+      final todayKeyCheck = DateFormat('yyyy-MM-dd').format(DateTime.now());
       for (final id in idsToMoveToBacklog) {
+        if (kDebugMode) print('_performDelayedReorder: considering move id=$id (runtime check)');
         // find current index for id
         final idx = _today.indexWhere((t) => t.id == id);
         if (idx != -1) {
-          // await the move to ensure it completes and the backlog is updated
-          await _moveToBacklogByIndex(idx);
+          final current = _today[idx];
+          final sched = current.scheduledAt;
+          if (sched != null) {
+            final scheduledKey = DateFormat('yyyy-MM-dd').format(sched.toLocal());
+            if (kDebugMode) print('_performDelayedReorder: runtime compare id=$id scheduled=$scheduledKey today=$todayKeyCheck');
+            if (scheduledKey.compareTo(todayKeyCheck) > 0) {
+              // await the move to ensure it completes and the backlog is updated
+              await _moveToBacklogByIndex(idx);
+            }
+          }
         }
       }
     }
@@ -2702,6 +2727,7 @@ class _HomePageState extends State<HomePage> {
     await _saveToday();
     // Stage this scheduled change for delayed reorder handling
     setState(() => _stagedScheduled[_today[index].id] = scheduled);
+    if (kDebugMode) print('_pickSchedule: staged id=${_today[index].id} scheduled=${DateFormat('yyyy-MM-dd HH:mm').format(scheduled)}');
     _scheduleDelayedReorder();
 
     _showTopToast('schedule set');

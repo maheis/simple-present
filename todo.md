@@ -252,9 +252,10 @@
 - [x] counter von aufgaben in den listen anzeigen (today, backlog, done)
 - [x] counter einfärben wenn zuviele aufgaben sind!
 - [ ] notizen
-- [ ] done als button oben
-- [ ] terminieren/editieren von aufgaben die in der vergangehit liegen werden ins backlog geschubst?
+- [x] done als button oben
+- [ ] terminieren/editieren von aufgaben die in der vergangheit liegen werden ins backlog geschubst?
 - [ ] toast bzw. gesamtes aktions log
+- [ ] counter refresht sich nicht!
 
 ## notes
 
