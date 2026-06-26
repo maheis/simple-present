@@ -222,6 +222,10 @@
 - [x] done als button oben
 - [x] terminieren/editieren von aufgaben die in der vergangenheit liegen werden ins backlog geschubst?
 - [-] counter refresht sich nicht! <- tut er doch!
+- [x] notizen
+- [x] update.sh oder install soll erkennen und updaten (vorherige version löschen?)
+- [x] viel auf deutsch, alles klein schreiben
+- [x] de.maheis.simplepresent -> be.heister.simplepresent
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Worklog an Aufgaben...
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
@@ -247,7 +251,6 @@
 - [ ] android: aktionen in der notification (erledigt, in arbeit)
 - [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben!
 - [?] 24 Uhr move today -> backlog
-- [x] notizen
 - [ ] toast bzw. gesamtes aktions log
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [?] today in backlog muss immer OBEN ins backlog einfügen!
@@ -256,13 +259,10 @@
         manuell sortiert (was von today kam oben!)
 - [?] sortierung: done
         erledigt nach erledigt-datum sortieren
-- [x] update.sh oder install soll erkennen und updaten (vorherige version löschen?)
-- [x] viel auf deutsch, alles klein schreiben
 - [ ] Android App name mit leerzeichen (icon, zeilenumbruch)
 - [?] counter, fertige abziehen
 - [ ] word-phrase durch buchstaben+zahlensalat ersetzten (maus bewegen um die zufälligkeit zu erhöhen)
-- [x] de.maheis.simplepresent -> be.heister.simplepresent
-- [ ] notes fehlen unter android?
+- [x] notes button fehlt?
 - [ ] registrierte geräte anzeigen lassen und entfernbar machen (auf dem master-device?)
 
 ## notes
