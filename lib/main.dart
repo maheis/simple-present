@@ -4102,23 +4102,64 @@ class _HomePageState extends State<HomePage> {
                                                   // Right swipe (Today view): 1st -> set inProgress, 2nd -> set done
                                                   if (!t.inProgress &&
                                                       !t.done) {
-                                                    // Stage inProgress instead of immediate save to avoid noisy reorders
-                                                    setState(() => _stagedInProgress[t.id] = true);
-                                                    _scheduleDelayedReorder();
+                                                    // Apply inProgress immediately on swipe (no delay)
+                                                    try {
+                                                      await _startStopwatch(i);
+                                                    } catch (_) {}
+                                                    try {
+                                                      setState(() {
+                                                        _today[i] = _today[i].copyWith(inProgress: true, inProgressAt: DateTime.now());
+                                                      });
+                                                    } catch (_) {}
+                                                    unawaited(_saveToday());
+                                                    _registerActivity();
                                                     _showTopToast('task marked in progress');
                                                   } else if (t.inProgress &&
                                                       !t.done) {
-                                                    _setDone(i, true);
-                                                    _showTopToast(
-                                                        'task marked done');
+                                                    // If already in progress, mark done immediately (no delay)
+                                                    try {
+                                                      await _stopStopwatch(i);
+                                                    } catch (_) {}
+                                                    try {
+                                                      final now = DateTime.now();
+                                                      final original = _today[i];
+                                                      setState(() {
+                                                        _today[i] = original.copyWith(done: true, inProgress: false, completedAt: now);
+                                                      });
+                                                    } catch (_) {}
+                                                    // Clear notification flags for this task
+                                                    try {
+                                                      final idPrefix = '${_today[i].id}|';
+                                                      _notified15.removeWhere((k) => k.startsWith(idPrefix));
+                                                      _notifiedDue.removeWhere((k) => k.startsWith(idPrefix));
+                                                    } catch (_) {}
+                                                    try {
+                                                      _upsertTimeEntry(_today[i]);
+                                                    } catch (_) {}
+                                                    try {
+                                                      unawaited(_playDading());
+                                                    } catch (_) {}
+                                                    try {
+                                                      await _saveToday();
+                                                    } catch (_) {}
+                                                    _registerActivity();
+                                                    _showTopToast('task marked done');
                                                   }
                                                   return false;
                                                 }
                                                 // Left swipe: if task is inProgress -> unset inProgress, do not delete
                                                 if (t.inProgress && !t.done) {
-                                                  // Stage unset inProgress instead of immediate save
-                                                  setState(() => _stagedInProgress[t.id] = false);
-                                                  _scheduleDelayedReorder();
+                                                  // Unset inProgress immediately on left-swipe
+                                                  try {
+                                                    await _stopStopwatch(i);
+                                                  } catch (_) {}
+                                                  try {
+                                                    setState(() {
+                                                      _today[i] = _today[i].copyWith(inProgress: false, inProgressAt: null);
+                                                    });
+                                                  } catch (_) {}
+                                                  unawaited(_saveToday());
+                                                  _registerActivity();
                                                   _showTopToast('task marked not in progress');
                                                   return false;
                                                 }

@@ -234,13 +234,13 @@
       app icon ist 4 eckig auf weißem grund (rund)
 - [ ] runter sortieren, sortiert "drüber"
 - [ ] sync: self signed certs prüfen (ca-chain)
-- [ ] inactivity reminder dynamischer (selbst hinzufügen, anzahl abstände etc.)
+- [x] inactivity reminder dynamischer (selbst hinzufügen, anzahl abstände etc.)
 - [ ] android: aktionen in der notification (erledigt, in arbeit)
 - [ ] combobox "font" breiter!
 - [ ] sync: nur eingerät sollte löschen aktiv haben!
 - [ ] save button in "sie haben änderungen dialog"
 - [ ] toasts müssen weniger werden...(task update, sync, etc.)
-- [ ] swipe muss ohne zeitverzögerung passieren?! braucht es die überhaupt noch?
+- [x] swipe muss ohne zeitverzögerung passieren?!
 - [ ] 24 Uhr move today -> backlog
 - [ ] today in backlog muss immer OBEN ins backlog einfügen!
 - [ ] scheduled in der vergangenheit soll datum mit anzeigen wenn es nicht heute ist (im  today)
@@ -251,6 +251,8 @@
         erledigt nach erledigt-datum sortieren
 - [ ] counter von aufgaben in den listen anzeigen (today, backlog, done)
 - [ ] counter rot wenn zuviele aufgaben!
+- [ ] notizen
+- [ ] done als button oben (backlog auch?)
 
 ## notes
 
