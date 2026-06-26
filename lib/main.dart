@@ -52,9 +52,9 @@ class TimeEntry {
     return blocks * 15 + workMinutes;
   }
   String get statusLabel {
-    if (taskDone) return 'fertig';
-    if (taskInProgress) return 'in Arbeit';
-    return 'offen';
+    if (taskDone) return 'done';
+    if (taskInProgress) return 'in progress';
+    return 'open';
   }
 }
 
@@ -951,13 +951,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
     } catch (_) {}
     setState(() {});
-    // Ensure header counters are up to date
+          _cloudStatus = 'cloud notice: archived in $days days without activity.';
     unawaited(_updateListCounts());
   }
 
-  Future<void> _saveToday() async {
-    try {
-      // Persist the currently loaded list (`_today` holds the in-memory
+        setState(() {
+          _cloudStatus = 'cloud account archived.';
+        });
       // representation of whatever view is active). Use `_currentFile` so
       // saving operations write back to the correct file (today/backlog/done).
       await _saveList(_currentFile, _today);
@@ -1174,23 +1174,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _cloudSyncLastError = '';
     if (_cloudSyncFailed && mounted) {
       _cloudSyncFailed = false;
-      _showTopToast('☁ Sync wiederhergestellt.');
+      _showTopToast('☁ sync restored.');
     }
   }
 
   void _onCloudSyncError(Object e) {
     final msg = e.toString();
     final short = msg.contains('SocketException') || msg.contains('Connection refused') || msg.contains('Failed host lookup')
-      ? 'Server nicht erreichbar.'
+      ? 'server unreachable.'
         : msg.contains('HandshakeException') || msg.contains('CERTIFICATE_VERIFY_FAILED')
-            ? 'TLS-Handshake fehlgeschlagen. Zertifikat/CA pruefen (oder unsichere Zertifikate erlauben).'
+            ? 'tls handshake failed. check certificate/ca (or allow insecure certs).'
       : msg.contains('missing bearer token')
-        ? 'Sync: Authentifizierung fehlgeschlagen (Authorization-Header fehlt, Proxy-Konfiguration pruefen).'
+        ? 'sync: authentication failed (authorization header missing, check proxy).'
         : msg.contains('401') || msg.contains('403')
-            ? 'Sync: Authentifizierung fehlgeschlagen.'
+            ? 'sync: authentication failed.'
             : msg.contains('Server error')
-                ? 'Sync: Server-Fehler.'
-                : 'Sync fehlgeschlagen.';
+                ? 'sync: server error.'
+                : 'sync failed.';
     _cloudSyncLastError = short;
     if (!_cloudSyncFailed && mounted) {
       _cloudSyncFailed = true;
@@ -1200,10 +1200,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   String _cloudSyncStatusTooltip() {
     if (!_cloudSyncConfigured) {
-      return 'Cloud-Sync nicht konfiguriert.';
+      return 'cloud sync not configured.';
     }
     if (_cloudSyncBusy) {
-      return 'Synchronisierung läuft...';
+      return 'synchronization running...';
     }
     final lastSuccess = _cloudLastSyncSuccessAt > 0
         ? DateFormat('yyyy-MM-dd HH:mm:ss').format(
@@ -1211,18 +1211,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           )
         : null;
     if (_cloudSyncFailed) {
-      final reason = _cloudSyncLastError.isNotEmpty
-          ? _cloudSyncLastError
-          : 'Unbekannter Fehler';
+          final reason = _cloudSyncLastError.isNotEmpty
+            ? _cloudSyncLastError
+            : 'unknown error';
       if (lastSuccess != null) {
-        return 'Synchronisierung fehlgeschlagen\n$reason\nZuletzt erfolgreich: $lastSuccess';
+        return 'synchronization failed\n$reason\nlast success: $lastSuccess';
       }
-      return 'Synchronisierung fehlgeschlagen\n$reason';
+      return 'synchronization failed\n$reason';
     }
     if (lastSuccess != null) {
-      return 'Synchronisierung ok\nZuletzt synchronisiert: $lastSuccess';
+      return 'synchronization ok\nlast synced: $lastSuccess';
     }
-    return 'Noch nicht synchronisiert.';
+    return 'not yet synchronized.';
   }
 
   Color _cloudSyncStatusColor(ColorScheme scheme) {
@@ -1235,20 +1235,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _manualSyncNow() async {
     if (!_cloudSyncConfigured) {
-      _showTopToast('Cloud-Sync nicht konfiguriert.');
+      _showTopToast('cloud sync not configured.');
       return;
     }
     if (_cloudSyncBusy) {
-      _showTopToast('Synchronisierung läuft bereits...');
+      _showTopToast('synchronization already running...');
       return;
     }
 
-    _showTopToast('Synchronisierung gestartet...');
+    _showTopToast('synchronization started...');
     await _syncPullFromCloud();
     await _fetchServerVersion();
 
     if (!_cloudSyncFailed) {
-      _showTopToast('Synchronisierung abgeschlossen.');
+      _showTopToast('synchronization completed.');
     }
   }
 
@@ -1265,11 +1265,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (isOutdated && !_versionWarningShown) {
           _versionWarningShown = true;
           _showTopToast(
-              'Warnung: Client-Version $kClientVersion ist älter als Server-Version $health.');
+              'warning: client version $kClientVersion is older than server version $health.');
         }
       }
     } catch (_) {
-      // Fehler beim Abrufen der Version ignorieren
+      // ignore errors fetching server version
     }
   }
 
@@ -1289,12 +1289,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _cloudArchiveLastWarnedDays != days) {
         _cloudArchiveLastWarnedDays = days;
         _showTopToast(
-            'Cloud-Hinweis: Archivierung in $days Tagen ohne Aktivität.');
+            'cloud notice: archived in $days days without activity.');
       }
       if (showToastIfWarning && status.archived) {
-        _showTopToast('Cloud-Account ist archiviert.');
-      }
-    } catch (_) {
+        setState(() {
+          _cloudStatus = 'cloud account archived.';
+        });
       // Optionaler Status-Endpunkt, Fehler hier sollen normalen Sync nicht blockieren.
     }
   }
@@ -5628,17 +5628,17 @@ class _SettingsPageState extends State<SettingsPage> {
         _cloudArchiveInfo = warningText;
       });
 
-      if (showToastIfWarning && status.warning && days >= 0 &&
+        if (showToastIfWarning && status.warning && days >= 0 &&
           _cloudArchiveLastWarnedDays != days) {
         _cloudArchiveLastWarnedDays = days;
         setState(() {
           _cloudStatus =
-              'Cloud-Hinweis: Archivierung in $days Tagen ohne Aktivitaet.';
+              'cloud notice: archived in $days days without activity.';
         });
       }
       if (showToastIfWarning && status.archived) {
         setState(() {
-          _cloudStatus = 'Cloud-Account ist archiviert.';
+          _cloudStatus = 'cloud account archived.';
         });
       }
     } catch (_) {
@@ -5765,7 +5765,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String _normalizedServerUrl() {
     final trimmed = cloudServerUrl.trim();
     if (trimmed.isEmpty) {
-      throw Exception('Server URL fehlt.');
+      throw Exception('server url missing.');
     }
     return trimmed.endsWith('/')
         ? trimmed.substring(0, trimmed.length - 1)
@@ -5775,7 +5775,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _suggestPhrase() async {
     setState(() {
       cloudWordPhrase = CloudSyncClient.suggestWordPhrase();
-      _cloudStatus = 'Neue 9-Wort-Phrase vorgeschlagen.';
+      _cloudStatus = 'new 9-word phrase suggested.';
     });
   }
 
@@ -5784,7 +5784,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void _showPairingQr() {
     if (cloudServerUrl.isEmpty || cloudAccountId.isEmpty) {
       setState(() => _cloudStatus =
-          'Bitte zuerst Gerät registrieren (Server-URL + Account ID werden benötigt).');
+          'please register device first (server url + account id required).');
       return;
     }
     final uri = Uri(
@@ -6889,7 +6889,7 @@ class _StatsPageState extends State<StatsPage> {
         minutes: entry?.totalMinutes ?? _minutesForTask(t),
         isDone: isDone,
         completedAt: t.completedAt,
-        statusLabel: isDone ? 'fertig' : (entry?.statusLabel ?? 'offen'),
+        statusLabel: isDone ? 'done' : (entry?.statusLabel ?? 'open'),
       );
       if (row.isDone) {
         doneRows.add(row);
@@ -6925,13 +6925,13 @@ class _StatsPageState extends State<StatsPage> {
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop()),
         actions: [
-          IconButton(
+            IconButton(
               icon: const Icon(Icons.arrow_left),
-              tooltip: 'Vorheriger Tag',
+              tooltip: 'previous day',
               onPressed: _prevDay),
-          IconButton(
+            IconButton(
               icon: const Icon(Icons.arrow_right),
-              tooltip: 'Nächster Tag',
+              tooltip: 'next day',
               onPressed: _nextDay),
         ],
       ),
@@ -6941,24 +6941,24 @@ class _StatsPageState extends State<StatsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Erledigt: ${doneRows.where((r) => r.isDone).length}  |  Gesamt Zeit: $totalMinutes min',
+              'done: ${doneRows.where((r) => r.isDone).length}  |  total time: $totalMinutes min',
               style: TextStyle(
                   fontSize: 16 * scale, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             Expanded(
               child: (doneRows.isEmpty && openRows.isEmpty)
-                  ? Center(
+                    ? Center(
                       child: Text(_currentDate.day == DateTime.now().day
-                          ? 'Heute noch keine Zeiterfassung'
-                          : 'Keine Einträge für diesen Tag'))
+                        ? 'no time entries today'
+                        : 'no entries for this day'))
                   : ListView(
                       children: [
                         if (doneRows.isNotEmpty) ...[
-                          Text('Erledigt',
+                            Text('done',
                               style: TextStyle(
-                                  fontSize: 13 * scale,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.greenAccent)),
+                                fontSize: 13 * scale,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.greenAccent)),
                           const SizedBox(height: 4),
                           for (final r in doneRows)
                             ListTile(
@@ -6968,7 +6968,7 @@ class _StatsPageState extends State<StatsPage> {
                               title: Text(r.taskText,
                                   style: TextStyle(fontSize: 14 * scale)),
                               subtitle: Text(
-                                'Status: ${r.statusLabel}${r.completedAt != null ? ' | erledigt: ${DateFormat('HH:mm').format(r.completedAt!)}' : ''}',
+                                'status: ${r.statusLabel}${r.completedAt != null ? ' | done: ${DateFormat('HH:mm').format(r.completedAt!)}' : ''}',
                                 style: TextStyle(fontSize: 11 * scale),
                               ),
                               trailing: r.minutes > 0
@@ -6980,11 +6980,11 @@ class _StatsPageState extends State<StatsPage> {
                         ],
                         if (openRows.isNotEmpty) ...[
                           if (doneRows.isNotEmpty) const Divider(),
-                          Text('Laufend (nicht abgeschlossen)',
+                            Text('in progress (not completed)',
                               style: TextStyle(
-                                  fontSize: 13 * scale,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.orangeAccent)),
+                                fontSize: 13 * scale,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orangeAccent)),
                           const SizedBox(height: 4),
                           for (final r in openRows)
                             ListTile(
