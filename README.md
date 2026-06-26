@@ -1,6 +1,6 @@
 # SimplePresent
 
-A compact task manager for daily work, quick notes, and time-based task tracking.
+A **simple** task management system focused on **present** tasks.
 
 ![Vorstellungsgrafik](.notes/google-store-vorstellungsgrafik.png)
 
