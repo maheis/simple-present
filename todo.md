@@ -237,8 +237,8 @@
 - [x] inactivity reminder dynamischer (selbst hinzufügen, anzahl abstände etc.)
 - [ ] android: aktionen in der notification (erledigt, in arbeit)
 - [x] combobox "font" breiter!
-- [ ] sync: nur eingerät sollte löschen aktiv haben!
-- [ ] save button in "sie haben änderungen dialog"
+- [ ] sync: nur eingerät sollte automatisches löschen aktiv haben!
+- [x] save button in "sie haben änderungen dialog"
 - [ ] toasts müssen weniger werden...(task update, sync, etc.)
 - [x] swipe muss ohne zeitverzögerung passieren?!
 - [ ] 24 Uhr move today -> backlog
