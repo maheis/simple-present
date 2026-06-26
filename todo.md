@@ -261,7 +261,9 @@
 - [ ] Android App name mit leerzeichen (icon, zeilenumbruch)
 - [?] counter, fertige abziehen
 - [ ] word-phrase durch buchstaben+zahlensalat ersetzten (maus bewegen um die zufälligkeit zu erhöhen)
-- [o] de.maheis.simplepresent -> be.heister.simplepresent
+- [x] de.maheis.simplepresent -> be.heister.simplepresent
+- [ ] notes fehlen unter android?
+- [ ] registrierte geräte anzeigen lassen und entfernbar machen (auf dem master-device?)
 
 ## notes
 
