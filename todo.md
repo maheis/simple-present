@@ -239,7 +239,7 @@
 - [ ] sync: erster sync muss schneller
 - [ ] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
 - [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
-      notification funktioniert mit weißen icon.
+      notification funktioniert mit weißen icon.[text](about:blank#blocked)
       kleines app icon in der taks auswahl und benachrichtigung klappt auch
       app icon ist 4 eckig auf weißem grund (rund)
 - [ ] runter sortieren, sortiert "drüber"
@@ -261,7 +261,7 @@
 - [ ] Android App name mit leerzeichen (icon, zeilenumbruch)
 - [?] counter, fertige abziehen
 - [ ] word-phrase durch buchstaben+zahlensalat ersetzten (maus bewegen um die zufälligkeit zu erhöhen)
-- [ ] de.maheis.simplepresent -> be.heister.simplepresent
+- [o] de.maheis.simplepresent -> be.heister.simplepresent
 
 ## notes
 
