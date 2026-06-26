@@ -210,7 +210,18 @@
 - [x] uninstall client: alle dateien löschen
 - [x] sync: android soll als client stehen, nicht "localhost"i
 - [x] datenschutzerklärung
-- [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
+- [x] sync: jeder client moved aktuell beim ersten öffnen
+- [x] inactivity reminder dynamischer (selbst hinzufügen, anzahl abstände etc.)
+- [x] combobox "font" breiter!
+- [x] save button in "sie haben änderungen dialog"
+- [x] toasts müssen weniger werden...(task update, sync, etc.)
+- [x] swipe muss ohne zeitverzögerung passieren?!
+- [x] im today soll scheduled in der vergangenheit datum mit anzeigen wenn es nicht heute ist
+- [x] counter von aufgaben in den listen anzeigen (today, backlog, done)
+- [x] counter einfärben wenn zuviele aufgaben sind!
+- [x] done als button oben
+- [x] terminieren/editieren von aufgaben die in der vergangenheit liegen werden ins backlog geschubst?
+- [-] counter refresht sich nicht! <- tut er doch!
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Worklog an Aufgaben...
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
@@ -225,7 +236,6 @@
   - [x] sqlite3.dll
   - [ ] mehr?
   - [ ] Aufräumen (ois)
-- [x] sync: jeder client moved aktuell beim ersten öffnen
 - [ ] sync: erster sync muss schneller
 - [ ] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
 - [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
@@ -234,28 +244,18 @@
       app icon ist 4 eckig auf weißem grund (rund)
 - [ ] runter sortieren, sortiert "drüber"
 - [ ] sync: self signed certs prüfen (ca-chain)
-- [x] inactivity reminder dynamischer (selbst hinzufügen, anzahl abstände etc.)
 - [ ] android: aktionen in der notification (erledigt, in arbeit)
-- [x] combobox "font" breiter!
-- [ ] sync: nur eingerät sollte automatisches löschen aktiv haben!
-- [x] save button in "sie haben änderungen dialog"
-- [x] toasts müssen weniger werden...(task update, sync, etc.)
-- [x] swipe muss ohne zeitverzögerung passieren?!
-- [ ] 24 Uhr move today -> backlog
+- [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben!
+- [?] 24 Uhr move today -> backlog
+- [ ] notizen
+- [ ] toast bzw. gesamtes aktions log
+- [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [?] today in backlog muss immer OBEN ins backlog einfügen!
-- [x] im today soll scheduled in der vergangenheit datum mit anzeigen wenn es nicht heute ist
 - [?] sortierung: backlog 
         alles was "heute" ist, soll oben sein 
         manuell sortiert (was von today kam oben!)
 - [?] sortierung: done
         erledigt nach erledigt-datum sortieren
-- [x] counter von aufgaben in den listen anzeigen (today, backlog, done)
-- [x] counter einfärben wenn zuviele aufgaben sind!
-- [ ] notizen
-- [x] done als button oben
-- [x] terminieren/editieren von aufgaben die in der vergangheit liegen werden ins backlog geschubst?
-- [ ] toast bzw. gesamtes aktions log
-- [ ] counter refresht sich nicht!
 
 ## notes
 

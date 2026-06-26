@@ -375,7 +375,7 @@ class TaskItem {
   }
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final List<TaskItem> _today = [];
   final TextEditingController _controller = TextEditingController();
   final FocusNode _inputFocus = FocusNode();
@@ -454,6 +454,7 @@ class _HomePageState extends State<HomePage> {
   Timer? _scheduledCheckTimer;
   Timer? _windowWatcherTimer;
   Timer? _autoSwitchTimer;
+  Timer? _dailyMigrationTimer;
   // Timestamp when the app started; used to avoid firing scheduled reminders
   // for tasks that became due before the app was started.
   final DateTime _appStartedAt = DateTime.now();
@@ -547,6 +548,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Do not watch or persist window geometry; OS chooses position.
     _startIdleTimer();
     _startAttentionTimer();
@@ -569,6 +571,15 @@ class _HomePageState extends State<HomePage> {
     _stopwatchTicker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // When the app gains focus after being in background, ensure daily
+      // migration runs if we passed midnight while the app was inactive.
+      unawaited(_performDailyMigrationIfNeeded());
+    }
   }
 
   bool _hardwareKeyHandler(KeyEvent ev) {
@@ -641,90 +652,11 @@ class _HomePageState extends State<HomePage> {
       }
     } catch (_) {}
 
-    // Ensure daily reset: when app is started the first time on a new day,
-    // move all open (not done) tasks from Today into Backlog (bottom->top),
-    // leave Done tasks in their file. Persist a lastRunDate in settings.
+    // Ensure daily migration runs now if needed, and schedule a timer for
+    // the next midnight so it also runs when the app remains open overnight.
     try {
-      Map<String, dynamic> settings = {};
-      try {
-        if (_useSqlite) {
-          final txt = _sqliteStorage.read(_storage('simplepresent_settings.json'));
-          if (txt != null) settings = jsonDecode(txt) as Map<String, dynamic>;
-        } else {
-          final settingsFile = await _fileFor(_storage('simplepresent_settings.json'));
-          if (await settingsFile.exists()) {
-            try {
-              settings = jsonDecode(await settingsFile.readAsString()) as Map<String, dynamic>;
-            } catch (_) {
-              settings = {};
-            }
-          }
-        }
-      } catch (_) {
-        settings = {};
-      }
-      final todayKey = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      final lastRun = settings['lastRunDate'] as String?;
-      if (lastRun != todayKey) {
-        // First run today -> migrate open tasks from today -> backlog
-        final List<TaskItem> todayList = [];
-        await _loadList(_storage('simplepresent_today.json'), todayList);
-        final List<TaskItem> movedToDone = [];
-        int movedToBacklogCount = 0;
-        if (todayList.isNotEmpty) {
-          final List<TaskItem> backlogList = [];
-          await _loadList(_storage('simplepresent_backlog.json'), backlogList);
-          final List<TaskItem> doneList = [];
-          await _loadList(_storage('simplepresent_done.json'), doneList);
-
-          // Move tasks from today: open tasks -> backlog (bottom->top), done tasks -> done
-          for (int i = todayList.length - 1; i >= 0; i--) {
-            final t = todayList[i];
-            if (!t.done) {
-              // insert at top so tasks moved from Today appear first in Backlog
-              backlogList.insert(0, t);
-              movedToBacklogCount++;
-            } else {
-              movedToDone.add(t);
-            }
-          }
-
-          // Persist updated backlog and done, then clear today
-          await _saveList(_storage('simplepresent_backlog.json'), backlogList);
-          if (movedToDone.isNotEmpty) {
-            // append moved done tasks to existing done list (preserve existing order)
-            doneList.addAll(movedToDone
-                .reversed); // reverse to keep original top->bottom order
-            await _saveList(_storage('simplepresent_done.json'), doneList);
-          }
-          await _saveList(_storage('simplepresent_today.json'), <TaskItem>[]);
-        }
-        settings['lastRunDate'] = todayKey;
-        final enc = const JsonEncoder.withIndent('  ');
-        try {
-          // reload current view to ensure UI reflects changes
-          await _loadToday();
-          final encoded = enc.convert(settings);
-          if (_useSqlite) {
-            _sqliteStorage.write(_storage('simplepresent_settings.json'), encoded);
-          } else {
-            final settingsFile =
-                await _fileFor(_storage('simplepresent_settings.json'));
-            await settingsFile.writeAsString(encoded);
-          }
-        } catch (_) {}
-        // Show a short summary toast after first frame if any tasks were moved
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          final movedDoneCount = movedToDone.length;
-          if (movedToBacklogCount > 0 || movedDoneCount > 0) {
-            final parts = <String>[];
-            if (movedToBacklogCount > 0)
-              parts.add('$movedToBacklogCount moved to Backlog');
-            if (movedDoneCount > 0) parts.add('$movedDoneCount moved to Done');
-            _showTopToast(parts.join(', '));
-          }
-        });
-      }
+      await _performDailyMigrationIfNeeded();
+      _scheduleDailyMigrationTimer();
     } catch (_) {}
 
     await _loadToday();
@@ -761,6 +693,98 @@ class _HomePageState extends State<HomePage> {
         final data = jsonDecode(text) as List<dynamic>;
         target.addAll(data.map(TaskItem.fromJson));
       }
+    } catch (_) {}
+  }
+
+  Future<void> _performDailyMigrationIfNeeded() async {
+    try {
+      Map<String, dynamic> settings = {};
+      try {
+        if (_useSqlite) {
+          final txt = _sqliteStorage.read(_storage('simplepresent_settings.json'));
+          if (txt != null) settings = jsonDecode(txt) as Map<String, dynamic>;
+        } else {
+          final settingsFile = await _fileFor(_storage('simplepresent_settings.json'));
+          if (await settingsFile.exists()) {
+            try {
+              settings = jsonDecode(await settingsFile.readAsString()) as Map<String, dynamic>;
+            } catch (_) {
+              settings = {};
+            }
+          }
+        }
+      } catch (_) {
+        settings = {};
+      }
+      final todayKey = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final lastRun = settings['lastRunDate'] as String?;
+      if (lastRun == todayKey) return;
+
+      // First run today -> migrate open tasks from today -> backlog
+      final List<TaskItem> todayList = [];
+      await _loadList(_storage('simplepresent_today.json'), todayList);
+      final List<TaskItem> movedToDone = [];
+      int movedToBacklogCount = 0;
+      if (todayList.isNotEmpty) {
+        final List<TaskItem> backlogList = [];
+        await _loadList(_storage('simplepresent_backlog.json'), backlogList);
+        final List<TaskItem> doneList = [];
+        await _loadList(_storage('simplepresent_done.json'), doneList);
+
+        for (int i = todayList.length - 1; i >= 0; i--) {
+          final t = todayList[i];
+          if (!t.done) {
+            backlogList.insert(0, t);
+            movedToBacklogCount++;
+          } else {
+            movedToDone.add(t);
+          }
+        }
+
+        await _saveList(_storage('simplepresent_backlog.json'), backlogList);
+        if (movedToDone.isNotEmpty) {
+          doneList.addAll(movedToDone.reversed);
+          await _saveList(_storage('simplepresent_done.json'), doneList);
+        }
+        await _saveList(_storage('simplepresent_today.json'), <TaskItem>[]);
+      }
+
+      settings['lastRunDate'] = todayKey;
+      final enc = const JsonEncoder.withIndent('  ');
+      try {
+        await _loadToday();
+        final encoded = enc.convert(settings);
+        if (_useSqlite) {
+          _sqliteStorage.write(_storage('simplepresent_settings.json'), encoded);
+        } else {
+          final settingsFile = await _fileFor(_storage('simplepresent_settings.json'));
+          await settingsFile.writeAsString(encoded);
+        }
+      } catch (_) {}
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final movedDoneCount = movedToDone.length;
+        if (movedToBacklogCount > 0 || movedDoneCount > 0) {
+          final parts = <String>[];
+          if (movedToBacklogCount > 0) parts.add('$movedToBacklogCount moved to Backlog');
+          if (movedDoneCount > 0) parts.add('$movedDoneCount moved to Done');
+          _showTopToast(parts.join(', '));
+        }
+      });
+    } catch (_) {}
+  }
+
+  void _scheduleDailyMigrationTimer() {
+    try {
+      _dailyMigrationTimer?.cancel();
+      final now = DateTime.now();
+      final nextMidnight = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+      final duration = nextMidnight.difference(now) + const Duration(seconds: 1);
+      _dailyMigrationTimer = Timer(duration, () async {
+        await _performDailyMigrationIfNeeded();
+        // schedule next one
+        _scheduleDailyMigrationTimer();
+      });
     } catch (_) {}
   }
 
@@ -1785,6 +1809,11 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    try {
+      WidgetsBinding.instance.removeObserver(this);
+    } catch (_) {}
+    _dailyMigrationTimer?.cancel();
+
     try {
       HardwareKeyboard.instance.removeHandler(_hardwareKeyHandler);
     } catch (_) {}
