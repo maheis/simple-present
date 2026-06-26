@@ -243,7 +243,7 @@
 - [x] swipe muss ohne zeitverzögerung passieren?!
 - [ ] 24 Uhr move today -> backlog
 - [?] today in backlog muss immer OBEN ins backlog einfügen!
-- [ ] scheduled in der vergangenheit soll datum mit anzeigen wenn es nicht heute ist (im  today)
+- [x] im today soll scheduled in der vergangenheit datum mit anzeigen wenn es nicht heute ist
 - [ ] sortierung: backlog 
         alles was "heute" ist, soll oben sein 
         manuell sortiert (was von today kam oben!)
@@ -253,6 +253,7 @@
 - [ ] counter rot wenn zuviele aufgaben!
 - [ ] notizen
 - [ ] done als button oben (backlog auch?)
+- [ ] terminieren/editieren von aufgaben die in der vergangehit liegen werden ins backlog geschubst?
 
 ## notes
 

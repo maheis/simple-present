@@ -4405,11 +4405,15 @@ class _HomePageState extends State<HomePage> {
                                                                                   DateFormat('HH:mm').format(task.scheduledAt!),
                                                                                   style: TextStyle(fontSize: 11, color: _scheduleIconColor(task.scheduledAt!)),
                                                                                 ),
-                                                                                if (_showingBacklog || _currentFile == _storage('simplepresent_backlog.json'))
-                                                                                  Text(
-                                                                                    DateFormat('yyyy-MM-dd').format(task.scheduledAt!),
-                                                                                    style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                                                                                  ),
+                                                                                // Show full date in Backlog, or in Today when the scheduled date is not today and is in the past
+                                                                                if (_showingBacklog || _currentFile == _storage('simplepresent_backlog.json') ||
+                                                                                    (task.scheduledAt != null && !_isSameDay(task.scheduledAt!, DateTime.now()) && task.scheduledAt!.isBefore(DateTime.now())))
+                                                                                Text(
+                                                                                  (task.scheduledAt != null && _isSameDay(task.scheduledAt!, DateTime.now().subtract(Duration(days: 1))))
+                                                                                      ? 'yesterday'
+                                                                                      : DateFormat('EEEE').format(task.scheduledAt!),
+                                                                                  style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                                                                ),
                                                                               ],
                                                                             ),
                                                                           ),
