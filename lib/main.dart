@@ -597,6 +597,49 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return File('${dir.path}/$name');
   }
 
+  Future<void> _openNotes() async {
+    try {
+      final file = await _fileFor(_storage('simplepresent_notes.txt'));
+      String text = '';
+      if (await file.exists()) {
+        try {
+          text = await file.readAsString();
+        } catch (_) {}
+      }
+      final controller = TextEditingController(text: text);
+      final original = text;
+      await Navigator.of(context).push(MaterialPageRoute(builder: (ctx) {
+        return WillPopScope(
+          onWillPop: () async {
+            try {
+              if (controller.text != original) {
+                await file.writeAsString(controller.text);
+              }
+            } catch (_) {}
+            return true;
+          },
+          child: Scaffold(
+            appBar: AppBar(
+              title: const Text('notes'),
+            ),
+            body: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.multiline,
+                  maxLines: null,
+                  expands: true,
+                  decoration: const InputDecoration.collapsed(hintText: 'Notes...'),
+                ),
+              ),
+            ),
+          ),
+        );
+      }));
+    } catch (_) {}
+  }
+
   Future<void> _ensureListFile(String filename) async {
     try {
       if (_useSqlite) {
@@ -3897,6 +3940,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
                                         onPressed: () async { await _openSettings(); },
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.note),
+                                        tooltip: 'Notes',
+                                        padding: Platform.isAndroid
+                                            ? const EdgeInsets.symmetric(horizontal: 2.0)
+                                            : const EdgeInsets.symmetric(horizontal: 6.0),
+                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                        visualDensity: VisualDensity.compact,
+                                        onPressed: () async { await _openNotes(); },
                                       ),
                                       // Done button (opens archived/done view)
                                       IconButton(

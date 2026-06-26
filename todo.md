@@ -247,7 +247,7 @@
 - [ ] android: aktionen in der notification (erledigt, in arbeit)
 - [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben!
 - [?] 24 Uhr move today -> backlog
-- [ ] notizen
+- [x] notizen
 - [ ] toast bzw. gesamtes aktions log
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [?] today in backlog muss immer OBEN ins backlog einfügen!
@@ -256,6 +256,8 @@
         manuell sortiert (was von today kam oben!)
 - [?] sortierung: done
         erledigt nach erledigt-datum sortieren
+- [ ] update.sh oder install soll erkennen und updaten (vorherige version löschen?)
+- [ ] viel auf deutsch, alles klein schreiben
 
 ## notes
 
