@@ -381,6 +381,8 @@ class _HomePageState extends State<HomePage> {
   final FocusNode _inputFocus = FocusNode();
   OverlayEntry? _toastEntry;
   Timer? _toastTimer;
+  String? _lastToastMessage;
+  DateTime? _lastToastAt;
   final Set<String> _expanded = <String>{};
   final Map<String, TextEditingController> _editControllers = {};
   final Map<String, TextEditingController> _notesControllers = {};
@@ -817,6 +819,26 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadToday() async {
     await _loadList(_currentFile, _today);
+    // If we're showing the Backlog, promote items that are scheduled for today
+    // to the top while preserving relative order.
+    try {
+      if (_currentFile == _storage('simplepresent_backlog.json')) {
+        final todayDate = DateTime.now();
+        final scheduledToday = <TaskItem>[];
+        final rest = <TaskItem>[];
+        for (final t in _today) {
+          if (t.scheduledAt != null && _isSameDay(t.scheduledAt!, todayDate)) {
+            scheduledToday.add(t);
+          } else {
+            rest.add(t);
+          }
+        }
+        _today
+          ..clear()
+          ..addAll(scheduledToday)
+          ..addAll(rest);
+      }
+    } catch (_) {}
     setState(() {});
   }
 
@@ -2222,7 +2244,6 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    _showTopToast('task updated');
     _registerActivity();
   }
 
@@ -2924,6 +2945,19 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _showTopToast(String message) {
+    // Dedupe identical messages shown recently and throttle brief bursts
+    final now = DateTime.now();
+    if (_lastToastMessage != null && _lastToastMessage == message) {
+      if (_lastToastAt != null && now.difference(_lastToastAt!).inSeconds < 3) {
+        return; // suppress duplicate within 3s
+      }
+    }
+    if (_lastToastAt != null && now.difference(_lastToastAt!).inMilliseconds < 700) {
+      return; // throttle too-frequent toasts
+    }
+    _lastToastMessage = message;
+    _lastToastAt = now;
+
     _toastTimer?.cancel();
     _toastEntry?.remove();
 
