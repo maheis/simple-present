@@ -236,7 +236,7 @@
 - [ ] sync: self signed certs prüfen (ca-chain)
 - [x] inactivity reminder dynamischer (selbst hinzufügen, anzahl abstände etc.)
 - [ ] android: aktionen in der notification (erledigt, in arbeit)
-- [ ] combobox "font" breiter!
+- [x] combobox "font" breiter!
 - [ ] sync: nur eingerät sollte löschen aktiv haben!
 - [ ] save button in "sie haben änderungen dialog"
 - [ ] toasts müssen weniger werden...(task update, sync, etc.)

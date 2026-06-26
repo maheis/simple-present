@@ -5886,21 +5886,24 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   const Text('font:'),
                   const SizedBox(width: 12),
-                  DropdownButton<String>(
-                    value: fontFamily,
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'OpenDyslexic', child: Text('OpenDyslexic')),
-                      DropdownMenuItem(
-                        value: 'NotoSans', child: Text('NotoSans')),
-                      DropdownMenuItem(
-                        value: 'CourierPrime', child: Text('CourierPrime')),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => fontFamily = value);
-                      }
-                    },
+                  Expanded(
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      value: fontFamily,
+                      items: const [
+                        DropdownMenuItem(
+                            value: 'OpenDyslexic', child: Text('OpenDyslexic')),
+                        DropdownMenuItem(
+                            value: 'NotoSans', child: Text('NotoSans')),
+                        DropdownMenuItem(
+                            value: 'CourierPrime', child: Text('CourierPrime')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => fontFamily = value);
+                        }
+                      },
+                    ),
                   ),
                 ],
               ),
@@ -6001,7 +6004,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       const Text('reminder time window', style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 6),
-                      const Text('Only fire inactivity reminders within this time window.'),
+                      const Text('only fire inactivity reminders within this time window.'),
                       const SizedBox(height: 8),
                       Row(
                         children: [
