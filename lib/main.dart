@@ -837,6 +837,20 @@ class _HomePageState extends State<HomePage> {
           ..clear()
           ..addAll(scheduledToday)
           ..addAll(rest);
+      } else if (_currentFile == _storage('simplepresent_done.json')) {
+        // Sort done list by completion timestamp (newest first). Tasks without
+        // `completedAt` are placed at the end, preserving relative order where
+        // timestamps are equal.
+        try {
+          _today.sort((a, b) {
+            final da = a.completedAt;
+            final db = b.completedAt;
+            if (da == null && db == null) return 0;
+            if (da == null) return 1; // a after b
+            if (db == null) return -1; // a before b
+            return db.compareTo(da); // newest first
+          });
+        } catch (_) {}
       }
     } catch (_) {}
     setState(() {});

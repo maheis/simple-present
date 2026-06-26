@@ -247,7 +247,7 @@
 - [?] sortierung: backlog 
         alles was "heute" ist, soll oben sein 
         manuell sortiert (was von today kam oben!)
-- [ ] sortierung: done
+- [?] sortierung: done
         erledigt nach erledigt-datum sortieren
 - [ ] counter von aufgaben in den listen anzeigen (today, backlog, done)
 - [ ] counter rot wenn zuviele aufgaben!
