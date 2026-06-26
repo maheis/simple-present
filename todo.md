@@ -192,7 +192,7 @@
   - [x] uhrzeit soll unter den button und kein eigenes icon mehr haben
 - [x] sync: eigenes zertifikat führt zu fehler?
 - [x] sync: neues peering soll warnen das altes verloren geht
-- [x] sortierung, in arbeit solle immer ganz oben sein
+- [x] sortierung: today
         in arbeit + wichtig
         in arbeit + uhrzeit in vergangenheit
         in arbeit
@@ -225,9 +225,10 @@
   - [x] sqlite3.dll
   - [ ] mehr?
   - [ ] Aufräumen (ois)
-- [?] sync: jeder client moved aktuell beim ersten öffnen
+- [x] sync: jeder client moved aktuell beim ersten öffnen
+- [ ] sync: erster sync muss schneller
 - [ ] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
-- [?] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
+- [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
       notification funktioniert mit weißen icon.
       kleines app icon in der taks auswahl und benachrichtigung klappt auch
       app icon ist 4 eckig auf weißem grund (rund)
@@ -240,6 +241,16 @@
 - [ ] save button in "sie haben änderungen dialog"
 - [ ] toasts müssen weniger werden...(task update, sync, etc.)
 - [ ] swipe muss ohne zeitverzögerung passieren?! braucht es die überhaupt noch?
+- [ ] 24 Uhr move today -> backlog
+- [ ] today in backlog muss immer OBEN ins backlog einfügen!
+- [ ] scheduled in der vergangenheit soll datum mit anzeigen wenn es nicht heute ist (im  today)
+- [ ] sortierung: backlog 
+        alles was "heute" ist, soll oben sein 
+        manuell sortiert (was von today kam oben!)
+- [ ] sortierung: done
+        erledigt nach erledigt-datum sortieren
+- [ ] counter von aufgaben in den listen anzeigen (today, backlog, done)
+- [ ] counter rot wenn zuviele aufgaben!
 
 ## notes
 

@@ -430,6 +430,11 @@ class _HomePageState extends State<HomePage> {
   bool _urgentSoundEnabled = false;
   bool _urgentNotifyEnabled = false;
   bool _urgentBringToFrontEnabled = false;
+  // Dynamic inactivity reminders: list of stages user can add/remove
+  // Each stage: { 'minutes': int, 'sound': bool, 'flash': bool, 'notify': bool, 'bringToFront': bool }
+  List<Map<String, dynamic>> _inactivityReminders = <Map<String, dynamic>>[];
+  List<Timer?> _inactivityTimers = <Timer?>[];
+  List<bool> _inactivityFired = <bool>[];
   bool _swipeEnabled = true;
   // Reminder window (HH:MM) — only remind within this time window when enabled
   String _reminderWindowFrom = '09:00';
@@ -718,6 +723,8 @@ class _HomePageState extends State<HomePage> {
     await _syncPullFromCloud();
     unawaited(_fetchServerVersion());
     _startCloudPullTimer();
+    // Start dynamic inactivity timers according to loaded settings
+    _startInactivityTimers();
   }
 
   Future<void> _requestAndroidNotificationPermission() async {
@@ -1562,6 +1569,19 @@ class _HomePageState extends State<HomePage> {
         if (rwTo is String && rwTo.isNotEmpty) {
           _reminderWindowTo = rwTo;
         }
+        // Load dynamic inactivity reminders if present; otherwise default to empty
+        if (data.containsKey('inactivityReminders')) {
+          final list = data['inactivityReminders'];
+          if (list is List) {
+            _inactivityReminders = list.map((e) {
+              if (e is Map) return Map<String, dynamic>.from(e);
+              return <String, dynamic>{};
+            }).toList();
+          }
+        } else {
+          // discard legacy fixed reminder settings by default (user must re-add)
+          _inactivityReminders = <Map<String, dynamic>>[];
+        }
       });
       // Do not restore persisted window geometry or position; OS/window manager
       // determines position. Size is set once on startup elsewhere.
@@ -1643,6 +1663,7 @@ class _HomePageState extends State<HomePage> {
         'scheduledReminderSoundEnabled': _scheduledReminderSoundEnabled,
         'reminderWindowFrom': _reminderWindowFrom,
         'reminderWindowTo': _reminderWindowTo,
+        'inactivityReminders': _inactivityReminders,
         'autoPurgeDoneEnabled': _autoPurgeDoneEnabled,
         'doneRetentionDays': _doneRetentionDays,
       };
@@ -1696,6 +1717,9 @@ class _HomePageState extends State<HomePage> {
     _attentionTimer?.cancel();
     _reminderTimer?.cancel();
     _urgentTimer?.cancel();
+    for (final t in _inactivityTimers) {
+      try { t?.cancel(); } catch (_) {}
+    }
     _autoSwitchTimer?.cancel();
     _scheduledCheckTimer?.cancel();
     _cloudPullTimer?.cancel();
@@ -2092,9 +2116,23 @@ class _HomePageState extends State<HomePage> {
         _cloudPIN = result['cloudPIN'] as String;
       }
       _cloudAllowInsecureTls = result['cloudAllowInsecureTls'] == true;
+      if (result['inactivityReminders'] is List) {
+        try {
+          final list = (result['inactivityReminders'] as List)
+              .map((e) => (e is Map) ? Map<String, dynamic>.from(e as Map) : <String, dynamic>{})
+              .toList();
+          _inactivityReminders = list;
+        } catch (_) {
+          _inactivityReminders = <Map<String, dynamic>>[];
+        }
+      }
     });
 
     _registerActivity();
+    // Restart inactivity timers if they were updated in settings
+    try {
+      _startInactivityTimers();
+    } catch (_) {}
     await _saveSettings();
     unawaited(_purgeOldDoneTasksIfEnabled());
     _startCloudPullTimer();
@@ -3128,16 +3166,24 @@ class _HomePageState extends State<HomePage> {
       _idleTimer?.cancel();
       _attentionTimer?.cancel();
       _reminderTimer?.cancel();
+      // cancel any dynamic inactivity timers
+      for (final t in _inactivityTimers) {
+        try { t?.cancel(); } catch (_) {}
+      }
     } catch (_) {}
     // Reset fired flags so reminders can fire again after activity
     _idleFired = false;
     _attentionFired = false;
     _reminderFired = false;
     _urgentFired = false;
+    // reset dynamic fired flags
+    _inactivityFired = List<bool>.generate(_inactivityReminders.length, (_) => false);
+    // start timers: legacy timers kept for compatibility but dynamic reminders take precedence
     _startIdleTimer();
     _startAttentionTimer();
     _startReminderTimer();
     _startUrgentTimer();
+    _startInactivityTimers();
     _startAutoSwitchTimer();
   }
 
@@ -3445,6 +3491,70 @@ class _HomePageState extends State<HomePage> {
       _urgentFired = true;
       // do not auto-restart; wait for user activity to reset
     });
+  }
+
+  void _startInactivityTimers() {
+    // cancel existing
+    for (final t in _inactivityTimers) {
+      try { t?.cancel(); } catch (_) {}
+    }
+    _inactivityTimers = List<Timer?>.filled(_inactivityReminders.length, null, growable: true);
+    _inactivityFired = List<bool>.filled(_inactivityReminders.length, false, growable: true);
+    for (var i = 0; i < _inactivityReminders.length; i++) {
+      final stage = _inactivityReminders[i];
+      final minutes = (stage['minutes'] is int) ? stage['minutes'] as int : int.tryParse(stage['minutes']?.toString() ?? '') ?? 0;
+      final duration = Duration(minutes: minutes.clamp(1, 720));
+      _inactivityTimers[i] = Timer(duration, () async {
+        if (_inactivityFired.length > i && _inactivityFired[i]) return;
+        final now = DateTime.now();
+        if (!_isWithinReminderWindow(now)) {
+          final delay = _durationUntilNextWindowStart(now);
+          _inactivityTimers[i] = Timer(delay, () async {
+            if (_inactivityFired.length > i && _inactivityFired[i]) return;
+            await _fireInactivityStage(i);
+          });
+          return;
+        }
+        await _fireInactivityStage(i);
+      });
+    }
+  }
+
+  Future<void> _fireInactivityStage(int i) async {
+    if (i < 0 || i >= _inactivityReminders.length) return;
+    final stage = _inactivityReminders[i];
+    final minutes = stage['minutes']?.toString() ?? '';
+    final sound = stage['sound'] == true;
+    final flash = stage['flash'] == true;
+    final notify = stage['notify'] == true;
+    final bring = stage['bringToFront'] == true;
+    if (sound) {
+      try {
+        await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+      } catch (_) {
+        SystemSound.play(SystemSoundType.alert);
+      }
+    }
+    if (flash) {
+      try {
+        await _nativeWindowChannel.invokeMethod('flashTaskbar');
+      } catch (_) {}
+    }
+    if (notify) {
+      try {
+        await _nativeWindowChannel.invokeMethod('notify', <String, String>{
+          'title': _appTitle,
+          'body': 'You have been inactive for $minutes minutes',
+          'icon': 'assets/icons/color_transparent_icon.png',
+        });
+      } catch (_) {}
+    }
+    if (bring) {
+      try {
+        await _nativeWindowChannel.invokeMethod('bringToFront');
+      } catch (_) {}
+    }
+    if (_inactivityFired.length > i) _inactivityFired[i] = true;
   }
 
   @override
@@ -5051,6 +5161,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool _initialCloudAllowInsecureTls;
   late bool _initialAutoPurgeDoneEnabled;
   late int _initialDoneRetentionDays;
+  late List<Map<String, dynamic>> _inactivityRemindersLocal;
 
   @override
   void initState() {
@@ -5164,6 +5275,16 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialDoneRetentionDays = doneRetentionDays;
     _fetchServerVersionInSettings();
     unawaited(_refreshCloudAccountStatus());
+    // Initialize local inactivity reminders from parent-provided initial map
+    final ir = widget.initial['inactivityReminders'];
+    if (ir is List) {
+      _inactivityRemindersLocal = ir.map((e) {
+        if (e is Map) return Map<String, dynamic>.from(e as Map);
+        return <String, dynamic>{};
+      }).toList();
+    } else {
+      _inactivityRemindersLocal = <Map<String, dynamic>>[];
+    }
   }
 
   Future<void> _fetchServerVersionInSettings() async {
@@ -5693,6 +5814,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     'cloudDeviceName': cloudDeviceName,
                     'cloudPIN': cloudPIN,
                     'cloudAllowInsecureTls': cloudAllowInsecureTls,
+                    'inactivityReminders': _inactivityRemindersLocal,
                     'autoPurgeDoneEnabled': autoPurgeDoneEnabled,
                     'doneRetentionDays': doneRetentionDays,
                   });
@@ -5758,68 +5880,70 @@ class _SettingsPageState extends State<SettingsPage> {
               const Text('inactivity reminders',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              _ReminderStageCard(
-                title: '45 min',
-                minutes: idleMinutes,
-                onMinutesChanged: (v) => setState(() => idleMinutes = safe(v)),
-                soundEnabled: idleSoundEnabled,
-                onSoundChanged: (v) => setState(() => idleSoundEnabled = v),
-                flashEnabled: idleFlashEnabled,
-                onFlashChanged: (v) => setState(() => idleFlashEnabled = v),
-                notifyEnabled: idleNotifyEnabled,
-                onNotifyChanged: (v) => setState(() => idleNotifyEnabled = v),
-                bringToFrontEnabled: idleBringToFrontEnabled,
-                onBringToFrontChanged: (v) =>
-                    setState(() => idleBringToFrontEnabled = v),
-              ),
-              _ReminderStageCard(
-                title: '60 min',
-                minutes: attentionMinutes,
-                onMinutesChanged: (v) =>
-                    setState(() => attentionMinutes = safe(v)),
-                soundEnabled: attentionSoundEnabled,
-                onSoundChanged: (v) =>
-                    setState(() => attentionSoundEnabled = v),
-                flashEnabled: attentionFlashEnabled,
-                onFlashChanged: (v) =>
-                    setState(() => attentionFlashEnabled = v),
-                notifyEnabled: attentionNotifyEnabled,
-                onNotifyChanged: (v) =>
-                    setState(() => attentionNotifyEnabled = v),
-                bringToFrontEnabled: attentionBringToFrontEnabled,
-                onBringToFrontChanged: (v) =>
-                    setState(() => attentionBringToFrontEnabled = v),
-              ),
-              _ReminderStageCard(
-                title: '75 min',
-                minutes: reminderMinutes,
-                onMinutesChanged: (v) =>
-                    setState(() => reminderMinutes = safe(v)),
-                soundEnabled: reminderSoundEnabled,
-                onSoundChanged: (v) => setState(() => reminderSoundEnabled = v),
-                flashEnabled: reminderFlashEnabled,
-                onFlashChanged: (v) => setState(() => reminderFlashEnabled = v),
-                notifyEnabled: reminderNotifyEnabled,
-                onNotifyChanged: (v) =>
-                    setState(() => reminderNotifyEnabled = v),
-                bringToFrontEnabled: reminderBringToFrontEnabled,
-                onBringToFrontChanged: (v) =>
-                    setState(() => reminderBringToFrontEnabled = v),
-              ),
-              _ReminderStageCard(
-                title: '90 min',
-                minutes: urgentMinutes,
-                onMinutesChanged: (v) =>
-                    setState(() => urgentMinutes = safe(v)),
-                soundEnabled: urgentSoundEnabled,
-                onSoundChanged: (v) => setState(() => urgentSoundEnabled = v),
-                flashEnabled: urgentFlashEnabled,
-                onFlashChanged: (v) => setState(() => urgentFlashEnabled = v),
-                notifyEnabled: urgentNotifyEnabled,
-                onNotifyChanged: (v) => setState(() => urgentNotifyEnabled = v),
-                bringToFrontEnabled: urgentBringToFrontEnabled,
-                onBringToFrontChanged: (v) =>
-                    setState(() => urgentBringToFrontEnabled = v),
+              // Dynamic list of user-defined inactivity reminder stages
+              for (var i = 0; i < _inactivityRemindersLocal.length; i++)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _ReminderStageCard(
+                        title: '${_inactivityRemindersLocal[i]['minutes'] ?? 'min'} min',
+                        minutes: (_inactivityRemindersLocal[i]['minutes'] is int)
+                            ? _inactivityRemindersLocal[i]['minutes'] as int
+                            : int.tryParse(_inactivityRemindersLocal[i]['minutes']?.toString() ?? '') ?? 0,
+                        onMinutesChanged: (v) => setState(() {
+                          _inactivityRemindersLocal[i]['minutes'] = v.clamp(1, 720);
+                        }),
+                        soundEnabled: _inactivityRemindersLocal[i]['sound'] == true,
+                        onSoundChanged: (v) => setState(() {
+                          _inactivityRemindersLocal[i]['sound'] = v;
+                        }),
+                        flashEnabled: _inactivityRemindersLocal[i]['flash'] == true,
+                        onFlashChanged: (v) => setState(() {
+                          _inactivityRemindersLocal[i]['flash'] = v;
+                        }),
+                        notifyEnabled: _inactivityRemindersLocal[i]['notify'] == true,
+                        onNotifyChanged: (v) => setState(() {
+                          _inactivityRemindersLocal[i]['notify'] = v;
+                        }),
+                        bringToFrontEnabled: _inactivityRemindersLocal[i]['bringToFront'] == true,
+                        onBringToFrontChanged: (v) => setState(() {
+                          _inactivityRemindersLocal[i]['bringToFront'] = v;
+                        }),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 40,
+                      child: IconButton(
+                        icon: const Icon(Icons.delete),
+                        tooltip: 'remove',
+                        onPressed: () => setState(() {
+                          _inactivityRemindersLocal.removeAt(i);
+                        }),
+                      ),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () => setState(() {
+                      // Add a new default stage (user will configure it)
+                      _inactivityRemindersLocal.add({
+                        'minutes': 30,
+                        'sound': false,
+                        'flash': false,
+                        'notify': true,
+                        'bringToFront': false,
+                      });
+                    }),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add reminder'),
+                  ),
+                  const SizedBox(width: 12)
+                  ],
               ),
               const SizedBox(height: 8),
               Card(
