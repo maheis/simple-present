@@ -614,6 +614,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             try {
               if (controller.text != original) {
                 await file.writeAsString(controller.text);
+                unawaited(_syncPushNotes(controller.text));
               }
             } catch (_) {}
             return true;
@@ -1167,6 +1168,53 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  Future<bool> _syncPushNotes(String text) async {
+    if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState) return false;
+
+    _cloudSyncBusy = true;
+    try {
+      final client = CloudSyncClient(
+        serverBaseUrl: _cloudServerUrl.trim(),
+        allowInsecureCertificates: _cloudAllowInsecureTls,
+      );
+      final modifiedAt = DateTime.now().millisecondsSinceEpoch;
+      _cloudStateVersion += 1;
+
+      final encryptedPayload = await CloudSyncClient.encryptStatePayload(
+        payload: <String, dynamic>{
+          'kind': 'notes',
+          'text': text,
+        },
+        phrase: _cloudWordPhrase,
+      );
+
+      await client.pushItems(
+        accountId: _cloudAccountId.trim(),
+        token: _cloudToken.trim(),
+        items: <Map<String, dynamic>>[
+          <String, dynamic>{
+            'id': 'notes',
+            'payload': encryptedPayload,
+            'modified_at': modifiedAt,
+            'tombstone': false,
+            'origin_device_id': _cloudDeviceId.trim(),
+            'version': _cloudStateVersion,
+          }
+        ],
+      );
+
+      _cloudLastSyncModifiedAt = modifiedAt;
+      await _saveSettings();
+      _onCloudSyncSuccess();
+      return true;
+    } catch (e) {
+      _onCloudSyncError(e);
+      return false;
+    } finally {
+      _cloudSyncBusy = false;
+    }
+  }
+
   void _onCloudSyncSuccess() {
     _cloudLastSyncSuccessAt = DateTime.now().millisecondsSinceEpoch;
     _cloudSyncLastError = '';
@@ -1369,6 +1417,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           }
 
           final kind = (payload['kind'] ?? '').toString();
+          if (kind == 'notes') {
+            final incomingText = (payload['text'] ?? '').toString();
+            try {
+              final notesFile = await _fileFor(_storage('simplepresent_notes.txt'));
+              final localModified = await (await notesFile.exists())
+                  ? (await notesFile.lastModified()).millisecondsSinceEpoch
+                  : 0;
+              if (item.modifiedAt > localModified) {
+                try {
+                  await notesFile.writeAsString(incomingText);
+                  if (mounted) _showTopToast('notes updated from cloud');
+                } catch (_) {}
+              }
+            } catch (_) {}
+            continue;
+          }
           if (item.id.startsWith('time:') || kind == 'time_entry') {
             final entryRaw = payload['entry'];
             final entry = entryRaw is Map

@@ -263,7 +263,8 @@
 - [?] counter, fertige abziehen
 - [ ] word-phrase durch buchstaben+zahlensalat ersetzten (maus bewegen um die zufälligkeit zu erhöhen)
 - [x] notes button fehlt?
-- [ ] registrierte geräte anzeigen lassen und entfernbar machen (auf dem master-device?)
+- [ ] registrierte geräte zu diesem account anzeigen lassen und entfernbar machen
+- [?] sync: notes?
 
 ## notes
 
