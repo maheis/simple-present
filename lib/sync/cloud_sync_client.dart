@@ -527,6 +527,20 @@ class CloudSyncClient {
     );
   }
 
+  Future<List<Map<String, dynamic>>> listDevices({required String token}) async {
+    final resp = await _getJsonAuthorized('/devices', bearerToken: token);
+    final devicesRaw = resp['devices'];
+    if (devicesRaw is! List) return <Map<String, dynamic>>[];
+    return devicesRaw.map((e) {
+      if (e is Map) return Map<String, dynamic>.from(e.cast<String, dynamic>());
+      return <String, dynamic>{};
+    }).toList();
+  }
+
+  Future<void> revokeDevice({required String token, required String deviceId}) async {
+    await _postJsonAuthorized('/devices/' + Uri.encodeComponent(deviceId) + '/revoke', <String, dynamic>{}, bearerToken: token);
+  }
+
   Future<CloudStatePullResult?> pullLatestState({
     required String token,
     int since = 0,

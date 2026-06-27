@@ -263,10 +263,10 @@
 - [?] counter, fertige abziehen
 - [ ] word-phrase durch buchstaben+zahlensalat ersetzten (maus bewegen um die zufälligkeit zu erhöhen)
 - [x] notes button fehlt?
-- [ ] registrierte geräte zu diesem account anzeigen lassen und entfernbar machen
+- [?] registrierte geräte zu diesem account anzeigen lassen und entfernbar machen
 - [?] sync: notes?
 
-## notes
+## noteshttps://webmail.heister.email/
 
 - [ ] Übersetzung! Deutsch....
 - [ ] LLM-Integration: Automatisches Generieren von Unteraufgaben/Schritten aus der Hauptaufgabe, Vorschläge für Notizen/Lösungen basierend auf der Aufgabe, intelligente Sortierung des Backlogs basierend auf Wichtigkeit und Dringlichkeit.

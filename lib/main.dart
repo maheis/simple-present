@@ -3,13 +3,25 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
-import 'package:audioplayers/audioplayers.dart';
-import 'package:intl/intl.dart';
-import 'package:intl/date_symbol_data_local.dart';
-import 'dart:math' as math;
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _cloudBusy ? null : _pastePairingLink,
+                      icon: const Icon(Icons.content_paste),
+                      label: const Text('paste link'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _cloudBusy ? null : _showDevicesDialog,
+                      icon: const Icon(Icons.devices),
+                      label: const Text('manage devices'),
+                    ),
+                  ),
 // Pointer scroll events (task zoom via Ctrl+wheel) disabled — no import needed
 import 'package:path_provider/path_provider.dart';
 import 'package:simple_present/sync/cloud_sync_client.dart';
@@ -514,6 +526,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Set<String> _cloudKnownTodayIds = <String>{};
   Set<String> _cloudKnownBacklogIds = <String>{};
   Set<String> _cloudKnownDoneIds = <String>{};
+  List<Map<String, dynamic>> _cloudDevices = <Map<String, dynamic>>[];
 
   Duration get _idleDuration => Duration(minutes: _idleMinutes.clamp(1, 720));
   Duration get _attentionDuration =>
@@ -1242,6 +1255,83 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _cloudSyncFailed = true;
       _showTopToast('☁ $short');
     }
+  }
+
+  Future<void> _fetchCloudDevices() async {
+    if (!_cloudSyncConfigured) return;
+    try {
+      final client = CloudSyncClient(
+        serverBaseUrl: _cloudServerUrl.trim(),
+        allowInsecureCertificates: _cloudAllowInsecureTls,
+      );
+      final devices = await client.listDevices(token: _cloudToken.trim());
+      if (mounted) setState(() => _cloudDevices = devices);
+    } catch (e) {
+      _onCloudSyncError(e);
+    }
+  }
+
+  Future<void> _revokeCloudDevice(String deviceId) async {
+    if (!_cloudSyncConfigured) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('revoke device'),
+        content: const Text('revoke this device? it will no longer be able to sync.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('cancel')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('revoke')),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      final client = CloudSyncClient(
+        serverBaseUrl: _cloudServerUrl.trim(),
+        allowInsecureCertificates: _cloudAllowInsecureTls,
+      );
+      await client.revokeDevice(token: _cloudToken.trim(), deviceId: deviceId);
+      _showTopToast('device revoked');
+      await _fetchCloudDevices();
+    } catch (e) {
+      _onCloudSyncError(e);
+    }
+  }
+
+  Future<void> _showDevicesDialog() async {
+    await _fetchCloudDevices();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('registered devices'),
+        content: SizedBox(
+          width: 520,
+          height: 320,
+          child: _cloudDevices.isEmpty
+              ? const Center(child: Text('no devices found'))
+              : ListView.builder(
+                  itemCount: _cloudDevices.length,
+                  itemBuilder: (c, i) {
+                    final d = _cloudDevices[i];
+                    final revoked = d['revoked'] == true;
+                    return ListTile(
+                      title: Text(d['name']?.toString() ?? d['id']?.toString() ?? ''),
+                      subtitle: Text('id: ${d['id']}\ncreated: ${d['created_at']}'),
+                      isThreeLine: true,
+                      trailing: revoked
+                          ? const Text('revoked', style: TextStyle(color: Colors.redAccent))
+                          : TextButton(
+                              onPressed: () => _revokeCloudDevice(d['id']?.toString() ?? ''),
+                              child: const Text('revoke'),
+                            ),
+                    );
+                  },
+                ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('close'))],
+      ),
+    );
   }
 
   String _cloudSyncStatusTooltip() {
