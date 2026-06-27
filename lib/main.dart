@@ -1,27 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _cloudBusy ? null : _pastePairingLink,
-                      icon: const Icon(Icons.content_paste),
-                      label: const Text('paste link'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _cloudBusy ? null : _showDevicesDialog,
-                      icon: const Icon(Icons.devices),
-                      label: const Text('manage devices'),
-                    ),
-                  ),
+import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter/foundation.dart';
+import 'package:audioplayers/audioplayers.dart';
 // Pointer scroll events (task zoom via Ctrl+wheel) disabled — no import needed
 import 'package:path_provider/path_provider.dart';
 import 'package:simple_present/sync/cloud_sync_client.dart';
@@ -33,6 +21,9 @@ import 'package:simple_present/storage/json_storage.dart';
 const _noChange = Object();
 
 const String kClientVersion = '0.1.0';
+
+// Global mouse entropy buffer used across pages for phrase suggestion.
+final List<int> _mouseEntropy = <int>[];
 
 /// A snapshot of tracked time for one task on one day, read from the
 /// `time_entries` SQLite table.
@@ -598,6 +589,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _hardwareKeyHandler(KeyEvent ev) {
     _registerActivity();
     return false; // do not claim the event
+  }
+
+  // Collect simple mouse movement entropy for phrase generation.
+  void _collectMouseEntropy(PointerEvent ev) {
+    // store low-entropy deltas; keep list bounded to 256 bytes
+    final x = ev.position.dx.toInt();
+    final y = ev.position.dy.toInt();
+    _mouseEntropy.add((x ^ y) & 0xff);
+    if (_mouseEntropy.length > 256) _mouseEntropy.removeRange(0, _mouseEntropy.length - 256);
   }
 
   Future<Directory> get _appDir async {
@@ -3929,6 +3929,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 children: [
                   Listener(
                 onPointerDown: (_) => _registerActivity(),
+                onPointerMove: _collectMouseEntropy,
                 // Task zoom via pointer signals disabled
                 onPointerSignal: (_) {},
                 child: GestureDetector(
@@ -5926,7 +5927,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _suggestPhrase() async {
     setState(() {
-      cloudWordPhrase = CloudSyncClient.suggestWordPhrase();
+      // Use alphanumeric group phrase by default for stronger randomness.
+      final extra = List<int>.from(_mouseEntropy);
+      cloudWordPhrase = CloudSyncClient.suggestWordPhrase(alphaNumeric: true, groupLen: 6, extraEntropy: extra);
+      _mouseEntropy.clear();
       _cloudStatus = 'Neue 9-Wort-Phrase vorgeschlagen.';
     });
   }

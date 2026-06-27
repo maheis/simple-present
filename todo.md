@@ -240,7 +240,7 @@
   - [x] sqlite3.dll
   - [ ] mehr?
   - [ ] Aufräumen (ois)
-- [ ] sync: erster sync muss schneller
+- [ ] sync: erster sync muss schneller, es muss beim öffnen geprüft werden bevor der client selbst aktionen ausführt. sonst kann es zu chaos kommen! (aufgaben die anm handy in heute lagen nd schon erledigt waren, wurden beim anderen in backlog verschoben und da liegengelassen...) 
 - [ ] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
 - [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
       notification funktioniert mit weißen icon.[text](about:blank#blocked)
@@ -259,9 +259,9 @@
         manuell sortiert (was von today kam oben!)
 - [?] sortierung: done
         erledigt nach erledigt-datum sortieren
-- [ ] Android App name mit leerzeichen (icon, zeilenumbruch)
+- [x] Android App name mit leerzeichen (icon, zeilenumbruch)
 - [?] counter, fertige abziehen
-- [ ] word-phrase durch buchstaben+zahlensalat ersetzten (maus bewegen um die zufälligkeit zu erhöhen)
+- [x] word-phrase durch buchstaben+zahlensalat ersetzten (maus bewegen um die zufälligkeit zu erhöhen)
 - [x] notes button fehlt?
 - [?] registrierte geräte zu diesem account anzeigen lassen und entfernbar machen
 - [?] sync: notes?

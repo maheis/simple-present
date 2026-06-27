@@ -190,13 +190,41 @@ class CloudSyncClient {
     'socket',
   ];
 
-  static String suggestWordPhrase({Random? random}) {
+  /// Suggest a pairing phrase. By default this returns 9 words (legacy).
+  /// If [alphaNumeric] is true, returns a phrase of [groupCount] groups
+  /// containing [groupLen] random alphanumeric characters (separated by spaces).
+  /// Optionally provide [extraEntropy] bytes (e.g. from pointer movement) to bias randomness.
+  static String suggestWordPhrase({
+    Random? random,
+    bool alphaNumeric = false,
+    int groupCount = 9,
+    int groupLen = 4,
+    List<int>? extraEntropy,
+  }) {
     final rng = random ?? Random.secure();
-    final words = List<String>.generate(
-      9,
-      (_) => _suggestionWords[rng.nextInt(_suggestionWords.length)],
-    );
-    return words.join(' ');
+    if (!alphaNumeric) {
+      final words = List<String>.generate(
+        9,
+        (_) => _suggestionWords[rng.nextInt(_suggestionWords.length)],
+      );
+      return words.join(' ');
+    }
+
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    final groups = <String>[];
+    for (var g = 0; g < groupCount; g++) {
+      final sb = StringBuffer();
+      for (var i = 0; i < groupLen; i++) {
+        final base = rng.nextInt(chars.length);
+        final extra = (extraEntropy != null && extraEntropy.isNotEmpty)
+            ? extraEntropy[(g * groupLen + i) % extraEntropy.length]
+            : 0;
+        final idx = (base + (extra & 0xff)) % chars.length;
+        sb.write(chars[idx]);
+      }
+      groups.add(sb.toString());
+    }
+    return groups.join(' ');
   }
 
   static String normalizeWordPhrase(String phrase) {
