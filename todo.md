@@ -226,6 +226,9 @@
 - [x] update.sh oder install soll erkennen und updaten (vorherige version löschen?)
 - [x] viel auf deutsch, alles klein schreiben
 - [x] de.maheis.simplepresent -> be.heister.simplepresent
+- [x] Android App name mit leerzeichen (icon, zeilenumbruch)
+- [x] word-phrase durch buchstaben+zahlensalat ersetzten (maus bewegen um die zufälligkeit zu erhöhen)
+- [x] notes button fehlt?
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Worklog an Aufgaben...
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
@@ -259,10 +262,7 @@
         manuell sortiert (was von today kam oben!)
 - [?] sortierung: done
         erledigt nach erledigt-datum sortieren
-- [x] Android App name mit leerzeichen (icon, zeilenumbruch)
 - [?] counter, fertige abziehen
-- [x] word-phrase durch buchstaben+zahlensalat ersetzten (maus bewegen um die zufälligkeit zu erhöhen)
-- [x] notes button fehlt?
 - [?] registrierte geräte zu diesem account anzeigen lassen und entfernbar machen
 - [?] sync: notes?
 
