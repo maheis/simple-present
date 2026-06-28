@@ -26,7 +26,7 @@ class SqliteStorage {
     final text = await f.readAsString();
     final decoded = jsonDecode(text);
     if (decoded is Map) {
-      return Map<String, dynamic>.from(decoded.cast<String, dynamic>());
+      return Map<String, dynamic>.from(decoded);
     }
     return <String, dynamic>{};
   }
@@ -43,9 +43,9 @@ class SqliteStorage {
       if (!f.existsSync()) return const [];
       final decoded = jsonDecode(f.readAsStringSync());
       if (decoded is! List) return const [];
-      return decoded
+        return decoded
           .whereType<Map>()
-          .map((entry) => Map<String, dynamic>.from(entry.cast<String, dynamic>()))
+          .map((entry) => Map<String, dynamic>.from(entry))
           .toList();
     } catch (_) {
       return const [];
@@ -117,9 +117,9 @@ class SqliteStorage {
       final all = _readJsonMapSync('simplepresent_time_entries.json');
       final raw = all[date];
       if (raw is! List) return const [];
-      return raw
+        return raw
           .whereType<Map>()
-          .map((entry) => Map<String, dynamic>.from(entry.cast<String, dynamic>()))
+          .map((entry) => Map<String, dynamic>.from(entry))
           .toList();
     } catch (_) {
       return const [];
@@ -142,7 +142,7 @@ class SqliteStorage {
     if (!f.existsSync()) return <String, dynamic>{};
     final decoded = jsonDecode(f.readAsStringSync());
     if (decoded is Map) {
-      return Map<String, dynamic>.from(decoded.cast<String, dynamic>());
+      return Map<String, dynamic>.from(decoded);
     }
     return <String, dynamic>{};
   }

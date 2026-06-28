@@ -291,7 +291,7 @@ class TaskItem {
 
   Map<String, dynamic> toJson() => {
         'id': id,
-        'text': text,
+        'text': text, // Changed to ensure proper mapping
         'done': done,
         'important': important,
         'inProgress': inProgress,
@@ -335,7 +335,7 @@ class TaskItem {
     return TaskItem(
       id: useId,
       text: (map['text'] ?? '').toString(),
-      done: map['done'] == true,
+      done: map['done'] == true, // Ensured proper boolean mapping
       important: map['important'] == true,
       inProgress: map['inProgress'] == true || map['in_arbeit'] == true,
       // support both new english keys and older german/variant keys
@@ -621,17 +621,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final controller = TextEditingController(text: text);
       final original = text;
       await Navigator.of(context).push(MaterialPageRoute(builder: (ctx) {
-        return WillPopScope(
-          onWillPop: () async {
-            try {
-              if (controller.text != original) {
-                await file.writeAsString(controller.text);
-                unawaited(_syncPushNotes(controller.text));
-              }
-            } catch (_) {}
-            return true;
-          },
-          child: Scaffold(
+          // ignore: deprecated_member_use
+          return WillPopScope(
+            onWillPop: () async {
+              try {
+                if (controller.text != original) {
+                  await file.writeAsString(controller.text);
+                  unawaited(_syncPushNotes(controller.text));
+                }
+              } catch (_) {}
+              return true;
+            },
+            child: Scaffold(
             appBar: AppBar(title: const Text('notes')),
             body: SafeArea(
               child: Padding(
@@ -1451,7 +1452,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           if (item.id.startsWith('time:') || kind == 'time_entry') {
             final entryRaw = payload['entry'];
             final entry = entryRaw is Map
-                ? Map<String, dynamic>.from(entryRaw.cast<String, dynamic>())
+                ? Map<String, dynamic>.from(entryRaw)
                 : payload;
             final date = (payload['date'] ?? entry['date'] ?? '').toString();
             final entryTaskId = (entry['task_id'] ?? '').toString();
@@ -1483,7 +1484,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               : int.tryParse(payload['position']?.toString() ?? '') ?? 0;
           if (taskRaw is! Map || !listMap.containsKey(listName)) continue;
 
-          final task = TaskItem.fromJson(Map<String, dynamic>.from(taskRaw.cast<String, dynamic>()));
+          final task = TaskItem.fromJson(Map<String, dynamic>.from(taskRaw));
 
           for (final list in listMap.values) {
             list.removeWhere((t) => t.id == task.id);
@@ -2339,19 +2340,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (result['reminderWindowTo'] is String) {
         _reminderWindowTo = result['reminderWindowTo'] as String;
       }
-      if (result['cloudDeviceName'] is String &&
-          (result['cloudDeviceName'] as String).isNotEmpty) {
-        _cloudDeviceName = result['cloudDeviceName'] as String;
+      if (result['cloudDeviceName'] is String) {
+        final nameStr = result['cloudDeviceName'] as String;
+        if (nameStr.isNotEmpty) _cloudDeviceName = nameStr;
       }
       if (result['cloudPIN'] is String) {
         _cloudPIN = result['cloudPIN'] as String;
       }
       _cloudAllowInsecureTls = result['cloudAllowInsecureTls'] == true;
       if (result['inactivityReminders'] is List) {
-        try {
-          final list = (result['inactivityReminders'] as List)
-              .map((e) => (e is Map) ? Map<String, dynamic>.from(e as Map) : <String, dynamic>{})
-              .toList();
+          try {
+            final rawList = result['inactivityReminders'];
+            final list = (rawList is List)
+                ? rawList.map((e) => (e is Map) ? Map<String, dynamic>.from(e) : <String, dynamic>{}).toList()
+                : <Map<String, dynamic>>[];
           _inactivityReminders = list;
         } catch (_) {
           _inactivityReminders = <Map<String, dynamic>>[];
@@ -4295,13 +4297,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                             final containerKey = _tileKeys.putIfAbsent(task.id, () => GlobalKey());
                                             final bool _isDimmed = _stagedDone[task.id] ?? task.done;
                                             final Color _iconColor = _isDimmed
-                                              ? Theme.of(context).colorScheme.onSurface.withOpacity(0.30)
+                                              ? Theme.of(context).colorScheme.onSurface.withAlpha((0.30 * 255).round())
                                               : Theme.of(context).colorScheme.onSurface;
                                             final Color _primaryTextColor = _isDimmed
-                                              ? Theme.of(context).colorScheme.onSurface.withOpacity(0.30)
+                                              ? Theme.of(context).colorScheme.onSurface.withAlpha((0.30 * 255).round())
                                               : Theme.of(context).colorScheme.onSurface;
                                             final Color _variantColor = _isDimmed
-                                              ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.30)
+                                              ? Theme.of(context).colorScheme.onSurfaceVariant.withAlpha((0.30 * 255).round())
                                               : Theme.of(context).colorScheme.onSurfaceVariant;
                                             return Dismissible(
                                               key: containerKey,
@@ -4531,7 +4533,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                 children: [
                                                     Card(
                                                       color: (task.inProgress
-                                                              ? Colors.green.withOpacity(0.10)
+                                                              ? Colors.green.withAlpha((0.10 * 255).round())
                                                               : null),
                                                     child: ListTile(
                                                       contentPadding:
@@ -4622,7 +4624,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                             decoration:
                                                                                 TextDecoration.none,
                                                                             color: task.done
-                                                                                ? _primaryTextColor.withOpacity(0.6)
+                                                                                ? _primaryTextColor.withAlpha((0.6 * 255).round())
                                                                                 : (task.important ? Colors.amber : _primaryTextColor),
                                                                           ),
                                                                         ),
@@ -4941,7 +4943,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                                     step.text,
                                                                                     style: TextStyle(
                                                                                       decoration: TextDecoration.none,
-                                                                                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                                                                      color: Theme.of(context).colorScheme.onSurface.withAlpha((0.6 * 255).round()),
                                                                                     ),
                                                                                   )
                                                                                 : TextFormField(
@@ -5733,7 +5735,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final ir = widget.initial['inactivityReminders'];
     if (ir is List) {
       _inactivityRemindersLocal = ir.map((e) {
-        if (e is Map) return Map<String, dynamic>.from(e as Map);
+        if (e is Map) return Map<String, dynamic>.from(e);
         return <String, dynamic>{};
       }).toList();
     } else {

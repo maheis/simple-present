@@ -475,7 +475,7 @@ class CloudSyncClient {
       Map<String, dynamic> payload = <String, dynamic>{};
       final payloadRaw = raw['payload'];
       if (payloadRaw is Map) {
-        payload = Map<String, dynamic>.from(payloadRaw.cast<String, dynamic>());
+        payload = Map<String, dynamic>.from(payloadRaw);
       }
 
       final candidate = CloudPulledItem(
@@ -560,7 +560,7 @@ class CloudSyncClient {
     final devicesRaw = resp['devices'];
     if (devicesRaw is! List) return <Map<String, dynamic>>[];
     return devicesRaw.map((e) {
-      if (e is Map) return Map<String, dynamic>.from(e.cast<String, dynamic>());
+      if (e is Map) return Map<String, dynamic>.from(e);
       return <String, dynamic>{};
     }).toList();
   }
@@ -602,7 +602,7 @@ class CloudSyncClient {
       if (modifiedAt > bestModifiedAt) {
         bestModifiedAt = modifiedAt;
         bestVersion = version;
-        bestPayload = Map<String, dynamic>.from(payloadRaw.cast<String, dynamic>());
+        bestPayload = Map<String, dynamic>.from(payloadRaw);
       }
     }
 
