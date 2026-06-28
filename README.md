@@ -1,4 +1,4 @@
-# SimplePresent
+# simple present
 
 A **simple** task management system focused on **present** tasks.
 
