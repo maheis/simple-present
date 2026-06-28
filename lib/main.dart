@@ -517,7 +517,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Set<String> _cloudKnownTodayIds = <String>{};
   Set<String> _cloudKnownBacklogIds = <String>{};
   Set<String> _cloudKnownDoneIds = <String>{};
-  List<Map<String, dynamic>> _cloudDevices = <Map<String, dynamic>>[];
 
   Duration get _idleDuration => Duration(minutes: _idleMinutes.clamp(1, 720));
   Duration get _attentionDuration =>
@@ -847,7 +846,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       final List<TaskItem> tmp = [];
       await _loadList(_storage('simplepresent_today.json'), tmp);
-      _countToday = tmp.length;
+      // Count only open (not done) tasks for Today
+      _countToday = tmp.where((t) => !t.done).length;
       tmp.clear();
       await _loadList(_storage('simplepresent_backlog.json'), tmp);
       _countBacklog = tmp.length;
@@ -1257,82 +1257,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _fetchCloudDevices() async {
-    if (!_cloudSyncConfigured) return;
-    try {
-      final client = CloudSyncClient(
-        serverBaseUrl: _cloudServerUrl.trim(),
-        allowInsecureCertificates: _cloudAllowInsecureTls,
-      );
-      final devices = await client.listDevices(token: _cloudToken.trim());
-      if (mounted) setState(() => _cloudDevices = devices);
-    } catch (e) {
-      _onCloudSyncError(e);
-    }
-  }
-
-  Future<void> _revokeCloudDevice(String deviceId) async {
-    if (!_cloudSyncConfigured) return;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('revoke device'),
-        content: const Text('revoke this device? it will no longer be able to sync.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('cancel')),
-          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('revoke')),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-    try {
-      final client = CloudSyncClient(
-        serverBaseUrl: _cloudServerUrl.trim(),
-        allowInsecureCertificates: _cloudAllowInsecureTls,
-      );
-      await client.revokeDevice(token: _cloudToken.trim(), deviceId: deviceId);
-      _showTopToast('device revoked');
-      await _fetchCloudDevices();
-    } catch (e) {
-      _onCloudSyncError(e);
-    }
-  }
-
-  Future<void> _showDevicesDialog() async {
-    await _fetchCloudDevices();
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('registered devices'),
-        content: SizedBox(
-          width: 520,
-          height: 320,
-          child: _cloudDevices.isEmpty
-              ? const Center(child: Text('no devices found'))
-              : ListView.builder(
-                  itemCount: _cloudDevices.length,
-                  itemBuilder: (c, i) {
-                    final d = _cloudDevices[i];
-                    final revoked = d['revoked'] == true;
-                    return ListTile(
-                      title: Text(d['name']?.toString() ?? d['id']?.toString() ?? ''),
-                      subtitle: Text('id: ${d['id']}\ncreated: ${d['created_at']}'),
-                      isThreeLine: true,
-                      trailing: revoked
-                          ? const Text('revoked', style: TextStyle(color: Colors.redAccent))
-                          : TextButton(
-                              onPressed: () => _revokeCloudDevice(d['id']?.toString() ?? ''),
-                              child: const Text('revoke'),
-                            ),
-                    );
-                  },
-                ),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('close'))],
-      ),
-    );
-  }
+  
 
   String _cloudSyncStatusTooltip() {
     if (!_cloudSyncConfigured) {
@@ -5559,6 +5484,85 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool cloudSyncFailed;
   late String cloudSyncLastError;
   late bool autoPurgeDoneEnabled;
+  // local cache for devices shown in settings
+  List<Map<String, dynamic>> _settingsCloudDevices = <Map<String, dynamic>>[];
+
+  Future<void> _fetchCloudDevicesSettings() async {
+    if (cloudServerUrl.trim().isEmpty || cloudToken.trim().isEmpty) return;
+    try {
+      final client = CloudSyncClient(
+        serverBaseUrl: _normalizedServerUrl(),
+        allowInsecureCertificates: cloudAllowInsecureTls,
+      );
+      final devices = await client.listDevices(token: cloudToken.trim());
+      if (mounted) setState(() => _settingsCloudDevices = devices);
+    } catch (e) {
+      // ignore here, show little status elsewhere
+    }
+  }
+
+  Future<void> _revokeCloudDeviceSettings(String deviceId) async {
+    if (cloudServerUrl.trim().isEmpty || cloudToken.trim().isEmpty) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('revoke device'),
+        content: const Text('revoke this device? it will no longer be able to sync.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('cancel')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('revoke')),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      final client = CloudSyncClient(
+        serverBaseUrl: _normalizedServerUrl(),
+        allowInsecureCertificates: cloudAllowInsecureTls,
+      );
+      await client.revokeDevice(token: cloudToken.trim(), deviceId: deviceId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('device revoked')));
+        await _fetchCloudDevicesSettings();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _showDevicesDialogSettings() async {
+    await _fetchCloudDevicesSettings();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('registered devices'),
+        content: SizedBox(
+          width: 520,
+          height: 320,
+          child: _settingsCloudDevices.isEmpty
+              ? const Center(child: Text('no devices found'))
+              : ListView.builder(
+                  itemCount: _settingsCloudDevices.length,
+                  itemBuilder: (c, i) {
+                    final d = _settingsCloudDevices[i];
+                    final revoked = d['revoked'] == true;
+                    return ListTile(
+                      title: Text(d['name']?.toString() ?? d['id']?.toString() ?? ''),
+                      subtitle: Text('id: ${d['id']}\ncreated: ${d['created_at']}'),
+                      isThreeLine: true,
+                      trailing: revoked
+                          ? const Text('revoked', style: TextStyle(color: Colors.redAccent))
+                          : TextButton(
+                              onPressed: () => _revokeCloudDeviceSettings(d['id']?.toString() ?? ''),
+                              child: const Text('revoke'),
+                            ),
+                    );
+                  },
+                ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('close'))],
+      ),
+    );
+  }
   late int doneRetentionDays;
   late int maxTasksToday;
   late int maxTasksBacklog;
@@ -6719,6 +6723,14 @@ class _SettingsPageState extends State<SettingsPage> {
                       onPressed: _cloudBusy ? null : _pastePairingLink,
                       icon: const Icon(Icons.content_paste),
                       label: const Text('paste link'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _cloudBusy ? null : _showDevicesDialogSettings,
+                      icon: const Icon(Icons.devices),
+                      label: const Text('manage devices'),
                     ),
                   ),
                 ],

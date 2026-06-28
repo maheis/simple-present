@@ -262,9 +262,9 @@
         manuell sortiert (was von today kam oben!)
 - [?] sortierung: done
         erledigt nach erledigt-datum sortieren
-- [?] counter, fertige abziehen
-- [?] registrierte geräte zu diesem account anzeigen lassen und entfernbar machen
-- [?] sync: notes?
+- [x] counter, fertige abziehen
+- [ ] registrierte geräte zu diesem account anzeigen lassen und entfernbar machen
+- [x] sync: notes?
 
 ## noteshttps://webmail.heister.email/
 
