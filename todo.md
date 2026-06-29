@@ -269,7 +269,7 @@
   - [ ] Aufräumen (ois)
 - [ ] sync: erster sync muss schneller, es muss beim öffnen geprüft werden bevor der client selbst aktionen ausführt. sonst kann es zu chaos kommen! (aufgaben die anm handy in heute lagen nd schon erledigt waren, wurden beim anderen in backlog verschoben und da liegengelassen...) 
 - [ ] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
-- [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
+- [?] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
       notification funktioniert mit weißen icon.[text](about:blank#blocked)
       kleines app icon in der taks auswahl und benachrichtigung klappt auch
       app icon ist 4 eckig auf weißem grund (rund)

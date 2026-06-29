@@ -38,7 +38,7 @@
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
-     inkscape:current-layer="g85"><inkscape:grid
+     inkscape:current-layer="layer5"><inkscape:grid
        id="grid1"
        units="mm"
        originx="0"
@@ -399,7 +399,7 @@
      inkscape:groupmode="layer"
      id="g7"
      inkscape:label="color_teal_icon"
-     style="display:none"><rect
+     style="display:inline"><rect
        style="opacity:1;fill:#00251a;fill-opacity:1;stroke:none;stroke-width:41.8316;stroke-linecap:round;stroke-linejoin:round"
        id="rect1"
        width="30.427084"
@@ -422,11 +422,11 @@
      inkscape:groupmode="layer"
      id="g73"
      inkscape:label="-----"
-     style="display:none" /><g
+     style="display:inline" /><g
      inkscape:groupmode="layer"
      id="g9"
      inkscape:label="white_transparent_done"
-     style="display:none"
+     style="display:inline"
      transform="matrix(1.0034698,0,0,0.99999888,1.984375,1.984375)"><rect
        style="display:inline;opacity:1;fill:#000000;fill-opacity:0;stroke:none;stroke-width:41.8316;stroke-linecap:round;stroke-linejoin:round"
        id="rect2"
@@ -474,7 +474,7 @@
      inkscape:groupmode="layer"
      id="g52"
      inkscape:label="white_transparent_notes"
-     style="display:none"><rect
+     style="display:inline"><rect
        style="opacity:1;fill:#000000;fill-opacity:0;stroke:none;stroke-width:41.8316;stroke-linecap:round;stroke-linejoin:round"
        id="rect41"
        width="30.427084"
@@ -545,7 +545,7 @@
      inkscape:groupmode="layer"
      id="g79"
      inkscape:label="white_transparent_settings"
-     style="display:none"><rect
+     style="display:inline"><rect
        style="display:inline;opacity:1;fill:#000000;fill-opacity:0;stroke:none;stroke-width:41.8316;stroke-linecap:round;stroke-linejoin:round"
        id="rect73"
        width="30.427084"
@@ -591,7 +591,7 @@
      inkscape:groupmode="layer"
      id="g19"
      inkscape:label="white_transparent_statistic"
-     style="display:none"><rect
+     style="display:inline"><rect
        style="opacity:1;fill:#000000;fill-opacity:0;stroke:none;stroke-width:41.8316;stroke-linecap:round;stroke-linejoin:round"
        id="rect17"
        width="30.427084"
@@ -617,11 +617,11 @@
      inkscape:groupmode="layer"
      id="g54"
      inkscape:label="-----"
-     style="display:none" /><g
+     style="display:inline" /><g
      inkscape:groupmode="layer"
      id="g14"
      inkscape:label="white_transparent_icon"
-     style="display:none"><rect
+     style="display:inline"><rect
        style="opacity:1;fill:#000000;fill-opacity:0;stroke:none;stroke-width:41.8316;stroke-linecap:round;stroke-linejoin:round"
        id="rect13"
        width="30.427084"
@@ -643,11 +643,11 @@
      inkscape:groupmode="layer"
      id="layer1"
      inkscape:label="-----"
-     style="display:none" /><g
+     style="display:inline" /><g
      inkscape:groupmode="layer"
      id="layer2"
      inkscape:label="color_transparent_done"
-     style="display:none"
+     style="display:inline"
      transform="matrix(1.0034698,0,0,0.99999888,1.984375,1.984375)"><rect
        style="display:inline;opacity:1;fill:#000000;fill-opacity:0;stroke:none;stroke-width:41.8316;stroke-linecap:round;stroke-linejoin:round"
        id="rect12"
@@ -695,7 +695,7 @@
      inkscape:groupmode="layer"
      id="g23"
      inkscape:label="color_transparent_notes"
-     style="display:none"><rect
+     style="display:inline"><rect
        style="opacity:1;fill:#000000;fill-opacity:0;stroke:none;stroke-width:41.8316;stroke-linecap:round;stroke-linejoin:round"
        id="rect19"
        width="30.427084"
@@ -766,7 +766,7 @@
      inkscape:groupmode="layer"
      id="g55"
      inkscape:label="color_transparent_settings"
-     style="display:none"><rect
+     style="display:inline"><rect
        style="display:inline;opacity:1;fill:#000000;fill-opacity:0;stroke:none;stroke-width:41.8316;stroke-linecap:round;stroke-linejoin:round"
        id="rect54"
        width="30.427084"
@@ -812,7 +812,7 @@
      inkscape:groupmode="layer"
      id="g11"
      inkscape:label="color_transparent_statistic"
-     style="display:none"><rect
+     style="display:inline"><rect
        style="opacity:1;fill:#000000;fill-opacity:0;stroke:none;stroke-width:41.8316;stroke-linecap:round;stroke-linejoin:round"
        id="rect3"
        width="30.427084"
@@ -837,11 +837,12 @@
        sodipodi:nodetypes="cc" /></g><g
      inkscape:groupmode="layer"
      id="g53"
-     inkscape:label="-----" /><g
+     inkscape:label="-----"
+     style="display:inline" /><g
      inkscape:groupmode="layer"
      id="layer4"
      inkscape:label="color_transparent_backlog"
-     style="display:none"
+     style="display:inline"
      transform="matrix(1.0034698,0,0,0.99999888,1.984375,1.984375)"><rect
        style="display:inline;opacity:1;fill:#000000;fill-opacity:0;stroke:none;stroke-width:41.8316;stroke-linecap:round;stroke-linejoin:round"
        id="rect11"
@@ -870,7 +871,7 @@
      inkscape:groupmode="layer"
      id="layer3"
      inkscape:label="color_transparent_today"
-     style="display:none"><rect
+     style="display:inline"><rect
        style="display:inline;opacity:1;fill:#000000;fill-opacity:0;stroke:none;stroke-width:41.8316;stroke-linecap:round;stroke-linejoin:round"
        id="rect10"
        width="30.427084"
@@ -889,7 +890,7 @@
      inkscape:groupmode="layer"
      id="layer5"
      inkscape:label="color_transparent_icon"
-     style="display:none"><rect
+     style="display:inline"><rect
        style="opacity:1;fill:#000000;fill-opacity:0;stroke:none;stroke-width:41.8316;stroke-linecap:round;stroke-linejoin:round"
        id="rect5"
        width="30.427084"
