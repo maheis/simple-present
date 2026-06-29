@@ -2622,7 +2622,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _subtaskFocusNodes[task.id]?.requestFocus();
     } catch (_) {}
     _saveToday();
-    try { unawaited(_appendRedoLog('subtask_add', taskId: task.id, details: {'subtask': step.toJson()})); } catch (_) {}
+    try {
+      if (!_stagedEditBefore.containsKey(task.id)) unawaited(_appendRedoLog('subtask_add', taskId: task.id, details: {'subtask': step.toJson()}));
+    } catch (_) {}
     _scheduleDelayedReorder();
     _registerActivity();
   }
@@ -2648,7 +2650,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
     _saveToday();
     try {
-      if (beforeStep != null) unawaited(_appendRedoLog('subtask_edit', taskId: task.id, details: {'subtaskId': subtaskId, 'before': beforeStep!.toJson(), 'after': updated.firstWhere((s) => s.id == subtaskId).toJson()}));
+      if (beforeStep != null && !_stagedEditBefore.containsKey(task.id)) unawaited(_appendRedoLog('subtask_edit', taskId: task.id, details: {'subtaskId': subtaskId, 'before': beforeStep!.toJson(), 'after': updated.firstWhere((s) => s.id == subtaskId).toJson()}));
     } catch (_) {}
     _scheduleDelayedReorder();
     _registerActivity();
@@ -2967,7 +2969,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _today[taskIndex] = task.copyWith(subtasks: list);
     });
     _saveToday();
-    try { if (removed != null && removed!.id.isNotEmpty) unawaited(_appendRedoLog('subtask_remove', taskId: task.id, details: {'subtask': removed!.toJson()})); } catch (_) {}
+    try { if (removed != null && removed!.id.isNotEmpty && !_stagedEditBefore.containsKey(task.id)) unawaited(_appendRedoLog('subtask_remove', taskId: task.id, details: {'subtask': removed!.toJson()})); } catch (_) {}
     _registerActivity();
   }
 
@@ -2983,7 +2985,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _today[taskIndex] = task.copyWith(subtasks: list);
     });
     _saveToday();
-    try { unawaited(_appendRedoLog('subtask_reorder', taskId: task.id, details: {'before': beforeOrder, 'after': afterOrder})); } catch (_) {}
+    try { if (!_stagedEditBefore.containsKey(task.id)) unawaited(_appendRedoLog('subtask_reorder', taskId: task.id, details: {'before': beforeOrder, 'after': afterOrder})); } catch (_) {}
     _registerActivity();
   }
 
@@ -3022,7 +3024,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (kDebugMode) print('_pickSchedule: staged id=${_today[index].id} scheduled=${DateFormat('yyyy-MM-dd HH:mm').format(scheduled)}');
     _scheduleDelayedReorder();
 
-    try { unawaited(_appendRedoLog('schedule_set', taskId: _today[index].id, details: {'before': beforeSched?.toIso8601String(), 'after': scheduled.toIso8601String()})); } catch (_) {}
+    try { if (!_stagedEditBefore.containsKey(_today[index].id)) unawaited(_appendRedoLog('schedule_set', taskId: _today[index].id, details: {'before': beforeSched?.toIso8601String(), 'after': scheduled.toIso8601String()})); } catch (_) {}
     _showTopToast('schedule set');
     // clear any prior notifications for this task so reminders can be re-scheduled
     final idPrefix = '${_today[index].id}|';
@@ -3373,7 +3375,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // clear in-memory and save current view
     setState(() => _today[index] = _today[index].copyWith(scheduledAt: null));
     await _saveToday();
-    try { unawaited(_appendRedoLog('schedule_clear', taskId: id, details: {'before': beforeSched?.toIso8601String()})); } catch (_) {}
+    try { if (!_stagedEditBefore.containsKey(id)) unawaited(_appendRedoLog('schedule_clear', taskId: id, details: {'before': beforeSched?.toIso8601String()})); } catch (_) {}
     _showTopToast('schedule cleared');
     final idPrefix2 = '$id|';
     _notified15.removeWhere((k) => k.startsWith(idPrefix2));
