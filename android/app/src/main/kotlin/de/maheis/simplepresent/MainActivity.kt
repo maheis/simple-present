@@ -64,6 +64,19 @@ class MainActivity : FlutterActivity() {
 			val importance = NotificationManager.IMPORTANCE_DEFAULT
 			val channel = NotificationChannel(CHANNEL_ID, name, importance)
 			channel.description = descriptionText
+
+			// Ensure the notification sound uses notification usage so it does not
+			// interrupt ongoing media playback. Use the system default notification URI.
+			try {
+				val defaultSound = android.provider.Settings.System.DEFAULT_NOTIFICATION_URI
+				val audioAttributes = android.media.AudioAttributes.Builder()
+					.setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+					.setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+					.build()
+				channel.setSound(defaultSound, audioAttributes)
+			} catch (e: Exception) {
+				// fallback: ignore if audio attributes aren't available for some reason
+			}
 			val notificationManager: NotificationManager =
 				getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 			notificationManager.createNotificationChannel(channel)
