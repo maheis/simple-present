@@ -610,6 +610,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return File('${dir.path}/$name');
   }
 
+  Future<void> _appendRedoLog(String action, {String? taskId, Map<String, dynamic>? details}) async {
+    try {
+      final file = await _fileFor(_storage('simplepresent_redo.log'));
+      final entry = <String, dynamic>{
+        'timestamp': DateTime.now().toIso8601String(),
+        'action': action,
+        'task_id': taskId ?? '',
+        'user_id': (_cloudDeviceId.trim().isNotEmpty ? _cloudDeviceId.trim() : Platform.localHostname),
+        'details': details ?? {},
+      };
+      await file.writeAsString('${jsonEncode(entry)}\n', mode: FileMode.append);
+    } catch (_) {}
+  }
+
   Future<void> _openNotes() async {
     try {
       final file = await _fileFor(_storage('simplepresent_notes.txt'));
@@ -3033,6 +3047,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       todayList.insert(0, item.copyWith(done: false, inProgress: false));
       await _saveList(todayFile, todayList);
 
+      // Log move from backlog to today
+      unawaited(_appendRedoLog('move_to_today', taskId: item.id, details: {'from': 'backlog', 'to': 'today'}));
+
       // Reload the currently shown list into memory so the UI updates correctly
       await _loadToday();
       _showTopToast('task moved to today');
@@ -3079,6 +3096,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // insert at top so task appears first in backlog
       backlogList.insert(0, toStore);
       await _saveList(_storage('simplepresent_backlog.json'), backlogList);
+      // Log move to backlog
+      unawaited(_appendRedoLog('move_to_backlog', taskId: toStore.id, details: {'from': 'today', 'to': 'backlog'}));
       // Persist time entry for this task (if using sqlite this appends a row)
       _upsertTimeEntry(toStore);
       // If we're currently showing backlog, reload to reflect the new top item
@@ -3123,11 +3142,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         toStore = item.copyWith(done: false, inProgress: false);
       }
 
+      // insert at top so task appears first in backlog
       final List<TaskItem> backlogList = [];
       await _loadList(_storage('simplepresent_backlog.json'), backlogList);
-      // insert at top so task appears first in backlog
       backlogList.insert(0, toStore);
       await _saveList(_storage('simplepresent_backlog.json'), backlogList);
+      unawaited(_appendRedoLog('move_to_backlog', taskId: toStore.id, details: {'from': 'today', 'to': 'backlog'}));
       _upsertTimeEntry(toStore);
       // If we're currently showing backlog, reload to reflect the new top item
       if (_showingBacklog || _currentFile == _storage('simplepresent_backlog.json')) {
@@ -3189,6 +3209,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _currentFile = targetFile;
       }
       await _loadToday();
+      // Log duplication
+      unawaited(_appendRedoLog('duplicate', taskId: newId, details: {'source': item.id, 'target': targetFile}));
       setState(() {
         _expanded.clear();
         _expanded.add(newId);
@@ -3419,18 +3441,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _notesControllers.clear();
       _expanded.clear();
     }
+    final newId = '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+    final newItem = TaskItem(id: newId, text: input, done: false, createdAt: DateTime.now(), notes: '');
     setState(() {
-      _today.insert(
-          0,
-          TaskItem(
-              id: '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}',
-              text: input,
-              done: false,
-              createdAt: DateTime.now(),
-              notes: ''));
+      _today.insert(0, newItem);
       _controller.clear();
     });
     _saveToday();
+    // Log creation for redo/undo purposes
+    unawaited(_appendRedoLog('create', taskId: newId, details: {'text': input}));
     _inputFocus.requestFocus();
     _registerActivity();
   }
@@ -4622,6 +4641,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                       setState(() {
                                                         _today[i] = original.copyWith(done: true, inProgress: false, completedAt: now);
                                                       });
+                                                    } catch (_) {}
+                                                    // Log marking done
+                                                    try {
+                                                      unawaited(_appendRedoLog('mark_done', taskId: _today[i].id));
                                                     } catch (_) {}
                                                     // Clear notification flags for this task
                                                     try {
