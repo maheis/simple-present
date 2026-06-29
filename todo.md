@@ -269,10 +269,6 @@
   - [ ] Aufräumen (ois)
 - [ ] sync: erster sync muss schneller, es muss beim öffnen geprüft werden bevor der client selbst aktionen ausführt. sonst kann es zu chaos kommen! (aufgaben die anm handy in heute lagen nd schon erledigt waren, wurden beim anderen in backlog verschoben und da liegengelassen...) 
 - [ ] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
-- [?] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
-      notification funktioniert mit weißen icon.[text](about:blank#blocked)
-      kleines app icon in der taks auswahl und benachrichtigung klappt auch
-      app icon ist 4 eckig auf weißem grund (rund)
 - [ ] runter sortieren, sortiert "drüber"
 - [ ] sync: self signed certs prüfen (ca-chain)
 - [ ] android: aktionen in der notification (erledigt, in arbeit)
@@ -281,6 +277,11 @@
         schiebt sync in den papierkorb?
         papierkorb sichtbar machen (um wiederherstellen zu können)
 - [ ] Windows Zertifikat für exe?!
+- [ ] install server soll updaten können
+- [?] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
+      notification funktioniert mit weißen icon.[text](about:blank#blocked)
+      kleines app icon in der taks auswahl und benachrichtigung klappt auch
+      app icon ist 4 eckig auf weißem grund (rund)
 - [?] 24 Uhr move today -> backlog
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [?] keine toasts by sync
@@ -291,7 +292,6 @@
   - [x] statistik
   - [x] redo log
   - [x] settings
-- [ ] install server soll updaten können
 - [?] aufgaben mit datum "heute" automatisch aus dem backlog ins today verschieben!
 - [x] sync redo-log klappt nicht. aber braucht es das wirklich? rückbauen?
 - [x] repeat funktioniert nicht mehr?!
