@@ -667,6 +667,74 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+  Future<void> _showRedoLogViewer() async {
+    try {
+      final file = await _fileFor(_storage('simplepresent_redo.log'));
+      if (!await file.exists()) {
+        await showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+                  title: const Text('Redo log'),
+                  content: const Text('No redo log found.'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK'))
+                  ],
+                ));
+        return;
+      }
+
+      final lines = await file.readAsLines();
+      final recent = lines.length > 500 ? lines.sublist(lines.length - 500) : lines;
+      final entries = recent.reversed.map((l) {
+        try {
+          return jsonDecode(l) as Map<String, dynamic>;
+        } catch (_) {
+          return <String, dynamic>{'raw': l};
+        }
+      }).toList();
+
+      await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+                title: const Text('Redo log'),
+                content: SizedBox(
+                  width: double.maxFinite,
+                  height: MediaQuery.of(context).size.height * 0.6,
+                  child: Scrollbar(
+                    child: ListView.builder(
+                      itemCount: entries.length,
+                      itemBuilder: (c, i) {
+                        final e = entries[i];
+                        final ts = (e['timestamp'] ?? e['time'] ?? '')?.toString();
+                        final action = (e['action'] ?? '')?.toString();
+                        final taskId = (e['task_id'] ?? '')?.toString();
+                        final details = e.containsKey('details') ? jsonEncode(e['details']) : (e['raw'] ?? '');
+                        return ListTile(
+                          title: Text('${ts ?? ''}  ${action ?? ''}'),
+                          subtitle: Text('task: ${taskId ?? ''}\n${details ?? ''}'),
+                          isThreeLine: true,
+                          trailing: IconButton(
+                            icon: const Icon(Icons.copy),
+                            tooltip: 'Copy entry',
+                            onPressed: () async {
+                              try {
+                                await Clipboard.setData(ClipboardData(text: jsonEncode(e)));
+                                _showTopToast('copied');
+                              } catch (_) {}
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close'))
+                ],
+              ));
+    } catch (_) {}
+  }
+
   Future<void> _ensureListFile(String filename) async {
     try {
       if (_useSqlite) {
@@ -4215,6 +4283,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
                                         onPressed: () async { await _openNotes(); },
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.history),
+                                        tooltip: 'Redo log',
+                                        padding: Platform.isAndroid
+                                            ? const EdgeInsets.symmetric(horizontal: 2.0)
+                                            : const EdgeInsets.symmetric(horizontal: 6.0),
+                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                        visualDensity: VisualDensity.compact,
+                                        onPressed: () async { await _showRedoLogViewer(); },
                                       ),
                                       // Done button (opens archived/done view)
                                       IconButton(
