@@ -2622,6 +2622,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _subtaskFocusNodes[task.id]?.requestFocus();
     } catch (_) {}
     _saveToday();
+    try { unawaited(_appendRedoLog('subtask_add', taskId: task.id, details: {'subtask': step.toJson()})); } catch (_) {}
     _scheduleDelayedReorder();
     _registerActivity();
   }
@@ -2633,8 +2634,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     bool? done,
   }) {
     final task = _today[taskIndex];
+    TaskStep? beforeStep;
     final updated = task.subtasks.map((step) {
       if (step.id != subtaskId) return step;
+      beforeStep = step;
       return step.copyWith(
         text: text,
         done: done,
@@ -2644,6 +2647,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _today[taskIndex] = task.copyWith(subtasks: updated);
     });
     _saveToday();
+    try {
+      if (beforeStep != null) unawaited(_appendRedoLog('subtask_edit', taskId: task.id, details: {'subtaskId': subtaskId, 'before': beforeStep!.toJson(), 'after': updated.firstWhere((s) => s.id == subtaskId).toJson()}));
+    } catch (_) {}
     _scheduleDelayedReorder();
     _registerActivity();
   }
@@ -2954,25 +2960,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   void _removeSubtask(int taskIndex, String subtaskId) {
     final task = _today[taskIndex];
+    TaskStep? removed;
     setState(() {
-      _today[taskIndex] = task.copyWith(
-        subtasks: task.subtasks.where((step) => step.id != subtaskId).toList(),
-      );
+      final list = task.subtasks.where((step) => step.id != subtaskId).toList();
+      removed = task.subtasks.firstWhere((s) => s.id == subtaskId, orElse: () => TaskStep(id: '', text: '', done: false));
+      _today[taskIndex] = task.copyWith(subtasks: list);
     });
     _saveToday();
+    try { if (removed != null && removed!.id.isNotEmpty) unawaited(_appendRedoLog('subtask_remove', taskId: task.id, details: {'subtask': removed!.toJson()})); } catch (_) {}
     _registerActivity();
   }
 
   void _reorderSubtasks(int taskIndex, int oldIndex, int newIndex) {
     final task = _today[taskIndex];
     final list = List<TaskStep>.from(task.subtasks);
+    final beforeOrder = list.map((s) => s.id).toList();
     if (newIndex > oldIndex) newIndex -= 1;
     final item = list.removeAt(oldIndex);
     list.insert(newIndex, item);
+    final afterOrder = list.map((s) => s.id).toList();
     setState(() {
       _today[taskIndex] = task.copyWith(subtasks: list);
     });
     _saveToday();
+    try { unawaited(_appendRedoLog('subtask_reorder', taskId: task.id, details: {'before': beforeOrder, 'after': afterOrder})); } catch (_) {}
     _registerActivity();
   }
 
@@ -3003,6 +3014,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // apply scheduled time immediately in-memory and persist, but defer any
     // move to backlog / sorting until the delayed reorder fires so quick
     // adjustments don't cause immediate reordering.
+    final beforeSched = _today[index].scheduledAt;
     setState(() => _today[index] = _today[index].copyWith(scheduledAt: scheduled));
     await _saveToday();
     // Stage this scheduled change for delayed reorder handling
@@ -3010,6 +3022,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (kDebugMode) print('_pickSchedule: staged id=${_today[index].id} scheduled=${DateFormat('yyyy-MM-dd HH:mm').format(scheduled)}');
     _scheduleDelayedReorder();
 
+    try { unawaited(_appendRedoLog('schedule_set', taskId: _today[index].id, details: {'before': beforeSched?.toIso8601String(), 'after': scheduled.toIso8601String()})); } catch (_) {}
     _showTopToast('schedule set');
     // clear any prior notifications for this task so reminders can be re-scheduled
     final idPrefix = '${_today[index].id}|';
@@ -3356,9 +3369,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _clearSchedule(int index) async {
     // capture id before mutating list item
     final id = _today[index].id;
+    final beforeSched = _today[index].scheduledAt;
     // clear in-memory and save current view
     setState(() => _today[index] = _today[index].copyWith(scheduledAt: null));
     await _saveToday();
+    try { unawaited(_appendRedoLog('schedule_clear', taskId: id, details: {'before': beforeSched?.toIso8601String()})); } catch (_) {}
     _showTopToast('schedule cleared');
     final idPrefix2 = '$id|';
     _notified15.removeWhere((k) => k.startsWith(idPrefix2));
@@ -7743,6 +7758,117 @@ class _RedoLogPageState extends State<RedoLogPage> {
               list[idx] = cur;
               changed = true;
               break;
+            }
+          }
+        }
+      }
+      else if (action == 'subtask_add') {
+        // details.subtask -> remove that subtask from the task
+        final details = e['details'];
+        if (details is Map && details['subtask'] is Map) {
+          final sid = (details['subtask']['id'] ?? '')?.toString() ?? '';
+          if (sid.isNotEmpty) {
+            for (final list in [today, backlog, done]) {
+              final idx = list.indexWhere((m) => (m['id'] ?? m['uid'] ?? '').toString() == taskId);
+              if (idx != -1) {
+                final subt = (list[idx]['subtasks'] is List) ? List<Map<String, dynamic>>.from(list[idx]['subtasks']) : <Map<String,dynamic>>[];
+                final beforeLen = subt.length;
+                subt.removeWhere((s) => (s['id'] ?? '')?.toString() == sid);
+                if (subt.length != beforeLen) {
+                  list[idx]['subtasks'] = subt;
+                  changed = true;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      } else if (action == 'subtask_remove') {
+        // details.subtask -> add that subtask back to the task (append)
+        final details = e['details'];
+        if (details is Map && details['subtask'] is Map) {
+          final sub = Map<String, dynamic>.from(details['subtask']);
+          for (final list in [today, backlog, done]) {
+            final idx = list.indexWhere((m) => (m['id'] ?? m['uid'] ?? '').toString() == taskId);
+            if (idx != -1) {
+              final subt = (list[idx]['subtasks'] is List) ? List<Map<String, dynamic>>.from(list[idx]['subtasks']) : <Map<String,dynamic>>[];
+              subt.add(sub);
+              list[idx]['subtasks'] = subt;
+              changed = true;
+              break;
+            }
+          }
+        }
+      } else if (action == 'subtask_edit') {
+        final details = e['details'];
+        if (details is Map && details['subtaskId'] != null && details['before'] is Map) {
+          final sid = details['subtaskId'].toString();
+          final before = Map<String, dynamic>.from(details['before']);
+          for (final list in [today, backlog, done]) {
+            final idx = list.indexWhere((m) => (m['id'] ?? m['uid'] ?? '').toString() == taskId);
+            if (idx != -1) {
+              final subt = (list[idx]['subtasks'] is List) ? List<Map<String, dynamic>>.from(list[idx]['subtasks']) : <Map<String,dynamic>>[];
+              for (var si = 0; si < subt.length; si++) {
+                if ((subt[si]['id'] ?? '')?.toString() == sid) {
+                  subt[si] = before;
+                  list[idx]['subtasks'] = subt;
+                  changed = true;
+                  break;
+                }
+              }
+              if (changed) break;
+            }
+          }
+        }
+      } else if (action == 'subtask_reorder') {
+        final details = e['details'];
+        if (details is Map && details['before'] is List) {
+          final beforeOrder = List<String>.from(details['before'].map((x) => x.toString()));
+          for (final list in [today, backlog, done]) {
+            final idx = list.indexWhere((m) => (m['id'] ?? m['uid'] ?? '').toString() == taskId);
+            if (idx != -1) {
+              final subt = (list[idx]['subtasks'] is List) ? List<Map<String, dynamic>>.from(list[idx]['subtasks']) : <Map<String,dynamic>>[];
+              final mapById = { for (var s in subt) (s['id'] ?? '').toString(): s };
+              final newList = <Map<String,dynamic>>[];
+              for (final id in beforeOrder) {
+                if (mapById.containsKey(id)) newList.add(mapById[id]!);
+              }
+              // append any missing ones
+              for (final s in subt) if (!beforeOrder.contains((s['id'] ?? '').toString())) newList.add(s);
+              list[idx]['subtasks'] = newList;
+              changed = true;
+              break;
+            }
+          }
+        }
+      } else if (action == 'schedule_set' || action == 'schedule_clear') {
+        final details = e['details'];
+        if (details is Map) {
+          final before = details['before'];
+          DateTime? beforeDt;
+          if (before is String && before.isNotEmpty) beforeDt = DateTime.tryParse(before);
+          // find task and set scheduledAt
+          for (final list in [today, backlog, done]) {
+            final idx = list.indexWhere((m) => (m['id'] ?? m['uid'] ?? '').toString() == taskId);
+            if (idx != -1) {
+              list[idx]['scheduled_at'] = beforeDt?.toIso8601String();
+              list[idx]['scheduledAt'] = beforeDt?.toIso8601String();
+              changed = true;
+              break;
+            }
+          }
+          // If task currently lives in backlog but before schedule implies it should be in today, move it back.
+          if (!changed) {
+            // try to find in backlog and move to today if appropriate
+            final bidx = backlog.indexWhere((m) => (m['id'] ?? m['uid'] ?? '').toString() == taskId);
+            if (bidx != -1) {
+              final now = DateTime.now();
+              final shouldBeToday = beforeDt == null || (beforeDt.year == now.year && beforeDt.month == now.month && beforeDt.day == now.day);
+              if (shouldBeToday) {
+                final item = backlog.removeAt(bidx);
+                today.insert(0, item..remove('scheduled_at'));
+                changed = true;
+              }
             }
           }
         }
