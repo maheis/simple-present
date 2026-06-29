@@ -511,6 +511,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Timer? _cloudPullTimer;
   bool _cloudSyncBusy = false;
   bool _applyingCloudState = false;
+  bool _suppressSyncToasts = false;
   int _cloudStateVersion = 1;
   int _cloudLastSyncModifiedAt = 0;
   final Map<String, TaskItem> _cloudPendingTimeEntrySync = <String, TaskItem>{};
@@ -1029,7 +1030,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState) return;
     final listName = _cloudListNameForFilename(filename);
     if (listName == null) return;
-
+    // Suppress toasts originating from sync operations.
+    _suppressSyncToasts = true;
     _cloudSyncBusy = true;
     try {
       final client = CloudSyncClient(
@@ -1091,6 +1093,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _onCloudSyncError(e);
     } finally {
       _cloudSyncBusy = false;
+      _suppressSyncToasts = false;
       _flushPendingCloudTimeEntrySync();
     }
   }
@@ -1126,7 +1129,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<bool> _syncPushTimeEntryToCloud(TaskItem task) async {
     if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState) return false;
-
+    _suppressSyncToasts = true;
     _cloudSyncBusy = true;
     try {
       final client = CloudSyncClient(
@@ -1226,6 +1229,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return false;
     } finally {
       _cloudSyncBusy = false;
+      _suppressSyncToasts = false;
     }
   }
 
@@ -1305,12 +1309,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
 
-    _showTopToast('Synchronisierung gestartet...');
-    await _syncPullFromCloud();
-    await _fetchServerVersion();
-
-    if (!_cloudSyncFailed) {
-      _showTopToast('Synchronisierung abgeschlossen.');
+    // Suppress toasts during manual sync request (user requested sync but
+    // prefers not to see transient sync toasts).
+    _suppressSyncToasts = true;
+    try {
+      await _syncPullFromCloud();
+      await _fetchServerVersion();
+    } finally {
+      _suppressSyncToasts = false;
     }
   }
 
@@ -1363,6 +1369,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _syncPullFromCloud() async {
     if (!_cloudSyncConfigured || _cloudSyncBusy) return;
+    // Suppress toasts triggered by cloud sync actions while applying state.
+    _suppressSyncToasts = true;
     _cloudSyncBusy = true;
     try {
       final client = CloudSyncClient(
@@ -1537,6 +1545,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _onCloudSyncError(e);
     } finally {
       _cloudSyncBusy = false;
+      _suppressSyncToasts = false;
       _flushPendingCloudTimeEntrySync();
     }
   }
@@ -3211,6 +3220,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _showTopToast(String message) {
+    // Don't show toasts caused by applying cloud state or during sync.
+    if (_suppressSyncToasts || _applyingCloudState) return;
     // Dedupe identical messages shown recently and throttle brief bursts
     final now = DateTime.now();
     if (_lastToastMessage != null && _lastToastMessage == message) {

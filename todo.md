@@ -229,6 +229,16 @@
 - [x] Android App name mit leerzeichen (icon, zeilenumbruch)
 - [x] word-phrase durch buchstaben+zahlensalat ersetzten (maus bewegen um die zufälligkeit zu erhöhen)
 - [x] notes button fehlt?
+- [x] today in backlog muss immer OBEN ins backlog einfügen!
+- [x] sortierung: backlog 
+        alles was "heute" ist, soll oben sein 
+        manuell sortiert (was von today kam oben!)
+- [x] sortierung: done
+        erledigt nach erledigt-datum sortieren
+- [x] counter, fertige abziehen
+- [x] registrierte geräte zu diesem account anzeigen lassen und entfernbar machen
+- [x] sync: notes?
+- [x] aufgaben mit zukunftstermin werden im backlog ins backlog gemoved!
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Worklog an Aufgaben...
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
@@ -252,25 +262,17 @@
 - [ ] runter sortieren, sortiert "drüber"
 - [ ] sync: self signed certs prüfen (ca-chain)
 - [ ] android: aktionen in der notification (erledigt, in arbeit)
-- [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben!
+- [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben! (primärgerät-definieren?)
 - [?] 24 Uhr move today -> backlog
-- [ ] toast bzw. gesamtes aktions log
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [?] today in backlog muss immer OBEN ins backlog einfügen!
-- [?] sortierung: backlog 
-        alles was "heute" ist, soll oben sein 
-        manuell sortiert (was von today kam oben!)
-- [?] sortierung: done
-        erledigt nach erledigt-datum sortieren
-- [x] counter, fertige abziehen
-- [?] registrierte geräte zu diesem account anzeigen lassen und entfernbar machen
-- [x] sync: notes?
-- [x] aufgaben mit zukunftstermin werden im backlog ins backlog gemoved!
-- [ ] backup methode, um sync und auch andere fehler rückgängig machen zuu können
+- [ ] backup methode, um sync und auch andere fehler rückgängig machen zu können
+- [ ] toast bzw. gesamtes aktions log
+- [ ] wiederkehrend nur an werktagen (optional)
+- [?] keine toasts by sync
 
-## noteshttps://webmail.heister.email/
+## notes
 
-- [ ] Übersetzung! Deutsch....
+- [ ] Übersetzung! Deutsch...
 - [ ] LLM-Integration: Automatisches Generieren von Unteraufgaben/Schritten aus der Hauptaufgabe, Vorschläge für Notizen/Lösungen basierend auf der Aufgabe, intelligente Sortierung des Backlogs basierend auf Wichtigkeit und Dringlichkeit.
 - [ ] Dark Mode: Unterstützung für dunkle und helle Designs, um die Benutzererfahrung zu verbessern und die Augenbelastung zu reduzieren.
 - [ ] Barrierefreiheit: Unterstützung für Screenreader, Tastaturnavigation und andere Barrierefreiheitsfunktionen, um die App für alle Benutzer zugänglich zu machen.
