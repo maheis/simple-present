@@ -269,9 +269,9 @@
   - [x] erstmal nur im log speichern, was passiert ist (task-id, action, timestamp, user-id)
   - [x] zweiter schritt ist dann die möglichkeit, die aktion rückgängig zu machen (undo)
   - [x] undo ins redo log
-  - [ ] subtask hübscher, wird aktuell noch mit {} und json inhalten dargestellt
+  - [x] subtask hübscher, wird aktuell noch mit {} und json inhalten dargestellt
   - [x] undo hübscher, wird aktuell noch mit {} und json inhalten dargestellt
-  - [ ] nothing todo als toast
+  - [x] nothing todo als toast
   - [ ] sehr schnelle änderungen werden nicht erfasst
   - [ ] statt tabelle als kachel
 - [ ] papierkorb:
@@ -282,8 +282,8 @@
 - [?] keine toasts by sync
 - [x] zurück-button in der done-liste
 - [ ] reopen sound
-- [ ] burger menü
-- [ ] android sound unterbricht musik wiedergaben...
+- [ ] burger menü für die buttons
+- [ ] android sound unterbricht musik wiedergaben...enferne 
 
 ## notes
 

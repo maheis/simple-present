@@ -399,8 +399,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // Staged inProgress and done flag changes (apply when delayed reorder fires)
   final Map<String, bool> _stagedInProgress = {};
   final Map<String, bool> _stagedDone = {};
-  // Pending timers for delayed backlog->done moves (keyed by task id)
-  final Map<String, Timer?> _backlogDoneTimers = {};
+  // (removed) pending timers for delayed backlog->done moves
   // Staged scheduled date/time changes (apply when delayed reorder fires)
   final Map<String, DateTime?> _stagedScheduled = {};
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -409,8 +408,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _useSqlite = false;
   Timer? _idleTimer;
   Timer? _attentionTimer;
-  Timer? _delayedReorderTimer;
-  static const int _delayedReorderMilliseconds = 900;
+  // immediate reorder: no delay timer
   int _idleMinutes = 45;
   int _attentionMinutes = 60;
   Timer? _reminderTimer;
@@ -2704,14 +2702,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _scheduleDelayedReorder() {
-    try {
-      _delayedReorderTimer?.cancel();
-    } catch (_) {}
-    if (kDebugMode) print('_scheduleDelayedReorder: stagedKeys=${_stagedScheduled.keys.toList()}');
-    _delayedReorderTimer = Timer(Duration(milliseconds: _delayedReorderMilliseconds), () {
-      if (!mounted) return;
-      _performDelayedReorder();
-    });
+    if (kDebugMode) print('_scheduleDelayedReorder: immediate run stagedKeys=${_stagedScheduled.keys.toList()}');
+    unawaited(_performDelayedReorder());
   }
 
   Future<void> _performDelayedReorder() async {
@@ -2821,6 +2813,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             final afterOrder = afterSubs.map((s) => (s['id'] ?? s['uid'] ?? '').toString()).where((s) => s.isNotEmpty).toList();
             if (beforeOrder.isNotEmpty && afterOrder.isNotEmpty && jsonEncode(beforeOrder) != jsonEncode(afterOrder)) {
               unawaited(_appendRedoLog('subtask_reorder', taskId: taskId, details: {'before': beforeOrder, 'after': afterOrder}));
+            }
+          } catch (_) {}
+
+          // Record explicit done/reopen actions when the done flag changed.
+          try {
+            final beforeDone = beforeSnapshot != null && (beforeSnapshot['done'] == true || beforeSnapshot['completed_at'] != null || beforeSnapshot['completedAt'] == true);
+            final afterDone = afterSnapshot['done'] == true || afterSnapshot['completed_at'] != null || afterSnapshot['completedAt'] == true;
+            if (beforeSnapshot != null && beforeDone != afterDone) {
+              // use 'done' for marking done, 'reopen' for undoing done
+              unawaited(_appendRedoLog(afterDone ? 'done' : 'reopen', taskId: taskId, details: {'text': _today[idx].text}));
             }
           } catch (_) {}
 
@@ -3122,48 +3124,56 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return AlertDialog(
           title: const Text('Recurrence'),
           content: StatefulBuilder(builder: (ctx2, setState2) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                RadioListTile<String>(
-                  title: const Text('None'),
-                  value: '',
-                  groupValue: selected,
-                  onChanged: (v) => setState2(() => selected = v ?? ''),
-                ),
-                RadioListTile<String>(
-                  title: const Text('Daily'),
-                  value: 'daily',
-                  groupValue: selected,
-                  onChanged: (v) => setState2(() => selected = v ?? 'daily'),
-                ),
-                if (selected == 'daily')
-                  Column(
-                    children: List.generate(7, (i) {
-                      const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                      return CheckboxListTile(
-                        title: Text(names[i]),
-                        value: weekSelected[i],
-                        onChanged: (v) => setState2(() => weekSelected[i] = v ?? false),
-                        dense: true,
-                        controlAffinity: ListTileControlAffinity.leading,
-                      );
-                    }),
-                  ),
-                RadioListTile<String>(
-                  title: const Text('Weekly'),
-                  value: 'weekly',
-                  groupValue: selected,
-                  onChanged: (v) => setState2(() => selected = v ?? 'weekly'),
-                ),
-                RadioListTile<String>(
-                  title: const Text('Monthly'),
-                  value: 'monthly',
-                  groupValue: selected,
-                  onChanged: (v) => setState2(() => selected = v ?? 'monthly'),
-                ),
-              ],
-            );
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      title: const Text('None'),
+                      onTap: () => setState2(() => selected = ''),
+                      trailing: Icon(
+                        (selected == '') ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                        color: (selected == '') ? Theme.of(ctx2).colorScheme.primary : null,
+                      ),
+                    ),
+                    ListTile(
+                      title: const Text('Daily'),
+                      onTap: () => setState2(() => selected = 'daily'),
+                      trailing: Icon(
+                        (selected == 'daily') ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                        color: (selected == 'daily') ? Theme.of(ctx2).colorScheme.primary : null,
+                      ),
+                    ),
+                    if (selected == 'daily')
+                      Column(
+                        children: List.generate(7, (i) {
+                          const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                          return CheckboxListTile(
+                            title: Text(names[i]),
+                            value: weekSelected[i],
+                            onChanged: (v) => setState2(() => weekSelected[i] = v ?? false),
+                            dense: true,
+                            controlAffinity: ListTileControlAffinity.leading,
+                          );
+                        }),
+                      ),
+                    ListTile(
+                      title: const Text('Weekly'),
+                      onTap: () => setState2(() => selected = 'weekly'),
+                      trailing: Icon(
+                        (selected == 'weekly') ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                        color: (selected == 'weekly') ? Theme.of(ctx2).colorScheme.primary : null,
+                      ),
+                    ),
+                    ListTile(
+                      title: const Text('Monthly'),
+                      onTap: () => setState2(() => selected = 'monthly'),
+                      trailing: Icon(
+                        (selected == 'monthly') ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                        color: (selected == 'monthly') ? Theme.of(ctx2).colorScheme.primary : null,
+                      ),
+                    ),
+                  ],
+                );
           }),
           actions: [
             TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
@@ -4965,29 +4975,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                               if (newVal) {
                                                                 // set visual state immediately
                                                                 setState(() => _stagedDone[task.id] = true);
-                                                                // cancel any existing pending timer for this task
+                                                                // perform done immediately
                                                                 try {
-                                                                  _backlogDoneTimers[task.id]?.cancel();
-                                                                } catch (_) {}
-                                                                final timer = Timer(Duration(milliseconds: _delayedReorderMilliseconds), () async {
-                                                                  // re-resolve index in case list changed
-                                                                  if (!mounted) return;
                                                                   final idx = _today.indexWhere((t) => t.id == task.id);
-                                                                  // remove stored timer reference
-                                                                  _backlogDoneTimers.remove(task.id);
-                                                                  if (idx == -1) return;
-                                                                  try {
-                                                                    await _setDone(idx, true);
-                                                                  } catch (_) {}
-                                                                });
-                                                                _backlogDoneTimers[task.id] = timer;
+                                                                  if (idx != -1) await _setDone(idx, true);
+                                                                } catch (_) {}
                                                                 return;
                                                               } else {
                                                                 // user unchecked before timer fired: cancel timer and clear staged state
-                                                                try {
-                                                                  _backlogDoneTimers[task.id]?.cancel();
-                                                                } catch (_) {}
-                                                                _backlogDoneTimers.remove(task.id);
                                                                 setState(() => _stagedDone.remove(task.id));
                                                                 return;
                                                               }
@@ -7584,6 +7579,10 @@ class _RedoLogPageState extends State<RedoLogPage> {
   bool _loading = true;
   late final ScrollController _hScrollController;
   late final ScrollController _vScrollController;
+  OverlayEntry? _toastEntryLocal;
+  Timer? _toastTimerLocal;
+  String? _lastToastMessageLocal;
+  DateTime? _lastToastAtLocal;
 
   @override
   void initState() {
@@ -8074,11 +8073,65 @@ class _RedoLogPageState extends State<RedoLogPage> {
           // Return the undo entry to the caller so HomePage can push it to cloud
           try { Navigator.of(context).pop({'undo': true, 'entry': undoEntry}); } catch (_) {}
       } else {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nothing to undo')));
+        if (mounted) _showTopToastLocal('Nothing to undo');
       }
     } catch (err) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Undo failed: $err')));
+      if (mounted) _showTopToastLocal('Undo failed: $err');
     }
+  }
+
+  void _showTopToastLocal(String message) {
+    final now = DateTime.now();
+    if (_lastToastMessageLocal != null && _lastToastMessageLocal == message) {
+      if (_lastToastAtLocal != null && now.difference(_lastToastAtLocal!).inSeconds < 3) return;
+    }
+    if (_lastToastAtLocal != null && now.difference(_lastToastAtLocal!).inMilliseconds < 700) return;
+    _lastToastMessageLocal = message;
+    _lastToastAtLocal = now;
+
+    _toastTimerLocal?.cancel();
+    _toastEntryLocal?.remove();
+
+    final overlay = Overlay.of(context, rootOverlay: true);
+    _toastEntryLocal = OverlayEntry(
+      builder: (ctx) => SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 10, left: 12, right: 12),
+            child: TweenAnimationBuilder<Offset>(
+              duration: const Duration(milliseconds: 260),
+              tween: Tween(begin: const Offset(0, -1), end: Offset.zero),
+              curve: Curves.easeOutCubic,
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                  ),
+                  child: Text(
+                    message,
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                  ),
+                ),
+              ),
+              builder: (context, offset, child) {
+                return Transform.translate(offset: Offset(0, offset.dy * 60), child: child);
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(_toastEntryLocal!);
+    _toastTimerLocal = Timer(const Duration(milliseconds: 1650), () {
+      _toastEntryLocal?.remove();
+      _toastEntryLocal = null;
+    });
   }
 
   @override
