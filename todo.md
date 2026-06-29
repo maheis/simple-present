@@ -286,13 +286,13 @@
 - [?] keine toasts by sync
 - [?] android sound unterbricht musik wiedergaben...
         -> spielt jetzt gar keinen sound mehr ab!
-- [ ] icons für...
-  - [ ] notes
+- [x] icons für...
+  - [x] notes
   - [x] statistik
-  - [ ] redo log
-  - [ ] settings
+  - [x] redo log
+  - [x] settings
 - [ ] install server soll updaten können
-- [ ] aufgaben mit datum "heute" automatisch aus dem backlog ins today verschieben!
+- [?] aufgaben mit datum "heute" automatisch aus dem backlog ins today verschieben!
 - [x] sync redo-log klappt nicht. aber braucht es das wirklich? rückbauen?
 - [x] repeat funktioniert nicht mehr?!
 - [x] jsons in unterordner

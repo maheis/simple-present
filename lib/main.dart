@@ -741,7 +741,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               return true;
             },
             child: Scaffold(
-            appBar: AppBar(title: const Text('notes')),
+            appBar: AppBar(
+              leadingWidth: 40,
+              titleSpacing: 0,
+              toolbarHeight: 62,
+              title: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Image.asset('assets/icons/color_transparent_notes.png', width: 28, height: 28),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('notes', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700).copyWith(fontFamily: _fontFamily)),
+                ],
+              ),
+            ),
             body: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
@@ -4607,10 +4622,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                         },
                                         itemBuilder: (ctx) {
                                           final items = <PopupMenuEntry<String>>[];
-                                          items.add(PopupMenuItem(value: 'stats', child: Row(children: [Icon(Icons.bar_chart, size: 18), const SizedBox(width: 8), const Text('Statistics')])));
-                                          items.add(PopupMenuItem(value: 'settings', child: Row(children: [Icon(Icons.settings, size: 18), const SizedBox(width: 8), const Text('Settings')])));
-                                          items.add(PopupMenuItem(value: 'notes', child: Row(children: [Icon(Icons.notes, size: 18), const SizedBox(width: 8), const Text('Notes')])));
-                                          items.add(PopupMenuItem(value: 'redo', child: Row(children: [Icon(Icons.history, size: 18), const SizedBox(width: 8), const Text('Redo log')])));
+                                          items.add(PopupMenuItem(value: 'stats', child: Row(children: [Image.asset('assets/icons/white_transparent_statistic.png', width: 18, height: 18), const SizedBox(width: 8), const Text('Statistics')] )));
+                                          items.add(PopupMenuItem(value: 'settings', child: Row(children: [Image.asset('assets/icons/white_transparent_settings.png', width: 18, height: 18), const SizedBox(width: 8), const Text('Settings')])));
+                                          items.add(PopupMenuItem(value: 'notes', child: Row(children: [Image.asset('assets/icons/white_transparent_notes.png', width: 18, height: 18), const SizedBox(width: 8), const Text('Notes')])));
+                                          items.add(PopupMenuItem(value: 'redo', child: Row(children: [Image.asset('assets/icons/white_transparent_redo.png', width: 18, height: 18), const SizedBox(width: 8), const Text('Redo log')])));
                                           items.add(PopupMenuItem(value: 'done', child: Row(children: [Image.asset('assets/icons/white_transparent_done.png', width: 18, height: 18), const SizedBox(width: 8), const Text('Done')] )));
                                           // 'Next' removed by request
                                           return items;
@@ -6831,7 +6846,20 @@ class _SettingsPageState extends State<SettingsPage> {
           },
           child: Scaffold(
           appBar: AppBar(
-            title: const Text('settings'),
+            leadingWidth: 40,
+            titleSpacing: 0,
+            toolbarHeight: 62,
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Image.asset('assets/icons/color_transparent_settings.png', width: 28, height: 28),
+                ),
+                const SizedBox(width: 8),
+                Text('settings', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700).copyWith(fontFamily: fontFamily)),
+              ],
+            ),
             actions: [
               TextButton(
                 onPressed: () {
@@ -7629,9 +7657,22 @@ class _StatsPageState extends State<StatsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          DateFormat('EEE, dd.MM.yyyy').format(_currentDate),
-          style: const TextStyle(fontSize: 16),
+        leadingWidth: 40,
+        titleSpacing: 0,
+        toolbarHeight: 62,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Image.asset('assets/icons/color_transparent_statistic.png', width: 28, height: 28),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              DateFormat('EEE, dd.MM.yyyy').format(_currentDate),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+            ),
+          ],
         ),
         centerTitle: true,
         leading: IconButton(
@@ -8300,7 +8341,21 @@ class _RedoLogPageState extends State<RedoLogPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Redo Log'),
+        leadingWidth: 40,
+        titleSpacing: 0,
+        toolbarHeight: 62,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Image.asset('assets/icons/color_transparent_redo.png', width: 28, height: 28),
+            ),
+            const SizedBox(width: 8),
+            Text('Redo Log', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+          ],
+        ),
+        centerTitle: true,
         actions: [
           IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refresh', onPressed: _loadEntries),
           IconButton(icon: const Icon(Icons.download), tooltip: 'Copy all', onPressed: _copyAll),
