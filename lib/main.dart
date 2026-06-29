@@ -552,6 +552,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // Snapshot of last persisted `_today` list used to detect local changes
   // and append them to the redo log. Maps task id -> JSON map.
   final Map<String, Map<String, dynamic>> _lastPersistedToday = {};
+  // Staged edit snapshots captured when a task is opened for editing.
+  // Key: task id -> JSON snapshot before edits. Written once when the
+  // task is expanded and cleared when edits are finalized.
+  final Map<String, Map<String, dynamic>> _stagedEditBefore = {};
 
   @override
   void initState() {
@@ -671,73 +675,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
-  Future<void> _showRedoLogViewer() async {
-    try {
-      final file = await _fileFor(_storage('simplepresent_redo.log'));
-      if (!await file.exists()) {
-        await showDialog<void>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-                  title: const Text('Redo log'),
-                  content: const Text('No redo log found.'),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK'))
-                  ],
-                ));
-        return;
-      }
-
-      final lines = await file.readAsLines();
-      final recent = lines.length > 500 ? lines.sublist(lines.length - 500) : lines;
-      final entries = recent.reversed.map((l) {
-        try {
-          return jsonDecode(l) as Map<String, dynamic>;
-        } catch (_) {
-          return <String, dynamic>{'raw': l};
-        }
-      }).toList();
-
-      await showDialog<void>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-                title: const Text('Redo log'),
-                content: SizedBox(
-                  width: double.maxFinite,
-                  height: MediaQuery.of(context).size.height * 0.6,
-                  child: Scrollbar(
-                    child: ListView.builder(
-                      itemCount: entries.length,
-                      itemBuilder: (c, i) {
-                        final e = entries[i];
-                        final ts = (e['timestamp'] ?? e['time'] ?? '')?.toString();
-                        final action = (e['action'] ?? '')?.toString();
-                        final taskId = (e['task_id'] ?? '')?.toString();
-                        final details = e.containsKey('details') ? jsonEncode(e['details']) : (e['raw'] ?? '');
-                        return ListTile(
-                          title: Text('${ts ?? ''}  ${action ?? ''}'),
-                          subtitle: Text('task: ${taskId ?? ''}\n${details ?? ''}'),
-                          isThreeLine: true,
-                          trailing: IconButton(
-                            icon: const Icon(Icons.copy),
-                            tooltip: 'Copy entry',
-                            onPressed: () async {
-                              try {
-                                await Clipboard.setData(ClipboardData(text: jsonEncode(e)));
-                                _showTopToast('copied');
-                              } catch (_) {}
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                actions: [
-                  TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close'))
-                ],
-              ));
-    } catch (_) {}
-  }
+  
 
   Future<void> _ensureListFile(String filename) async {
     try {
@@ -1063,45 +1001,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _saveToday() async {
     try {
-      // Detect local changes and append structured entries to the redo log
-      // before persisting. Skip logging while applying cloud state to avoid
-      // creating spurious local entries for server-driven updates.
-      if (!_applyingCloudState) {
-        try {
-          final current = <String, Map<String, dynamic>>{};
-          for (final t in _today) current[t.id] = t.toJson();
-
-          // Creations & edits
-          for (final id in current.keys) {
-            final cur = current[id]!;
-            final prev = _lastPersistedToday[id];
-            if (prev == null) {
-              unawaited(_appendRedoLog('create', taskId: id, details: {'after': cur}));
-            } else {
-              if (jsonEncode(prev) != jsonEncode(cur)) {
-                unawaited(_appendRedoLog('edit', taskId: id, details: {'before': prev, 'after': cur}));
-              }
-            }
-          }
-
-          // Deletions (present in last persisted but missing now)
-          for (final id in _lastPersistedToday.keys) {
-            if (!current.containsKey(id)) {
-              final before = _lastPersistedToday[id];
-              unawaited(_appendRedoLog('delete', taskId: id, details: {'before': before}));
-            }
-          }
-
-        } catch (_) {}
-      }
-
       // Persist the currently loaded list (`_today` holds the in-memory
       // representation of whatever view is active). Use `_currentFile` so
       // saving operations write back to the correct file (today/backlog/done).
       await _saveList(_currentFile, _today);
       unawaited(_updateListCounts());
 
-      // Update the snapshot after a successful save
+      // Update the snapshot after a successful save to keep last persisted
+      // map in sync. Individual edit/create/delete actions are logged when
+      // finalized elsewhere.
       try {
         _lastPersistedToday.clear();
         for (final t in _today) _lastPersistedToday[t.id] = t.toJson();
@@ -1158,6 +1066,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _syncPushToCloud(String filename, List<TaskItem> source) async {
     if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState) return;
+    // Finalize open edits before pushing local state to the server so the
+    // server receives the user's intended final versions.
+    try {
+      await _finalizeAllEdits();
+    } catch (_) {}
     final listName = _cloudListNameForFilename(filename);
     if (listName == null) return;
     // Suppress toasts originating from sync operations.
@@ -1439,6 +1352,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
 
+    // Finalize any open edits so they get logged as a single entry.
+    try {
+      await _finalizeAllEdits();
+    } catch (_) {}
+
     // Suppress toasts during manual sync request (user requested sync but
     // prefers not to see transient sync toasts).
     _suppressSyncToasts = true;
@@ -1499,6 +1417,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _syncPullFromCloud() async {
     if (!_cloudSyncConfigured || _cloudSyncBusy) return;
+    // Finalize any open edits before applying remote state
+    try {
+      await _finalizeAllEdits();
+    } catch (_) {}
     // Suppress toasts triggered by cloud sync actions while applying state.
     _suppressSyncToasts = true;
     _cloudSyncBusy = true;
@@ -2072,6 +1994,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       WidgetsBinding.instance.removeObserver(this);
     } catch (_) {}
+    // Try to finalize any pending edits before dispose (best-effort)
+    try { unawaited(_finalizeAllEdits()); } catch (_) {}
     _dailyMigrationTimer?.cancel();
 
     try {
@@ -2557,6 +2481,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           return n;
         });
       });
+      // Capture staged-before snapshot for finalizing edits later.
+      try {
+        _stagedEditBefore.putIfAbsent(taskId, () => _today[index].toJson());
+      } catch (_) {}
       // After the frame is rendered, ensure the newly expanded tile is visible
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final k = _tileKeys[taskId];
@@ -2570,6 +2498,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _registerActivity();
   }
 
+  /// Finalize any open edits by saving and logging them. This should be
+  /// called before navigation or header actions so that edits are recorded
+  /// as a single consolidated redo-log entry.
+  Future<void> _finalizeAllEdits() async {
+    final open = _expanded.toList();
+    for (final id in open) {
+      final idx = _today.indexWhere((t) => t.id == id);
+      if (idx != -1) {
+        try {
+          await _saveEditedTitle(idx);
+        } catch (_) {}
+      }
+    }
+  }
+
   Future<void> _saveEditedTitle(int index) async {
     if (index < 0 || index >= _today.length) return;
     final taskId = _today[index].id;
@@ -2579,6 +2522,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final newText = titleCtrl.text.trim();
     final newNotes = notesCtrl.text;
     if (newText.isEmpty) return;
+    // Apply edits and finalize a single consolidated log entry for this task.
+    Map<String, dynamic>? beforeSnapshot;
+    try {
+      beforeSnapshot = _stagedEditBefore.remove(taskId) ?? _lastPersistedToday[taskId];
+    } catch (_) { beforeSnapshot = _lastPersistedToday[taskId]; }
+
     setState(() {
       var updated = _today[index].copyWith(text: newText, notes: newNotes);
       final workCtrl = _workControllers[updated.id];
@@ -2590,9 +2539,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
       _today[index] = updated;
     });
-    _saveToday();
+
+    // Persist changes first (so _saveList writes the full state)
+    await _saveToday();
     _scheduleDelayedReorder();
     _upsertTimeEntry(_today[index]);
+
+    // Now append a single log entry for this consolidated change if something changed
+    try {
+      final afterSnapshot = _today[index].toJson();
+      if (beforeSnapshot == null) {
+        // treat as create if no prior snapshot known
+        unawaited(_appendRedoLog('create', taskId: taskId, details: {'after': afterSnapshot}));
+      } else if (jsonEncode(beforeSnapshot) != jsonEncode(afterSnapshot)) {
+        unawaited(_appendRedoLog('edit', taskId: taskId, details: {'before': beforeSnapshot, 'after': afterSnapshot}));
+      }
+      // update last persisted snapshot for this task
+      _lastPersistedToday[taskId] = afterSnapshot;
+    } catch (_) {}
+
     final scheduled = _today[index].scheduledAt;
     if (scheduled != null) {
       final scheduledKey = DateFormat('yyyy-MM-dd').format(scheduled.toLocal());
@@ -4316,7 +4281,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                             : const EdgeInsets.symmetric(horizontal: 6.0),
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
-                                        onPressed: () async { await _openStats(); },
+                                        onPressed: () async { await _finalizeAllEdits(); await _openStats(); },
                                       ),
                                       IconButton(
                                         icon: const Icon(Icons.settings),
@@ -4326,7 +4291,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                             : const EdgeInsets.symmetric(horizontal: 6.0),
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
-                                        onPressed: () async { await _openSettings(); },
+                                        onPressed: () async { await _finalizeAllEdits(); await _openSettings(); },
                                       ),
                                       IconButton(
                                         icon: const Icon(Icons.notes),
@@ -4336,7 +4301,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                             : const EdgeInsets.symmetric(horizontal: 6.0),
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
-                                        onPressed: () async { await _openNotes(); },
+                                        onPressed: () async { await _finalizeAllEdits(); await _openNotes(); },
                                       ),
                                       IconButton(
                                         icon: const Icon(Icons.history),
@@ -4346,7 +4311,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                             : const EdgeInsets.symmetric(horizontal: 6.0),
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
-                                        onPressed: () async { await _showRedoLogViewer(); },
+                                        onPressed: () async { 
+                                          await Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => const RedoLogPage()));
+                                        },
                                       ),
                                       // Done button (opens archived/done view)
                                       IconButton(
@@ -4361,7 +4328,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                             : const EdgeInsets.symmetric(horizontal: 6.0),
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
-                                        onPressed: () async { await _switchFile(true); },
+                                        onPressed: () async { await _finalizeAllEdits(); await _switchFile(true); },
                                       ),
                                       Visibility(
                                         visible: !_showingDone,
@@ -4376,7 +4343,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                               : const EdgeInsets.only(left: 6.0, right: 0.0),
                                           constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                           visualDensity: VisualDensity.compact,
-                                          onPressed: () async { await _cycleView(true); },
+                                          onPressed: () async { await _finalizeAllEdits(); await _cycleView(true); },
                                         ),
                                       ),
                                     ],
@@ -7498,6 +7465,208 @@ class _StatsPageState extends State<StatsPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/* Top-level redo log page (moved here to avoid nested class declarations) */
+class RedoLogPage extends StatefulWidget {
+  const RedoLogPage({super.key});
+  @override
+  State<RedoLogPage> createState() => _RedoLogPageState();
+}
+
+class _RedoLogPageState extends State<RedoLogPage> {
+  List<Map<String, dynamic>> _entries = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEntries();
+  }
+
+  Future<File> _fileForName(String name) async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/$name');
+  }
+
+  String _storageName(String name) => kDebugMode ? 'debug_$name' : name;
+
+  Future<void> _loadEntries() async {
+    setState(() { _loading = true; });
+    try {
+      final f = await _fileForName(_storageName('simplepresent_redo.log'));
+      if (!await f.exists()) {
+        setState(() { _entries = []; _loading = false; });
+        return;
+      }
+      final lines = await f.readAsLines();
+      final recent = lines.length > 500 ? lines.sublist(lines.length - 500) : lines;
+      final parsed = <Map<String, dynamic>>[];
+      for (final l in recent.reversed) {
+        try {
+          final m = jsonDecode(l);
+          if (m is Map<String, dynamic>) parsed.add(m);
+          else parsed.add({'raw': l});
+        } catch (_) {
+          parsed.add({'raw': l});
+        }
+      }
+      setState(() { _entries = parsed; _loading = false; });
+    } catch (_) {
+      setState(() { _entries = []; _loading = false; });
+    }
+  }
+
+  String _shortDetails(Map<String, dynamic> e) {
+    final d = e['details'];
+    if (d == null) {
+      // fallback to raw line
+      final raw = e['raw']?.toString() ?? '';
+      return raw.length > 80 ? '${raw.substring(0, 80)}…' : raw;
+    }
+    try {
+      if (d is Map<String, dynamic>) {
+        // before/after snapshot diff
+        final before = d['before'] is Map ? Map<String, dynamic>.from(d['before']) : <String, dynamic>{};
+        final after = d['after'] is Map ? Map<String, dynamic>.from(d['after']) : <String, dynamic>{};
+        if (before.isNotEmpty || after.isNotEmpty) {
+          final keys = <String>{}..addAll(before.keys.map((k) => k.toString()))..addAll(after.keys.map((k) => k.toString()));
+          final parts = <String>[];
+          for (final k in keys) {
+            final b = before[k];
+            final a = after[k];
+            if (jsonEncode(b) != jsonEncode(a)) {
+              final bs = _shortVal(b);
+              final as = _shortVal(a);
+              parts.add('$k: "$bs" -> "$as"');
+            }
+          }
+          if (parts.isNotEmpty) return parts.join('; ');
+        }
+        // simple map (e.g., move details)
+        if (d.containsKey('from') && d.containsKey('to')) {
+          return 'moved: ${d['from']} → ${d['to']}';
+        }
+        final s = jsonEncode(d);
+        return s.length > 80 ? '${s.substring(0, 80)}…' : s;
+      }
+      final s = d.toString();
+      return s.length > 80 ? '${s.substring(0, 80)}…' : s;
+    } catch (_) {
+      final s = e['raw']?.toString() ?? d.toString();
+      return s.length > 80 ? '${s.substring(0, 80)}…' : s;
+    }
+  }
+
+  String _shortVal(dynamic v) {
+    if (v == null) return 'null';
+    try {
+      if (v is String) {
+        final dt = DateTime.tryParse(v);
+        if (dt != null) return DateFormat('yyyy-MM-dd HH:mm').format(dt.toLocal());
+        return v.length > 50 ? '${v.substring(0, 50)}…' : v;
+      }
+      final s = jsonEncode(v);
+      return s.length > 50 ? '${s.substring(0, 50)}…' : s;
+    } catch (_) {
+      final s = v.toString();
+      return s.length > 50 ? '${s.substring(0, 50)}…' : s;
+    }
+  }
+
+  Future<void> _copyAll() async {
+    try {
+      final f = await _fileForName(_storageName('simplepresent_redo.log'));
+      if (!await f.exists()) return;
+      final text = await f.readAsString();
+      await Clipboard.setData(ClipboardData(text: text));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied redo log to clipboard')));
+    } catch (_) {}
+  }
+
+  void _showDetails(Map<String, dynamic> e) {
+    final pretty = () {
+      try {
+        if (e.containsKey('raw')) return e['raw'].toString();
+        return const JsonEncoder.withIndent('  ').convert(e);
+      } catch (_) { return e.toString(); }
+    }();
+    showModalBottomSheet<void>(context: context, builder: (ctx) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: SingleChildScrollView(child: SelectableText(pretty))),
+              Row(children: [
+                TextButton(onPressed: () { Clipboard.setData(ClipboardData(text: pretty)); Navigator.of(ctx).pop(); }, child: const Text('Copy')),
+                const Spacer(),
+                TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close')),
+              ])
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Redo Log'),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refresh', onPressed: _loadEntries),
+          IconButton(icon: const Icon(Icons.download), tooltip: 'Copy all', onPressed: _copyAll),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: _entries.isEmpty
+                  ? const Center(child: Text('No redo log entries'))
+                  : SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SingleChildScrollView(
+                        child: DataTable(
+                          columns: const [
+                            DataColumn(label: Text('Timestamp')),
+                            DataColumn(label: Text('Action')),
+                            DataColumn(label: Text('Details')),
+                            DataColumn(label: Text('')),
+                          ],
+                          rows: List.generate(_entries.length, (i) {
+                            final e = _entries[i];
+                            final rawTs = e['timestamp'] ?? e['time'] ?? '';
+                            String formattedTs = '';
+                            if (rawTs != null && rawTs.toString().isNotEmpty) {
+                              final dt = DateTime.tryParse(rawTs.toString());
+                              if (dt != null) {
+                                formattedTs = DateFormat('yyyy-MM-dd HH:mm:ss').format(dt.toLocal());
+                              } else {
+                                formattedTs = rawTs.toString();
+                              }
+                            }
+                            final action = (e['action'] ?? '')?.toString();
+                            final detailShort = _shortDetails(e);
+                            return DataRow(cells: [
+                              DataCell(Text(formattedTs)),
+                              DataCell(Text(action ?? '')),
+                              DataCell(Text(detailShort)),
+                              DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                                IconButton(icon: const Icon(Icons.copy), tooltip: 'Copy entry', onPressed: () async { await Clipboard.setData(ClipboardData(text: jsonEncode(e))); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied entry'))); }),
+                                IconButton(icon: const Icon(Icons.open_in_new), tooltip: 'View details', onPressed: () => _showDetails(e)),
+                              ])),
+                            ]);
+                          }),
+                        ),
+                      ),
+                    ),
+            ),
     );
   }
 }
