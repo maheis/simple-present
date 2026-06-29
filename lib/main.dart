@@ -2823,6 +2823,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             if (beforeSnapshot != null && beforeDone != afterDone) {
               // use 'done' for marking done, 'reopen' for undoing done
               unawaited(_appendRedoLog(afterDone ? 'done' : 'reopen', taskId: taskId, details: {'text': _today[idx].text}));
+              if (afterDone) {
+                try { unawaited(_playDading()); } catch (_) {}
+              } else {
+                try { unawaited(_playThere()); } catch (_) {}
+              }
             }
           } catch (_) {}
 
@@ -3282,6 +3287,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       unawaited(_appendRedoLog('move_to_backlog', taskId: toStore.id, details: {'from': 'today', 'to': 'backlog'}));
       // Also log reopen (task marked not done)
       try { unawaited(_appendRedoLog('reopen', taskId: toStore.id, details: {'text': toStore.text})); } catch (_) {}
+      try { unawaited(_playThere()); } catch (_) {}
       // Persist time entry for this task (if using sqlite this appends a row)
       _upsertTimeEntry(toStore);
       // If we're currently showing backlog, reload to reflect the new top item
@@ -3660,6 +3666,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
         _showTopToast('task moved to backlog');
         try { unawaited(_appendRedoLog('reopen', taskId: restored.id, details: {'text': restored.text})); } catch (_) {}
+        try { unawaited(_playThere()); } catch (_) {}
       } catch (_) {
         _showTopToast('failed to move task');
       }
@@ -3758,6 +3765,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (e) {
       // Fallback to system click if asset missing or playback fails
       SystemSound.play(SystemSoundType.click);
+    }
+  }
+
+  Future<void> _playThere() async {
+    try {
+      await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+    } catch (e) {
+      try {
+        SystemSound.play(SystemSoundType.alert);
+      } catch (_) {}
     }
   }
 

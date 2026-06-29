@@ -281,7 +281,7 @@
 - [x] wiederkehrend nur an werktagen (optional)
 - [?] keine toasts by sync
 - [x] zurück-button in der done-liste
-- [ ] reopen sound
+- [x] reopen sound
 - [ ] burger menü für die buttons
 - [ ] android sound unterbricht musik wiedergaben...enferne 
 
