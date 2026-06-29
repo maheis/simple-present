@@ -267,7 +267,7 @@
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] backup methode, um sync und auch andere fehler rückgängig machen zu können
 - [ ] toast bzw. gesamtes aktions log
-- [ ] wiederkehrend nur an werktagen (optional)
+- [x] wiederkehrend nur an werktagen (optional)
 - [?] keine toasts by sync
 
 ## notes

@@ -2909,6 +2909,110 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+  Future<void> _showRecurrenceDialog(int index) async {
+    final task = _today[index];
+    String baseRec = task.recurrence ?? '';
+    String selected = baseRec.startsWith('daily:') ? 'daily' : baseRec;
+    // weekdays selection: 1=Mon .. 7=Sun
+    // Default: all days selected. If recurrence explicitly contains a
+    // 'daily:...' mask, use that mask; if it's plain 'daily' leave all
+    // selected.
+    final weekSelected = List<bool>.filled(7, true);
+    if (baseRec.startsWith('daily:')) {
+      final parts = baseRec.split(':');
+      if (parts.length > 1 && parts[1].trim().isNotEmpty) {
+        // explicit mask provided -> reset and apply
+        for (var i = 0; i < 7; i++) weekSelected[i] = false;
+        for (final p in parts[1].split(',')) {
+          final n = int.tryParse(p.trim());
+          if (n != null && n >= 1 && n <= 7) weekSelected[n - 1] = true;
+        }
+      }
+    }
+
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Recurrence'),
+          content: StatefulBuilder(builder: (ctx2, setState2) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RadioListTile<String>(
+                  title: const Text('None'),
+                  value: '',
+                  groupValue: selected,
+                  onChanged: (v) => setState2(() => selected = v ?? ''),
+                ),
+                RadioListTile<String>(
+                  title: const Text('Daily'),
+                  value: 'daily',
+                  groupValue: selected,
+                  onChanged: (v) => setState2(() => selected = v ?? 'daily'),
+                ),
+                if (selected == 'daily')
+                  Column(
+                    children: List.generate(7, (i) {
+                      const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                      return CheckboxListTile(
+                        title: Text(names[i]),
+                        value: weekSelected[i],
+                        onChanged: (v) => setState2(() => weekSelected[i] = v ?? false),
+                        dense: true,
+                        controlAffinity: ListTileControlAffinity.leading,
+                      );
+                    }),
+                  ),
+                RadioListTile<String>(
+                  title: const Text('Weekly'),
+                  value: 'weekly',
+                  groupValue: selected,
+                  onChanged: (v) => setState2(() => selected = v ?? 'weekly'),
+                ),
+                RadioListTile<String>(
+                  title: const Text('Monthly'),
+                  value: 'monthly',
+                  groupValue: selected,
+                  onChanged: (v) => setState2(() => selected = v ?? 'monthly'),
+                ),
+              ],
+            );
+          }),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Save')),
+          ],
+        );
+      },
+    );
+
+    if (res != true) return;
+
+    String newRec;
+    if (selected == 'daily') {
+      final picked = <String>[];
+      for (var i = 0; i < 7; i++) {
+        if (weekSelected[i]) picked.add('${i + 1}');
+      }
+      if (picked.length >= 7 || picked.isEmpty) {
+        // treat all-selected or none-selected as plain daily
+        newRec = 'daily';
+      } else {
+        newRec = 'daily:${picked.join(',')}';
+      }
+    } else if (selected.isEmpty) {
+      newRec = '';
+    } else {
+      newRec = selected;
+    }
+
+    setState(() {
+      _today[index] = _today[index].copyWith(recurrence: newRec.isEmpty ? null : newRec);
+    });
+    await _saveToday();
+  }
+
   Future<void> _moveFromBacklog(int index) async {
     try {
       // Load backlog file and remove the item there (index refers to backlog list)
@@ -3585,6 +3689,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   DateTime? _computeNextRecurrence(DateTime base, String recurrence) {
     try {
+      // Support new recurrence format variants:
+      // - 'daily' => every day
+      // - 'daily:1,2,3' => daily but only on specified weekdays (1=Mon..7=Sun)
+      // - 'weekly', 'monthly' preserved
+      if (recurrence.startsWith('daily:')) {
+        final parts = recurrence.split(':');
+        final daysPart = parts.length > 1 ? parts[1] : '';
+        final allowed = <int>{};
+        for (final p in daysPart.split(',')) {
+          final n = int.tryParse(p.trim());
+          if (n != null && n >= 1 && n <= 7) allowed.add(n);
+        }
+        // If no specific weekdays provided, fall back to plain daily
+        if (allowed.isEmpty) {
+          return DateTime(base.year, base.month, base.day + 1, base.hour, base.minute, base.second);
+        }
+        // Search forward for the next date matching an allowed weekday
+        for (int i = 1; i <= 14; i++) {
+          final cand = base.add(Duration(days: i));
+          if (allowed.contains(cand.weekday)) {
+            return DateTime(cand.year, cand.month, cand.day, base.hour, base.minute, base.second);
+          }
+        }
+        return null;
+      }
       switch (recurrence) {
         case 'daily':
           return DateTime(base.year, base.month, base.day + 1, base.hour, base.minute, base.second);
@@ -5214,22 +5343,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                             children: [
                                                               const Text('repeat:'),
                                                               const SizedBox(width: 8),
-                                                              DropdownButton<String>(
-                                                                value: task.recurrence ?? '',
-                                                                items: const [
-                                                                  DropdownMenuItem(value: '', child: Text('none')),
-                                                                  DropdownMenuItem(value: 'daily', child: Text('daily')),
-                                                                  DropdownMenuItem(value: 'weekly', child: Text('weekly')),
-                                                                  DropdownMenuItem(value: 'monthly', child: Text('monthly')),
-                                                                ],
-                                                                onChanged: (v) async {
-                                                                  final newRec = (v == null || v.isEmpty) ? null : v;
-                                                                  setState(() {
-                                                                    _today[i] = _today[i].copyWith(recurrence: newRec);
-                                                                  });
-                                                                  await _saveToday();
-                                                                },
-                                                                  ),
+                                                              // Open a dialog for recurrence options (supports weekday masks)
+                                                              TextButton(
+                                                                onPressed: () => _showRecurrenceDialog(i),
+                                                                child: Text(task.recurrence == null || task.recurrence!.isEmpty ? 'none' : task.recurrence!),
+                                                              ),
                                                                   const Spacer(),
                                                                   IconButton(
                                                                     tooltip: 'Duplicate',
