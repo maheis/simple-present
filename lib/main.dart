@@ -2758,72 +2758,84 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final val = entry.value;
         final idx = _today.indexWhere((t) => t.id == id);
         if (idx != -1) {
-          final originalTask = _today[idx];
-          final now = val ? DateTime.now() : null;
-          // If marking done, stop running stopwatch first to capture final time
-          if (val == true) {
-            try {
-              await _stopStopwatch(idx);
-            } catch (_) {}
+          final taskId = id;
+          // determine a sensible before-snapshot
+          Map<String, dynamic>? beforeSnapshot;
+          try {
+            beforeSnapshot = _stagedEditBefore.remove(taskId) ?? _lastPersistedToday[taskId];
+          } catch (_) {
+            beforeSnapshot = _lastPersistedToday[taskId];
           }
-          // When marking done, clear inProgress
-          _today[idx] = _today[idx].copyWith(done: val, inProgress: val ? false : _today[idx].inProgress, completedAt: val ? now : _today[idx].completedAt);
-          if (val == true) {
-            // clear any pending notified flags for this task
-            final idPrefix = '${_today[idx].id}|';
-            _notified15.removeWhere((k) => k.startsWith(idPrefix));
-            _notifiedDue.removeWhere((k) => k.startsWith(idPrefix));
-            try {
-              _upsertTimeEntry(_today[idx]);
-            } catch (_) {}
-            try {
-              unawaited(_playDading());
-            } catch (_) {}
-            // Log marking done (staged action applied)
-            try {
-              final title = originalTask.text;
-              unawaited(_appendRedoLog('done', taskId: _today[idx].id, details: {'text': title}));
-            } catch (_) {}
-            // If the original task is recurring, create the next occurrence
-            try {
-              final rec = originalTask.recurrence;
-              if (rec != null && rec.isNotEmpty) {
-                final base = originalTask.scheduledAt ?? DateTime.now();
-                final next = _computeNextRecurrence(base, rec);
-                if (next != null) {
-                  final newId = '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
-                  final newTask = originalTask.copyWith(
-                      id: newId,
-                      createdAt: DateTime.now(),
-                      completedAt: null,
-                      done: false,
-                      inProgress: false,
-                      stopwatchAccumulatedSeconds: 0,
-                      stopwatchRunning: false,
-                      stopwatchStartedAt: null,
-                      scheduledAt: next);
-                  // Insert into the appropriate list: Today if next is today, else backlog
-                  if (_isSameDay(next, DateTime.now())) {
-                    final List<TaskItem> todayList = [];
-                    await _loadList(_storage('simplepresent_today.json'), todayList);
-                    todayList.insert(0, newTask);
-                    await _saveList(_storage('simplepresent_today.json'), todayList);
-                  } else {
-                    final List<TaskItem> backlogList = [];
-                    await _loadList(_storage('simplepresent_backlog.json'), backlogList);
-                    backlogList.insert(0, newTask);
-                    await _saveList(_storage('simplepresent_backlog.json'), backlogList);
-                  }
+          // apply the done/undone change to the task
+          final t = _today[idx];
+          final now = val == true ? DateTime.now() : null;
+          setState(() => _today[idx] = t.copyWith(done: val, completedAt: now));
+          final afterSnapshot = _today[idx].toJson();
+          // Handle subtask-level diffs separately so the consolidated `edit` entry
+          // does not contain large JSON blobs for subtasks.
+          try {
+            final beforeSubs = (beforeSnapshot != null && beforeSnapshot['subtasks'] is List)
+                ? List<Map<String, dynamic>>.from(beforeSnapshot['subtasks'])
+                : <Map<String, dynamic>>[];
+            final afterSubs = (afterSnapshot['subtasks'] is List)
+                ? List<Map<String, dynamic>>.from(afterSnapshot['subtasks'])
+                : <Map<String, dynamic>>[];
+
+            final beforeById = { for (var s in beforeSubs) (s['id'] ?? s['uid'] ?? '').toString(): s };
+            final afterById = { for (var s in afterSubs) (s['id'] ?? s['uid'] ?? '').toString(): s };
+
+            // Adds
+            for (final s in afterSubs) {
+              final id = (s['id'] ?? s['uid'] ?? '').toString();
+              if (id.isEmpty) continue;
+              if (!beforeById.containsKey(id)) {
+                unawaited(_appendRedoLog('subtask_add', taskId: taskId, details: {'subtask': s}));
+              }
+            }
+            // Removes
+            for (final s in beforeSubs) {
+              final id = (s['id'] ?? s['uid'] ?? '').toString();
+              if (id.isEmpty) continue;
+              if (!afterById.containsKey(id)) {
+                unawaited(_appendRedoLog('subtask_remove', taskId: taskId, details: {'subtask': s}));
+              }
+            }
+            // Edits and done-toggle
+            for (final id in beforeById.keys) {
+              if (!afterById.containsKey(id)) continue;
+              final b = beforeById[id]!;
+              final a = afterById[id]!;
+              if (jsonEncode(b) != jsonEncode(a)) {
+                // detect done toggle
+                final bDone = (b['done'] == true || b['completed'] == true);
+                final aDone = (a['done'] == true || a['completed'] == true);
+                if (bDone != aDone) {
+                  unawaited(_appendRedoLog(aDone ? 'subtask_done' : 'subtask_undone', taskId: taskId, details: {'subtaskId': id, 'before': b, 'after': a}));
+                } else {
+                  unawaited(_appendRedoLog('subtask_edit', taskId: taskId, details: {'subtaskId': id, 'before': b, 'after': a}));
                 }
               }
-            } catch (_) {}
-          }
-          // If any staged entry cleared a previously-done task, log reopen
-          try {
-            if (originalTask.done == true && val == false) {
-              unawaited(_appendRedoLog('reopen', taskId: _today[idx].id, details: {'text': _today[idx].text}));
+            }
+            // Reorder: compare id order
+            final beforeOrder = beforeSubs.map((s) => (s['id'] ?? s['uid'] ?? '').toString()).where((s) => s.isNotEmpty).toList();
+            final afterOrder = afterSubs.map((s) => (s['id'] ?? s['uid'] ?? '').toString()).where((s) => s.isNotEmpty).toList();
+            if (beforeOrder.isNotEmpty && afterOrder.isNotEmpty && jsonEncode(beforeOrder) != jsonEncode(afterOrder)) {
+              unawaited(_appendRedoLog('subtask_reorder', taskId: taskId, details: {'before': beforeOrder, 'after': afterOrder}));
             }
           } catch (_) {}
+
+          // Now append the consolidated edit entry but with subtasks removed to avoid JSON noise.
+          final beforeCopy = beforeSnapshot != null ? Map<String, dynamic>.from(beforeSnapshot) : null;
+          final afterCopy = Map<String, dynamic>.from(afterSnapshot);
+          if (beforeCopy != null) beforeCopy.remove('subtasks');
+          afterCopy.remove('subtasks');
+
+          if (beforeSnapshot == null) {
+            // treat as create if no prior snapshot known
+            unawaited(_appendRedoLog('create', taskId: taskId, details: {'after': afterSnapshot}));
+          } else if (jsonEncode(beforeCopy) != jsonEncode(afterCopy)) {
+            unawaited(_appendRedoLog('edit', taskId: taskId, details: {'before': beforeCopy, 'after': afterCopy}));
+          }
         }
       }
       _stagedDone.clear();
@@ -7623,6 +7635,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
 
   String _shortDetails(Map<String, dynamic> e) {
     final d = e['details'];
+    final action = (e['action'] ?? '').toString();
     if (d == null) {
       // fallback to raw line
       final raw = e['raw']?.toString() ?? '';
@@ -7630,6 +7643,53 @@ class _RedoLogPageState extends State<RedoLogPage> {
     }
     try {
       if (d is Map<String, dynamic>) {
+        // If this is an explicit undo entry, summarize the inner undone entry
+        if (action == 'undo' && d['undone_entry'] is Map) {
+          try {
+            final inner = Map<String, dynamic>.from(d['undone_entry']);
+            final innerAction = (inner['action'] ?? '')?.toString() ?? '';
+            final innerTask = (inner['task_id'] ?? inner['taskId'] ?? '')?.toString() ?? '';
+            String innerSummary = '';
+            try {
+              innerSummary = _shortDetails({'action': innerAction, 'details': inner['details']});
+            } catch (_) { innerSummary = innerAction; }
+            if (innerTask.isNotEmpty) return 'undo: $innerAction for ${_shortVal(innerTask)}';
+            if (innerSummary.isNotEmpty) return 'undo: $innerSummary';
+            return 'undo: $innerAction';
+          } catch (_) {}
+        }
+        // Special-case subtask actions for friendlier display
+        if (action == 'subtask_add' && d['subtask'] is Map) {
+          final s = Map<String, dynamic>.from(d['subtask']);
+          final txt = _shortVal(s['text'] ?? s['title'] ?? s['name'] ?? s['id']);
+          return 'subtask added: $txt';
+        }
+        if (action == 'subtask_remove' && d['subtask'] is Map) {
+          final s = Map<String, dynamic>.from(d['subtask']);
+          final txt = _shortVal(s['text'] ?? s['title'] ?? s['name'] ?? s['id']);
+          return 'subtask removed: $txt';
+        }
+        if (action == 'subtask_edit') {
+          // Show concise diff for the subtask fields
+          if (d['before'] is Map || d['after'] is Map) {
+            final before = d['before'] is Map ? Map<String, dynamic>.from(d['before']) : <String, dynamic>{};
+            final after = d['after'] is Map ? Map<String, dynamic>.from(d['after']) : <String, dynamic>{};
+            final keys = <String>{}..addAll(before.keys.map((k) => k.toString()))..addAll(after.keys.map((k) => k.toString()));
+            final parts = <String>[];
+            for (final k in keys) {
+              final b = before[k];
+              final a = after[k];
+              if (jsonEncode(b) != jsonEncode(a)) {
+                parts.add('$k: "${_shortVal(b)}" → "${_shortVal(a)}"');
+              }
+            }
+            if (parts.isNotEmpty) return 'subtask edit: ' + parts.join('; ');
+          }
+        }
+        if (action == 'subtask_reorder' && d['before'] is List) {
+          final before = List.from(d['before']).map((x) => x.toString()).toList();
+          return 'subtask order: ${before.join(", ")}';
+        }
         // If details only contains a `text` field, show the text itself
         if (d.length == 1 && d.containsKey('text')) {
           final txt = _shortVal(d['text']);
@@ -7697,6 +7757,66 @@ class _RedoLogPageState extends State<RedoLogPage> {
     final pretty = () {
       try {
         if (e.containsKey('raw')) return e['raw'].toString();
+        // Helpers to render subtask(s) tersely
+        String renderSubtask(Map s) {
+          final id = (s['id'] ?? s['uid'] ?? '')?.toString() ?? '';
+          final txt = (s['text'] ?? s['title'] ?? s['name'] ?? '')?.toString() ?? '';
+          final done = (s['done'] == true || s['completed'] == true) ? ' (done)' : '';
+          if (id.isNotEmpty && txt.isNotEmpty) return '$id: ${_shortVal(txt)}$done';
+          if (txt.isNotEmpty) return _shortVal(txt) + done;
+          if (id.isNotEmpty) return id + done;
+          return jsonEncode(s);
+        }
+
+        String renderSubtaskList(List lst) {
+          final lines = <String>[];
+          for (var i = 0; i < lst.length; i++) {
+            final item = lst[i];
+            if (item is Map) {
+              lines.add('${i + 1}. ${renderSubtask(Map<String, dynamic>.from(item))}');
+            } else {
+              lines.add('${i + 1}. ${_shortVal(item)}');
+            }
+          }
+          return lines.join('\n');
+        }
+
+        final action = (e['action'] ?? '').toString();
+        final d = e['details'];
+
+        // If this is an undo entry, pretty-print the inner undone entry more cleanly
+        if (action == 'undo' && d is Map && d['undone_entry'] is Map) {
+          final inner = Map<String, dynamic>.from(d['undone_entry']);
+          final header = 'Undo performed: ${e['timestamp'] ?? e['time'] ?? ''}';
+          final innerDetails = inner['details'];
+          if (innerDetails is Map) {
+            if (innerDetails['subtask'] is Map) {
+              return header + '\n' + 'Undone: ' + renderSubtask(Map<String, dynamic>.from(innerDetails['subtask']));
+            }
+            if (innerDetails['subtasks'] is List) {
+              return header + '\n' + 'Undone subtasks:\n' + renderSubtaskList(List.from(innerDetails['subtasks']));
+            }
+          }
+          return header + '\n' + const JsonEncoder.withIndent('  ').convert(inner);
+        }
+
+        // If details directly include subtask(s), render them nicely
+        if (d is Map) {
+          if (d['subtask'] is Map) {
+            return 'subtask: ' + renderSubtask(Map<String, dynamic>.from(d['subtask']));
+          }
+          if (d['subtasks'] is List) {
+            return 'subtasks:\n' + renderSubtaskList(List.from(d['subtasks']));
+          }
+          // also handle before/after containing subtasks
+          if (d['before'] is Map && d['before']['subtasks'] is List) {
+            return 'before subtasks:\n' + renderSubtaskList(List.from(d['before']['subtasks']));
+          }
+          if (d['after'] is Map && d['after']['subtasks'] is List) {
+            return 'after subtasks:\n' + renderSubtaskList(List.from(d['after']['subtasks']));
+          }
+        }
+
         return const JsonEncoder.withIndent('  ').convert(e);
       } catch (_) { return e.toString(); }
     }();

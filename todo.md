@@ -267,9 +267,13 @@
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] redo log, um sync und auch andere fehler rückgängig machen zu können
   - [x] erstmal nur im log speichern, was passiert ist (task-id, action, timestamp, user-id)
-  - [ ] zweiter schritt ist dann die möglichkeit, die aktion rückgängig zu machen (undo)
-  - [ ] undo ins redo log
-  - [ ] subtask hübscher (aktuell noch mit {} und json inhalten)
+  - [x] zweiter schritt ist dann die möglichkeit, die aktion rückgängig zu machen (undo)
+  - [x] undo ins redo log
+  - [ ] subtask hübscher, wird aktuell noch mit {} und json inhalten dargestellt
+  - [x] undo hübscher, wird aktuell noch mit {} und json inhalten dargestellt
+  - [ ] nothing todo als toast
+  - [ ] sehr schnelle änderungen werden nicht erfasst
+  - [ ] statt tabelle als kachel
 - [ ] papierkorb:
         schiebt sync in den papierkorb?
         papierkorb sichtbar machen (um wiederherstellen zu können)
@@ -278,6 +282,8 @@
 - [?] keine toasts by sync
 - [x] zurück-button in der done-liste
 - [ ] reopen sound
+- [ ] burger menü
+- [ ] android sound unterbricht musik wiedergaben...
 
 ## notes
 
