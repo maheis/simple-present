@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -310,22 +309,7 @@ func (s *Server) Pull(w http.ResponseWriter, r *http.Request) {
 		out = append(out, map[string]interface{}{"id": id, "payload": payloadObj, "modified_at": modified, "tombstone": tomb, "origin_device_id": origin, "version": version})
 	}
 
-	// Include redo items (separately stored) so clients can receive undo/redo entries.
-	rows2, err := s.DB.Query("SELECT id, payload, modified_at, origin_device_id, version FROM redo_items WHERE account_id = ? AND modified_at > ?", auth.AccountID, sinceInt)
-	if err == nil {
-		defer rows2.Close()
-		for rows2.Next() {
-			var id, payload, origin string
-			var modified int64
-			var version int
-			if err := rows2.Scan(&id, &payload, &modified, &origin, &version); err != nil {
-				continue
-			}
-			var payloadObj interface{}
-			_ = json.Unmarshal([]byte(payload), &payloadObj)
-			out = append(out, map[string]interface{}{"id": id, "payload": payloadObj, "modified_at": modified, "tombstone": 0, "origin_device_id": origin, "version": version})
-		}
-	}
+	// redo-items removed server-side; nothing to include here.
 	s.touchAccountActivity(auth.AccountID)
 	writeJSON(w, map[string]interface{}{"items": out})
 }
@@ -370,24 +354,9 @@ func (s *Server) Push(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer stmt.Close()
-	redoStmt, err := tx.Prepare("INSERT OR REPLACE INTO redo_items (id, account_id, payload, modified_at, origin_device_id, version) VALUES (?, ?, ?, ?, ?, ?)")
-	if err != nil {
-		tx.Rollback()
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer redoStmt.Close()
 	for _, it := range req.Items {
 		b, _ := json.Marshal(it.Payload)
-		// Treat redo entries (id prefix "redo:") as separate, ephemeral storage
-		if strings.HasPrefix(it.ID, "redo:") {
-			if _, err := redoStmt.Exec(it.ID, req.AccountID, string(b), it.ModifiedAt, it.OriginDeviceID, it.Version); err != nil {
-				tx.Rollback()
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			continue
-		}
+		// Server no longer stores redo entries; treat all items uniformly.
 		tomb := 0
 		if it.Tombstone {
 			tomb = 1

@@ -268,23 +268,6 @@ func (s *Server) StartMaintenanceLoop() {
 				log.Printf("archived %d inactive accounts", archived)
 			}
 
-			// Clean up old redo items to avoid unbounded growth. Default TTL: 30 days.
-			cleaned, err := s.cleanupRedoItems(time.Now())
-			if err != nil {
-				log.Printf("redo cleanup failed: %v", err)
-			} else if cleaned > 0 {
-				log.Printf("deleted %d old redo items", cleaned)
-			}
 		}
 	}()
-}
-
-func (s *Server) cleanupRedoItems(now time.Time) (int64, error) {
-	ttl := 30 * 24 * time.Hour
-	cutoff := now.Add(-ttl).Unix()
-	result, err := s.DB.Exec("DELETE FROM redo_items WHERE modified_at < ?", cutoff)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
 }

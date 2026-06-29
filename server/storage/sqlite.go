@@ -61,16 +61,20 @@ func (s *Store) initSchema() error {
 		return fmt.Errorf("set wal mode: %w", err)
 	}
 
+	// Migration: remove obsolete redo_items table if present (clean up old schema)
+	if _, err := s.db.Exec(`DROP TABLE IF EXISTS redo_items;`); err != nil {
+		return fmt.Errorf("drop redo_items table: %w", err)
+	}
+
 	stmts := []string{
 		`PRAGMA foreign_keys = ON;`,
 		`CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, created_at INTEGER, max_devices INTEGER DEFAULT 5, max_items INTEGER DEFAULT 10000, max_bytes INTEGER DEFAULT 10485760, pairing_public_key TEXT DEFAULT '', pin_hash TEXT DEFAULT '', last_active_at INTEGER DEFAULT 0, archived INTEGER DEFAULT 0, archived_at INTEGER DEFAULT 0);`,
 		`CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, account_id TEXT, name TEXT, created_at INTEGER, revoked INTEGER DEFAULT 0, token_version INTEGER DEFAULT 1, FOREIGN KEY(account_id) REFERENCES accounts(id));`,
 		`CREATE TABLE IF NOT EXISTS items (id TEXT PRIMARY KEY, account_id TEXT, payload TEXT, modified_at INTEGER, tombstone INTEGER DEFAULT 0, origin_device_id TEXT, version INTEGER, FOREIGN KEY(account_id) REFERENCES accounts(id));`,
-		`CREATE TABLE IF NOT EXISTS redo_items (id TEXT PRIMARY KEY, account_id TEXT, payload TEXT, modified_at INTEGER, origin_device_id TEXT, version INTEGER, FOREIGN KEY(account_id) REFERENCES accounts(id));`,
 		`CREATE TABLE IF NOT EXISTS system_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);`,
 		`CREATE INDEX IF NOT EXISTS idx_devices_account_active ON devices(account_id, revoked);`,
 		`CREATE INDEX IF NOT EXISTS idx_items_account_modified ON items(account_id, modified_at);`,
-		`CREATE INDEX IF NOT EXISTS idx_redo_account_modified ON redo_items(account_id, modified_at);`,
+
 		`CREATE INDEX IF NOT EXISTS idx_accounts_archived_last_active ON accounts(archived, last_active_at);`,
 		`ALTER TABLE accounts ADD COLUMN max_devices INTEGER DEFAULT 5;`,
 		`ALTER TABLE accounts ADD COLUMN max_items INTEGER DEFAULT 10000;`,

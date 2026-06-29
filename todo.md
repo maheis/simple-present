@@ -293,7 +293,7 @@
   - [ ] settings
 - [ ] install server soll updaten können
 - [ ] fällige aufgaben automatisch aus dem backlog ins today verschieben
-- [ ] sync redo-log klappt nicht. aber braucht es das wirklich? rückbauen?
+- [x] sync redo-log klappt nicht. aber braucht es das wirklich? rückbauen?
 - [x] repeat funktioniert nicht mehr?!
 - [x] jsons in unterordner
 - [x] jsons pro task. die einzelnen listen _backlog, _done , _today, _trash sollen dann als unterordner struktur abgebildet werden.

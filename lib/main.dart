@@ -1434,51 +1434,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _pushRedoLogEntryToCloud(Map<String, dynamic> entry) async {
-    if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState || _suppressCloudPushes) return;
-    _suppressSyncToasts = true;
-    _cloudSyncBusy = true;
-    try {
-      final client = CloudSyncClient(
-        serverBaseUrl: _cloudServerUrl.trim(),
-        allowInsecureCertificates: _cloudAllowInsecureTls,
-      );
-      final modifiedAt = DateTime.now().millisecondsSinceEpoch;
-      _cloudStateVersion += 1;
-
-      final encryptedPayload = await CloudSyncClient.encryptStatePayload(
-        payload: <String, dynamic>{
-          'kind': 'redo',
-          'entry': entry,
-        },
-        phrase: _cloudWordPhrase,
-      );
-
-      final id = 'redo:${modifiedAt}:${math.Random().nextInt(1 << 32)}';
-      await client.pushItems(
-        accountId: _cloudAccountId.trim(),
-        token: _cloudToken.trim(),
-        items: <Map<String, dynamic>>[
-          <String, dynamic>{
-            'id': id,
-            'payload': encryptedPayload,
-            'modified_at': modifiedAt,
-            'tombstone': false,
-            'origin_device_id': _cloudDeviceId.trim(),
-            'version': _cloudStateVersion,
-          }
-        ],
-      );
-      _cloudLastSyncModifiedAt = modifiedAt;
-      await _saveSettings();
-      _onCloudSyncSuccess();
-    } catch (e) {
-      _onCloudSyncError(e);
-    } finally {
-      _cloudSyncBusy = false;
-      _suppressSyncToasts = false;
-    }
-  }
+  // Cloud syncing of redo-log entries has been removed.
 
   Future<bool> _syncPushNotes(String text) async {
     if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState || _suppressCloudPushes) return false;
@@ -4619,7 +4575,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                             if (res is Map && res['undo'] == true && res['entry'] is Map<String, dynamic>) {
                                               try { await _loadToday(); } catch (_) {}
                                               try { _showTopToast('Undo applied'); } catch (_) {}
-                                              try { unawaited(_pushRedoLogEntryToCloud(Map<String, dynamic>.from(res['entry']))); } catch (_) {}
                                             } else if (res == true) {
                                               try { await _loadToday(); } catch (_) {}
                                               try { _showTopToast('Undo applied'); } catch (_) {}
