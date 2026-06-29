@@ -266,8 +266,8 @@
 - [?] 24 Uhr move today -> backlog
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] redo log, um sync und auch andere fehler rückgängig machen zu können
-        erstmal nur im log speichern, was passiert ist (task-id, action, timestamp, user-id)
-        zweiter schritt ist dann die möglichkeit, die aktion rückgängig zu machen (undo)
+  - [ ] erstmal nur im log speichern, was passiert ist (task-id, action, timestamp, user-id)
+  - [ ] zweiter schritt ist dann die möglichkeit, die aktion rückgängig zu machen (undo)
 - [ ] papierkorb:
         schiebt sync in den papierkorb?
         papierkorb sichtbar machen (um wiederherstellen zu können)

@@ -549,6 +549,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   late final Future<void> _initFuture = _initializeApp();
 
+  // Snapshot of last persisted `_today` list used to detect local changes
+  // and append them to the redo log. Maps task id -> JSON map.
+  final Map<String, Map<String, dynamic>> _lastPersistedToday = {};
+
   @override
   void initState() {
     super.initState();
@@ -1049,15 +1053,59 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     setState(() {});
     // Ensure header counters are up to date
     unawaited(_updateListCounts());
+    try {
+      _lastPersistedToday.clear();
+      for (final t in _today) {
+        _lastPersistedToday[t.id] = t.toJson();
+      }
+    } catch (_) {}
   }
 
   Future<void> _saveToday() async {
     try {
+      // Detect local changes and append structured entries to the redo log
+      // before persisting. Skip logging while applying cloud state to avoid
+      // creating spurious local entries for server-driven updates.
+      if (!_applyingCloudState) {
+        try {
+          final current = <String, Map<String, dynamic>>{};
+          for (final t in _today) current[t.id] = t.toJson();
+
+          // Creations & edits
+          for (final id in current.keys) {
+            final cur = current[id]!;
+            final prev = _lastPersistedToday[id];
+            if (prev == null) {
+              unawaited(_appendRedoLog('create', taskId: id, details: {'after': cur}));
+            } else {
+              if (jsonEncode(prev) != jsonEncode(cur)) {
+                unawaited(_appendRedoLog('edit', taskId: id, details: {'before': prev, 'after': cur}));
+              }
+            }
+          }
+
+          // Deletions (present in last persisted but missing now)
+          for (final id in _lastPersistedToday.keys) {
+            if (!current.containsKey(id)) {
+              final before = _lastPersistedToday[id];
+              unawaited(_appendRedoLog('delete', taskId: id, details: {'before': before}));
+            }
+          }
+
+        } catch (_) {}
+      }
+
       // Persist the currently loaded list (`_today` holds the in-memory
       // representation of whatever view is active). Use `_currentFile` so
       // saving operations write back to the correct file (today/backlog/done).
       await _saveList(_currentFile, _today);
       unawaited(_updateListCounts());
+
+      // Update the snapshot after a successful save
+      try {
+        _lastPersistedToday.clear();
+        for (final t in _today) _lastPersistedToday[t.id] = t.toJson();
+      } catch (_) {}
     } catch (_) {}
   }
 
@@ -2191,11 +2239,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _today[i] = t.copyWith(inProgress: true, inProgressAt: inferredAt);
       }
     }
-    setState(() => _today[index] = t.copyWith(
-        stopwatchRunning: true,
-        stopwatchStartedAt: now,
-        inProgress: true,
-        inProgressAt: now));
+    final before = _today[index];
+    final after = before.copyWith(
+      stopwatchRunning: true,
+      stopwatchStartedAt: now,
+      inProgress: true,
+      inProgressAt: now);
+    setState(() => _today[index] = after);
+    unawaited(_appendRedoLog('stopwatch_start', taskId: before.id, details: {'before': before.toJson(), 'after': after.toJson()}));
     // Clear any staged toggle for this task since we applied it directly
     _stagedInProgress.remove(t.id);
     await _saveToday();
@@ -2209,7 +2260,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final started = t.stopwatchStartedAt ?? DateTime.now();
     final added = DateTime.now().difference(started).inSeconds;
     final newAccum = t.stopwatchAccumulatedSeconds + added;
-    setState(() => _today[index] = t.copyWith(stopwatchRunning: false, stopwatchStartedAt: null, stopwatchAccumulatedSeconds: newAccum));
+    final before = _today[index];
+    final after = before.copyWith(stopwatchRunning: false, stopwatchStartedAt: null, stopwatchAccumulatedSeconds: newAccum);
+    setState(() => _today[index] = after);
+    unawaited(_appendRedoLog('stopwatch_stop', taskId: before.id, details: {'before': before.toJson(), 'after': after.toJson()}));
     await _saveToday();
     _scheduleDelayedReorder();
     _upsertTimeEntry(_today[index]);
@@ -2217,10 +2271,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _resetStopwatch(int index) async {
     final t = _today[index];
-    setState(() => _today[index] = t.copyWith(
-        stopwatchRunning: false,
-        stopwatchStartedAt: null,
-        stopwatchAccumulatedSeconds: 0));
+    final before = t;
+    final after = t.copyWith(stopwatchRunning: false, stopwatchStartedAt: null, stopwatchAccumulatedSeconds: 0);
+    setState(() => _today[index] = after);
+    unawaited(_appendRedoLog('stopwatch_reset', taskId: before.id, details: {'before': before.toJson(), 'after': after.toJson()}));
     await _saveToday();
   }
 
