@@ -2805,20 +2805,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // into backlog. Double-check the item's scheduled date at move-time to
     // avoid races where the staged value differs from the current item.
     if (idsToMoveToBacklog.isNotEmpty) {
-      final todayKeyCheck = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      for (final id in idsToMoveToBacklog) {
-        if (kDebugMode) print('_performDelayedReorder: considering move id=$id (runtime check)');
-        // find current index for id
-        final idx = _today.indexWhere((t) => t.id == id);
-        if (idx != -1) {
-          final current = _today[idx];
-          final sched = current.scheduledAt;
-          if (sched != null) {
-            final scheduledKey = DateFormat('yyyy-MM-dd').format(sched.toLocal());
-            if (kDebugMode) print('_performDelayedReorder: runtime compare id=$id scheduled=$scheduledKey today=$todayKeyCheck');
-            if (scheduledKey.compareTo(todayKeyCheck) > 0) {
-              // await the move to ensure it completes and the backlog is updated
-              await _moveToBacklogByIndex(idx);
+      // If the user switched to Backlog/Done view since staging, skip moves.
+      if (_showingBacklog || _showingDone) {
+        if (kDebugMode) print('_performDelayedReorder: skipping moves because view is backlog/done');
+      } else {
+        final todayKeyCheck = DateFormat('yyyy-MM-dd').format(DateTime.now());
+        for (final id in idsToMoveToBacklog) {
+          if (kDebugMode) print('_performDelayedReorder: considering move id=$id (runtime check)');
+          // find current index for id
+          final idx = _today.indexWhere((t) => t.id == id);
+          if (idx != -1) {
+            final current = _today[idx];
+            final sched = current.scheduledAt;
+            if (sched != null) {
+              final scheduledKey = DateFormat('yyyy-MM-dd').format(sched.toLocal());
+              if (kDebugMode) print('_performDelayedReorder: runtime compare id=$id scheduled=$scheduledKey today=$todayKeyCheck');
+              if (scheduledKey.compareTo(todayKeyCheck) > 0) {
+                // await the move to ensure it completes and the backlog is updated
+                await _moveToBacklogByIndex(idx);
+              }
             }
           }
         }
@@ -2925,6 +2930,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _moveToBacklogByIndex(int index) async {
+    // If we're already showing the backlog (or the current file is the
+    // backlog file), a move-to-backlog would be a no-op and may silently
+    // reorder items inside the backlog. Skip in that case to avoid
+    // performing intra-backlog moves triggered by edits.
+    if (_showingBacklog || _currentFile == _storage('simplepresent_backlog.json')) {
+      if (kDebugMode) print('_moveToBacklogByIndex: skip because showing backlog');
+      return;
+    }
+
     try {
       final item = _today[index];
       setState(() {
@@ -2966,6 +2980,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _moveToBacklog(int index) async {
+    // Skip moving into backlog if we're already viewing backlog to avoid
+    // re-inserting the item into the same list (which looks like an
+    // unnecessary intra-backlog move).
+    if (_showingBacklog || _currentFile == _storage('simplepresent_backlog.json')) {
+      if (kDebugMode) print('_moveToBacklog: skip because showing backlog');
+      return;
+    }
+
     try {
       final item = _today[index];
       setState(() {

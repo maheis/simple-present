@@ -263,8 +263,10 @@
 - [?] sortierung: done
         erledigt nach erledigt-datum sortieren
 - [x] counter, fertige abziehen
-- [ ] registrierte geräte zu diesem account anzeigen lassen und entfernbar machen
+- [?] registrierte geräte zu diesem account anzeigen lassen und entfernbar machen
 - [x] sync: notes?
+- [x] aufgaben mit zukunftstermin werden im backlog ins backlog gemoved!
+- [ ] backup methode, um sync und auch andere fehler rückgängig machen zuu können
 
 ## noteshttps://webmail.heister.email/
 
