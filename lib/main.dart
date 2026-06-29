@@ -2724,6 +2724,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             try {
               unawaited(_playDading());
             } catch (_) {}
+            // Log marking done (staged action applied)
+            try {
+              final title = originalTask.text;
+              unawaited(_appendRedoLog('mark_done', taskId: _today[idx].id, details: {'text': title}));
+            } catch (_) {}
             // If the original task is recurring, create the next occurrence
             try {
               final rec = originalTask.recurrence;
@@ -3580,6 +3585,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         });
         await _saveToday(); // persist removal from backlog
         await _appendDone([moved]);
+        try { unawaited(_appendRedoLog('mark_done', taskId: moved.id, details: {'text': finalTask.text})); } catch (_) {}
         // If recurring, create next occurrence
         try {
           final rec = finalTask.recurrence;
@@ -4741,9 +4747,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                         _today[i] = original.copyWith(done: true, inProgress: false, completedAt: now);
                                                       });
                                                     } catch (_) {}
-                                                    // Log marking done
+                                                    // Log marking done (include task title)
                                                     try {
-                                                      unawaited(_appendRedoLog('mark_done', taskId: _today[i].id));
+                                                      final title = t.text;
+                                                      unawaited(_appendRedoLog('mark_done', taskId: _today[i].id, details: {'text': title}));
                                                     } catch (_) {}
                                                     // Clear notification flags for this task
                                                     try {
@@ -7539,11 +7546,10 @@ class _RedoLogPageState extends State<RedoLogPage> {
     }
     try {
       if (d is Map<String, dynamic>) {
-        final action = (e['action'] ?? '')?.toString() ?? '';
-        // Beautify simple create payloads like {"text":"..."}
-        if (action == 'create' && d.length == 1 && d.containsKey('text')) {
+        // If details only contains a `text` field, show the text itself
+        if (d.length == 1 && d.containsKey('text')) {
           final txt = _shortVal(d['text']);
-          return 'created: "${txt}"';
+          return txt;
         }
         // before/after snapshot diff
         final before = d['before'] is Map ? Map<String, dynamic>.from(d['before']) : <String, dynamic>{};
