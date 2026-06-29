@@ -512,6 +512,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _cloudSyncBusy = false;
   bool _applyingCloudState = false;
   bool _suppressSyncToasts = false;
+  bool _suppressCloudPushes = false;
   int _cloudStateVersion = 1;
   int _cloudLastSyncModifiedAt = 0;
   final Map<String, TaskItem> _cloudPendingTimeEntrySync = <String, TaskItem>{};
@@ -1065,7 +1066,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _syncPushToCloud(String filename, List<TaskItem> source) async {
-    if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState) return;
+    if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState || _suppressCloudPushes) return;
     // Finalize open edits before pushing local state to the server so the
     // server receives the user's intended final versions.
     try {
@@ -1171,7 +1172,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<bool> _syncPushTimeEntryToCloud(TaskItem task) async {
-    if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState) return false;
+    if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState || _suppressCloudPushes) return false;
     _suppressSyncToasts = true;
     _cloudSyncBusy = true;
     try {
@@ -1228,8 +1229,54 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _pushRedoLogEntryToCloud(Map<String, dynamic> entry) async {
+    if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState || _suppressCloudPushes) return;
+    _suppressSyncToasts = true;
+    _cloudSyncBusy = true;
+    try {
+      final client = CloudSyncClient(
+        serverBaseUrl: _cloudServerUrl.trim(),
+        allowInsecureCertificates: _cloudAllowInsecureTls,
+      );
+      final modifiedAt = DateTime.now().millisecondsSinceEpoch;
+      _cloudStateVersion += 1;
+
+      final encryptedPayload = await CloudSyncClient.encryptStatePayload(
+        payload: <String, dynamic>{
+          'kind': 'redo',
+          'entry': entry,
+        },
+        phrase: _cloudWordPhrase,
+      );
+
+      final id = 'redo:${modifiedAt}:${math.Random().nextInt(1 << 32)}';
+      await client.pushItems(
+        accountId: _cloudAccountId.trim(),
+        token: _cloudToken.trim(),
+        items: <Map<String, dynamic>>[
+          <String, dynamic>{
+            'id': id,
+            'payload': encryptedPayload,
+            'modified_at': modifiedAt,
+            'tombstone': false,
+            'origin_device_id': _cloudDeviceId.trim(),
+            'version': _cloudStateVersion,
+          }
+        ],
+      );
+      _cloudLastSyncModifiedAt = modifiedAt;
+      await _saveSettings();
+      _onCloudSyncSuccess();
+    } catch (e) {
+      _onCloudSyncError(e);
+    } finally {
+      _cloudSyncBusy = false;
+      _suppressSyncToasts = false;
+    }
+  }
+
   Future<bool> _syncPushNotes(String text) async {
-    if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState) return false;
+    if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState || _suppressCloudPushes) return false;
 
     _cloudSyncBusy = true;
     try {
@@ -4345,8 +4392,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
                                         onPressed: () async { 
-                                          final did = await Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => const RedoLogPage()));
-                                          if (did == true) {
+                                          final res = await Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => const RedoLogPage()));
+                                          if (res is Map && res['undo'] == true && res['entry'] is Map<String, dynamic>) {
+                                            // refresh UI
+                                            try { await _loadToday(); } catch (_) {}
+                                            try { _showTopToast('Undo applied'); } catch (_) {}
+                                            // push the undo entry to cloud so other devices can observe it
+                                            try { unawaited(_pushRedoLogEntryToCloud(Map<String, dynamic>.from(res['entry']))); } catch (_) {}
+                                          } else if (res == true) {
                                             try { await _loadToday(); } catch (_) {}
                                             try { _showTopToast('Undo applied'); } catch (_) {}
                                           }
@@ -7877,14 +7930,29 @@ class _RedoLogPageState extends State<RedoLogPage> {
       }
 
       if (changed) {
-        // persist changes
-        await _writeListFile('simplepresent_today.json', today);
-        await _writeListFile('simplepresent_backlog.json', backlog);
-        await _writeListFile('simplepresent_done.json', done);
-        // feedback will be shown by the caller after the page pops
-        await _loadEntries();
-        // Signal caller (HomePage) to refresh its lists by returning true
-        try { Navigator.of(context).pop(true); } catch (_) {}
+          // persist changes
+          await _writeListFile('simplepresent_today.json', today);
+          await _writeListFile('simplepresent_backlog.json', backlog);
+          await _writeListFile('simplepresent_done.json', done);
+
+          // Append an explicit undo entry to the redo log file
+          final undoEntry = {
+            'timestamp': DateTime.now().toIso8601String(),
+            'action': 'undo',
+            'task_id': taskId,
+            'details': {'undone_entry': e},
+          };
+          try {
+            final rf = await _fileForName(_storageName('simplepresent_redo.log'));
+            await rf.writeAsString('${jsonEncode(undoEntry)}\n', mode: FileMode.append);
+          } catch (_) {}
+          // Also try to push this undo entry to the cloud as an encrypted 'redo' item
+          // Hand off cloud push to the caller (HomePage) by returning the undo entry.
+
+          // feedback will be shown by the caller after the page pops
+          await _loadEntries();
+          // Return the undo entry to the caller so HomePage can push it to cloud
+          try { Navigator.of(context).pop({'undo': true, 'entry': undoEntry}); } catch (_) {}
       } else {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nothing to undo')));
       }

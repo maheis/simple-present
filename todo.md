@@ -268,6 +268,8 @@
 - [ ] redo log, um sync und auch andere fehler rückgängig machen zu können
   - [x] erstmal nur im log speichern, was passiert ist (task-id, action, timestamp, user-id)
   - [ ] zweiter schritt ist dann die möglichkeit, die aktion rückgängig zu machen (undo)
+  - [ ] undo ins redo log
+  - [ ] subtask hübscher (aktuell noch mit {} und json inhalten)
 - [ ] papierkorb:
         schiebt sync in den papierkorb?
         papierkorb sichtbar machen (um wiederherstellen zu können)
