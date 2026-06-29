@@ -272,12 +272,12 @@
   - [x] subtask hübscher, wird aktuell noch mit {} und json inhalten dargestellt
   - [x] undo hübscher, wird aktuell noch mit {} und json inhalten dargestellt
   - [x] nothing todo als toast
-  - [ ] sehr schnelle änderungen werden nicht erfasst
-  - [ ] statt tabelle als kachel
+  - [x] sehr schnelle änderungen werden nicht erfasst
+  - [x] statt tabelle als kachel
 - [ ] papierkorb:
         schiebt sync in den papierkorb?
         papierkorb sichtbar machen (um wiederherstellen zu können)
-- [ ] toast bzw. gesamtes aktions log
+- [x] toast bzw. gesamtes aktions log
 - [x] wiederkehrend nur an werktagen (optional)
 - [?] keine toasts by sync
 - [x] zurück-button in der done-liste

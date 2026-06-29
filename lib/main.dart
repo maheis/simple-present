@@ -8150,59 +8150,67 @@ class _RedoLogPageState extends State<RedoLogPage> {
               padding: const EdgeInsets.all(8.0),
               child: _entries.isEmpty
                   ? const Center(child: Text('No redo log entries'))
-                  : Scrollbar(
-                      controller: _hScrollController,
-                      thumbVisibility: true,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        controller: _hScrollController,
-                        child: Scrollbar(
-                          controller: _vScrollController,
-                          thumbVisibility: true,
-                          child: SingleChildScrollView(
-                            controller: _vScrollController,
-                            child: DataTable(
-                              columns: const [
-                                DataColumn(label: Text('Timestamp')),
-                                DataColumn(label: Text('Action')),
-                                DataColumn(label: Text('Details')),
-                                DataColumn(label: Text('')),
-                              ],
-                              rows: List.generate(_entries.length, (i) {
-                            final e = _entries[i];
-                            final rawTs = e['timestamp'] ?? e['time'] ?? '';
-                            String formattedTs = '';
-                            if (rawTs != null && rawTs.toString().isNotEmpty) {
-                              final dt = DateTime.tryParse(rawTs.toString());
-                              if (dt != null) {
-                                formattedTs = DateFormat('yyyy-MM-dd HH:mm:ss').format(dt.toLocal());
-                              } else {
-                                formattedTs = rawTs.toString();
-                              }
+                  : LayoutBuilder(builder: (ctx, constraints) {
+                      final width = constraints.maxWidth;
+                      final cross = width > 1000 ? 3 : (width > 600 ? 2 : 1);
+                      return GridView.builder(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: cross,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                          childAspectRatio: 3,
+                        ),
+                        itemCount: _entries.length,
+                        itemBuilder: (ctx2, i) {
+                          final e = _entries[i];
+                          final rawTs = e['timestamp'] ?? e['time'] ?? '';
+                          String formattedTs = '';
+                          if (rawTs != null && rawTs.toString().isNotEmpty) {
+                            final dt = DateTime.tryParse(rawTs.toString());
+                            if (dt != null) {
+                              formattedTs = DateFormat('yyyy-MM-dd HH:mm:ss').format(dt.toLocal());
+                            } else {
+                              formattedTs = rawTs.toString();
                             }
-                            final action = (e['action'] ?? '')?.toString();
-                            final detailShort = _shortDetails(e);
-                            return DataRow(cells: [
-                              DataCell(Text(formattedTs)),
-                              DataCell(Text(action ?? '')),
-                              DataCell(Text(detailShort)),
-                              DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
-                                IconButton(icon: const Icon(Icons.copy), tooltip: 'Copy entry', onPressed: () async { await Clipboard.setData(ClipboardData(text: jsonEncode(e))); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied entry'))); }),
-                                IconButton(icon: const Icon(Icons.open_in_new), tooltip: 'View details', onPressed: () => _showDetails(e)),
-                                IconButton(icon: const Icon(Icons.undo), tooltip: 'Undo action', onPressed: () async {
-                                  final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Undo action?'), content: Text('Undo "${e['action']}" for ${_shortDetails(e)}?'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Undo'))]));
-                                  if (confirm == true) {
-                                    await _undoEntry(e);
-                                  }
-                                }),
-                              ])),
-                            ]);
-                              }),
-                            ), // DataTable
-                          ), // SingleChildScrollView (v)
-                        ), // Scrollbar (v)
-                      ), // SingleChildScrollView (h)
-                    ), // Scrollbar (h)
+                          }
+                          final action = (e['action'] ?? '')?.toString() ?? '';
+                          final detailShort = _shortDetails(e);
+                          return Card(
+                            elevation: 1,
+                            child: Padding(
+                              padding: const EdgeInsets.all(10.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(formattedTs, style: Theme.of(context).textTheme.bodySmall),
+                                      Text(action, style: Theme.of(context).textTheme.titleSmall),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Expanded(
+                                    child: Text(detailShort, style: Theme.of(context).textTheme.bodyMedium, overflow: TextOverflow.ellipsis, maxLines: 4),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(mainAxisSize: MainAxisSize.min, children: [
+                                    IconButton(icon: const Icon(Icons.copy), tooltip: 'Copy entry', onPressed: () async { await Clipboard.setData(ClipboardData(text: jsonEncode(e))); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied entry'))); }),
+                                    IconButton(icon: const Icon(Icons.open_in_new), tooltip: 'View details', onPressed: () => _showDetails(e)),
+                                    IconButton(icon: const Icon(Icons.undo), tooltip: 'Undo action', onPressed: () async {
+                                      final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Undo action?'), content: Text('Undo "${e['action']}" for ${_shortDetails(e)}?'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Undo'))]));
+                                      if (confirm == true) {
+                                        await _undoEntry(e);
+                                      }
+                                    }),
+                                  ]),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    }),
             ),
     );
   }
