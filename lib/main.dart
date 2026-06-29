@@ -4328,7 +4328,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         visualDensity: VisualDensity.compact,
                                         onPressed: () async { 
-                                          await Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => const RedoLogPage()));
+                                          final did = await Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => const RedoLogPage()));
+                                          if (did == true) {
+                                            try { await _loadToday(); } catch (_) {}
+                                            try { _showTopToast('Undo applied'); } catch (_) {}
+                                          }
                                         },
                                       ),
                                       // Done button (opens archived/done view)
@@ -7646,6 +7650,121 @@ class _RedoLogPageState extends State<RedoLogPage> {
     });
   }
 
+  Future<List<Map<String, dynamic>>> _readListFile(String name) async {
+    try {
+      final f = await _fileForName(_storageName(name));
+      if (!await f.exists()) return [];
+      final s = await f.readAsString();
+      final v = jsonDecode(s);
+      if (v is List) return v.map((e) => e is Map<String, dynamic> ? Map<String, dynamic>.from(e) : <String, dynamic>{}).toList();
+    } catch (_) {}
+    return [];
+  }
+
+  Future<void> _writeListFile(String name, List<Map<String, dynamic>> list) async {
+    try {
+      final f = await _fileForName(_storageName(name));
+      final encoder = const JsonEncoder.withIndent('  ');
+      await f.writeAsString(encoder.convert(list));
+    } catch (_) {}
+  }
+
+  Future<void> _undoEntry(Map<String, dynamic> e) async {
+    try {
+      final action = (e['action'] ?? '')?.toString() ?? '';
+      final taskId = (e['task_id'] ?? e['taskId'] ?? e['taskId'] ?? '')?.toString() ?? '';
+      // Load lists
+      final today = await _readListFile('simplepresent_today.json');
+      final backlog = await _readListFile('simplepresent_backlog.json');
+      final done = await _readListFile('simplepresent_done.json');
+
+      bool changed = false;
+
+      Map<String, dynamic>? removeById(List<Map<String, dynamic>> list, String id) {
+        final idx = list.indexWhere((m) => (m['id'] ?? m['uid'] ?? '').toString() == id);
+        if (idx == -1) return null;
+        return list.removeAt(idx);
+      }
+
+      if (action == 'create') {
+        // undo create -> remove created item from any list
+        final removed = removeById(today, taskId) ?? removeById(backlog, taskId) ?? removeById(done, taskId);
+        if (removed != null) changed = true;
+      } else if (action == 'done') {
+        // undo done -> move from done back to today
+        final removed = removeById(done, taskId);
+        if (removed != null) {
+          removed['done'] = false;
+          removed.remove('completedAt');
+          today.insert(0, removed);
+          changed = true;
+        }
+      } else if (action == 'reopen') {
+        // undo reopen -> mark as done (move to done)
+        final removed = removeById(today, taskId) ?? removeById(backlog, taskId);
+        if (removed != null) {
+          removed['done'] = true;
+          removed['completedAt'] = DateTime.now().toIso8601String();
+          done.insert(0, removed);
+          changed = true;
+        }
+      } else if (action == 'move_to_backlog') {
+        // undo move to backlog -> move from backlog to today
+        final removed = removeById(backlog, taskId);
+        if (removed != null) {
+          today.insert(0, removed);
+          changed = true;
+        }
+      } else if (action == 'move_to_today') {
+        final removed = removeById(today, taskId);
+        if (removed != null) {
+          backlog.insert(0, removed);
+          changed = true;
+        }
+      } else if (action == 'duplicate') {
+        // details.source/target? remove target id if present
+        final details = e['details'];
+        final target = details is Map ? (details['target'] ?? '')?.toString() ?? '' : '';
+        if (target.isNotEmpty) {
+          final removed = removeById(today, target) ?? removeById(backlog, target) ?? removeById(done, target);
+          if (removed != null) changed = true;
+        }
+      } else if (action == 'edit') {
+        // restore before snapshot if available
+        final details = e['details'];
+        if (details is Map && details['before'] is Map) {
+          final before = Map<String, dynamic>.from(details['before']);
+          // find task in lists and replace fields
+          for (final list in [today, backlog, done]) {
+            final idx = list.indexWhere((m) => (m['id'] ?? m['uid'] ?? '').toString() == taskId);
+            if (idx != -1) {
+              final cur = list[idx];
+              before.forEach((k, v) { cur[k] = v; });
+              list[idx] = cur;
+              changed = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (changed) {
+        // persist changes
+        await _writeListFile('simplepresent_today.json', today);
+        await _writeListFile('simplepresent_backlog.json', backlog);
+        await _writeListFile('simplepresent_done.json', done);
+        // feedback will be shown by the caller after the page pops
+        await _loadEntries();
+        // Signal caller (HomePage) to refresh its lists by returning true
+        try { Navigator.of(context).pop(true); } catch (_) {}
+      } else {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nothing to undo')));
+      }
+    } catch (err) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Undo failed: $err')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -7701,6 +7820,12 @@ class _RedoLogPageState extends State<RedoLogPage> {
                               DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
                                 IconButton(icon: const Icon(Icons.copy), tooltip: 'Copy entry', onPressed: () async { await Clipboard.setData(ClipboardData(text: jsonEncode(e))); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied entry'))); }),
                                 IconButton(icon: const Icon(Icons.open_in_new), tooltip: 'View details', onPressed: () => _showDetails(e)),
+                                IconButton(icon: const Icon(Icons.undo), tooltip: 'Undo action', onPressed: () async {
+                                  final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Undo action?'), content: Text('Undo "${e['action']}" for ${_shortDetails(e)}?'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Undo'))]));
+                                  if (confirm == true) {
+                                    await _undoEntry(e);
+                                  }
+                                }),
                               ])),
                             ]);
                               }),
