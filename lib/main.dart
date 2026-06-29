@@ -4502,100 +4502,38 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                     },
                                   ),
                                   Expanded(
-                                    child: LayoutBuilder(
-                                        builder: (ctx, constraints) {
-                                      // Styles used for measurement and rendering
-                                      final titleStyle = const TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w700,
-                                      ).copyWith(fontFamily: _fontFamily);
-                                      final titleText = _showingBacklog
-                                          ? 'backlog'
-                                          : (_showingDone ? 'done' : 'today');
-                                        final titleCount = _showingBacklog
-                                          ? _countBacklog
-                                          : (_showingDone ? _countDone : _countToday);
-                                        // Determine color for count: only Today and Backlog are colored
-                                        final Color? countColor = _showingDone
-                                          ? null
-                                          : (_showingBacklog
-                                            ? _interpolateCountColor(_countBacklog, _maxTasksBacklog)
-                                            : _interpolateCountColor(_countToday, _maxTasksToday));
-                                      // Measure required width for the title (without the count)
-                                      final titleTp = TextPainter(
-                                          text: TextSpan(text: titleText, style: titleStyle),
-                                          textDirection: Directionality.of(context),
-                                          textScaler: TextScaler.linear(_uiTextScaleFactor));
-                                      titleTp.layout();
-                                      final textWidth = titleTp.width;
-
-                                      const double iconSize =
-                                          28.0; // size allocated for the icon when fully shown
-                                      const double iconGap = 8.0;
-                                      final available = constraints.maxWidth;
-
-                                      final showIconFully =
-                                          (textWidth + iconSize + iconGap) <=
-                                              available;
-
-                                      return SizedBox(
-                                        height: 40,
-                                        child: Stack(
-                                          alignment: Alignment.centerLeft,
-                                          children: [
-                                            // Icon placed on the left; when not enough space we keep it behind the text and fade it
-                                            Positioned(
-                                              left: 0,
-                                              top: 6,
-                                              child: AnimatedOpacity(
-                                                duration: const Duration(
-                                                    milliseconds: 250),
-                                                opacity:
-                                                    showIconFully ? 1.0 : 0.18,
-                                                child: Image.asset(
-                                                  _showingBacklog
-                                                      ? 'assets/icons/color_transparent_backlog.png'
-                                                      : (_showingDone
-                                                          ? 'assets/icons/color_transparent_done.png'
-                                                          : 'assets/icons/color_transparent_today.png'),
-                                                  width: iconSize,
-                                                  height: iconSize,
-                                                ),
-                                              ),
-                                            ),
-                                            // Title and count — title gets ellipsized, count shown smaller to the right.
-                                            Padding(
-                                              padding: EdgeInsets.only(
-                                                  left: showIconFully
-                                                      ? (iconSize + iconGap)
-                                                      : 0,
-                                                  right: 4.0),
-                                              child: Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      titleText,
-                                                      maxLines: 2,
-                                                      overflow: TextOverflow.ellipsis,
-                                                      style: titleStyle,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8.0),
-                                                  Text(
-                                                    titleCount.toString(),
-                                                    style: titleStyle.copyWith(
-                                                      fontSize: 14,
-                                                      fontWeight: FontWeight.w400,
-                                                      color: countColor,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
+                                    child: Row(
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.only(top: 0),
+                                          child: Image.asset(
+                                            _showingBacklog
+                                                ? 'assets/icons/color_transparent_backlog.png'
+                                                : (_showingDone
+                                                    ? 'assets/icons/color_transparent_done.png'
+                                                    : 'assets/icons/color_transparent_today.png'),
+                                            width: 28,
+                                            height: 28,
+                                          ),
                                         ),
-                                      );
-                                    }),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            _showingBacklog
+                                                ? 'backlog'
+                                                : (_showingDone ? 'done' : 'today'),
+                                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700).copyWith(fontFamily: _fontFamily),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8.0),
+                                        Text(
+                                          (_showingBacklog ? _countBacklog : (_showingDone ? _countDone : _countToday)).toString(),
+                                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -7674,7 +7612,7 @@ class _StatsPageState extends State<StatsPage> {
             ),
           ],
         ),
-        centerTitle: true,
+        centerTitle: false,
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop()),
@@ -8355,7 +8293,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
             Text('Redo Log', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
           ],
         ),
-        centerTitle: true,
+        centerTitle: false,
         actions: [
           IconButton(icon: const Icon(Icons.refresh), tooltip: 'Refresh', onPressed: _loadEntries),
           IconButton(icon: const Icon(Icons.download), tooltip: 'Copy all', onPressed: _copyAll),
@@ -8463,7 +8401,21 @@ class _QrScannerPageState extends State<_QrScannerPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('scan qr code'),
+        leadingWidth: 40,
+        titleSpacing: 0,
+        toolbarHeight: 62,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Icon(Icons.qr_code, size: 28),
+            ),
+            const SizedBox(width: 8),
+            Text('scan qr code', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+          ],
+        ),
+        centerTitle: false,
       ),
       body: MobileScanner(
         onDetect: (capture) {
