@@ -4054,14 +4054,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                 children: [
                                   // Left arrow moved to the far left of the header row
                                   IconButton(
-                                    icon: const Icon(Icons.arrow_back_ios),
-                                    tooltip: 'Previous',
+                                    icon: Icon(_showingDone ? Icons.arrow_back : Icons.arrow_back_ios),
+                                    tooltip: _showingDone ? 'Back' : 'Previous',
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(
                                         minWidth: 28, minHeight: 28),
                                     visualDensity: VisualDensity.compact,
                                     onPressed: () async {
-                                      await _cycleView(false);
+                                      if (_showingDone) {
+                                        await _switchFile(false);
+                                      } else {
+                                        await _cycleView(false);
+                                      }
                                     },
                                   ),
                                   Expanded(
@@ -4208,15 +4212,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                         visualDensity: VisualDensity.compact,
                                         onPressed: () async { await _switchFile(true); },
                                       ),
-                                      IconButton(
-                                        icon: const Icon(Icons.arrow_forward_ios),
-                                        tooltip: 'Next',
-                                        padding: Platform.isAndroid
-                                            ? const EdgeInsets.only(left: 2.0, right: 0.0)
-                                            : const EdgeInsets.only(left: 6.0, right: 0.0),
-                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                        visualDensity: VisualDensity.compact,
-                                        onPressed: () async { await _cycleView(true); },
+                                      Visibility(
+                                        visible: !_showingDone,
+                                        maintainSize: true,
+                                        maintainAnimation: true,
+                                        maintainState: true,
+                                        child: IconButton(
+                                          icon: const Icon(Icons.arrow_forward_ios),
+                                          tooltip: 'Next',
+                                          padding: Platform.isAndroid
+                                              ? const EdgeInsets.only(left: 2.0, right: 0.0)
+                                              : const EdgeInsets.only(left: 6.0, right: 0.0),
+                                          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                          visualDensity: VisualDensity.compact,
+                                          onPressed: () async { await _cycleView(true); },
+                                        ),
                                       ),
                                     ],
                                   ),

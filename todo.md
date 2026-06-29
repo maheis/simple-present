@@ -266,9 +266,12 @@
 - [?] 24 Uhr move today -> backlog
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] backup methode, um sync und auch andere fehler rückgängig machen zu können
+        schiebt sync in den papierkorb?
+        papierkorb sichtbar machen (um wiederherstellen zu können)
 - [ ] toast bzw. gesamtes aktions log
 - [x] wiederkehrend nur an werktagen (optional)
 - [?] keine toasts by sync
+- [x] zurück-button in der done-liste
 
 ## notes
 
