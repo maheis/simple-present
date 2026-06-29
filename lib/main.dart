@@ -7479,11 +7479,22 @@ class RedoLogPage extends StatefulWidget {
 class _RedoLogPageState extends State<RedoLogPage> {
   List<Map<String, dynamic>> _entries = [];
   bool _loading = true;
+  late final ScrollController _hScrollController;
+  late final ScrollController _vScrollController;
 
   @override
   void initState() {
     super.initState();
     _loadEntries();
+    _hScrollController = ScrollController();
+    _vScrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    try { _hScrollController.dispose(); } catch (_) {}
+    try { _vScrollController.dispose(); } catch (_) {}
+    super.dispose();
   }
 
   Future<File> _fileForName(String name) async {
@@ -7528,6 +7539,12 @@ class _RedoLogPageState extends State<RedoLogPage> {
     }
     try {
       if (d is Map<String, dynamic>) {
+        final action = (e['action'] ?? '')?.toString() ?? '';
+        // Beautify simple create payloads like {"text":"..."}
+        if (action == 'create' && d.length == 1 && d.containsKey('text')) {
+          final txt = _shortVal(d['text']);
+          return 'created: "${txt}"';
+        }
         // before/after snapshot diff
         final before = d['before'] is Map ? Map<String, dynamic>.from(d['before']) : <String, dynamic>{};
         final after = d['after'] is Map ? Map<String, dynamic>.from(d['after']) : <String, dynamic>{};
@@ -7629,17 +7646,25 @@ class _RedoLogPageState extends State<RedoLogPage> {
               padding: const EdgeInsets.all(8.0),
               child: _entries.isEmpty
                   ? const Center(child: Text('No redo log entries'))
-                  : SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
+                  : Scrollbar(
+                      controller: _hScrollController,
+                      thumbVisibility: true,
                       child: SingleChildScrollView(
-                        child: DataTable(
-                          columns: const [
-                            DataColumn(label: Text('Timestamp')),
-                            DataColumn(label: Text('Action')),
-                            DataColumn(label: Text('Details')),
-                            DataColumn(label: Text('')),
-                          ],
-                          rows: List.generate(_entries.length, (i) {
+                        scrollDirection: Axis.horizontal,
+                        controller: _hScrollController,
+                        child: Scrollbar(
+                          controller: _vScrollController,
+                          thumbVisibility: true,
+                          child: SingleChildScrollView(
+                            controller: _vScrollController,
+                            child: DataTable(
+                              columns: const [
+                                DataColumn(label: Text('Timestamp')),
+                                DataColumn(label: Text('Action')),
+                                DataColumn(label: Text('Details')),
+                                DataColumn(label: Text('')),
+                              ],
+                              rows: List.generate(_entries.length, (i) {
                             final e = _entries[i];
                             final rawTs = e['timestamp'] ?? e['time'] ?? '';
                             String formattedTs = '';
@@ -7662,10 +7687,12 @@ class _RedoLogPageState extends State<RedoLogPage> {
                                 IconButton(icon: const Icon(Icons.open_in_new), tooltip: 'View details', onPressed: () => _showDetails(e)),
                               ])),
                             ]);
-                          }),
-                        ),
-                      ),
-                    ),
+                              }),
+                            ), // DataTable
+                          ), // SingleChildScrollView (v)
+                        ), // Scrollbar (v)
+                      ), // SingleChildScrollView (h)
+                    ), // Scrollbar (h)
             ),
     );
   }
