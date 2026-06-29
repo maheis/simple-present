@@ -2727,7 +2727,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             // Log marking done (staged action applied)
             try {
               final title = originalTask.text;
-              unawaited(_appendRedoLog('mark_done', taskId: _today[idx].id, details: {'text': title}));
+              unawaited(_appendRedoLog('done', taskId: _today[idx].id, details: {'text': title}));
             } catch (_) {}
             // If the original task is recurring, create the next occurrence
             try {
@@ -2763,6 +2763,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               }
             } catch (_) {}
           }
+          // If any staged entry cleared a previously-done task, log reopen
+          try {
+            if (originalTask.done == true && val == false) {
+              unawaited(_appendRedoLog('reopen', taskId: _today[idx].id, details: {'text': _today[idx].text}));
+            }
+          } catch (_) {}
         }
       }
       _stagedDone.clear();
@@ -3190,6 +3196,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await _saveList(_storage('simplepresent_backlog.json'), backlogList);
       // Log move to backlog
       unawaited(_appendRedoLog('move_to_backlog', taskId: toStore.id, details: {'from': 'today', 'to': 'backlog'}));
+      // Also log reopen (task marked not done)
+      try { unawaited(_appendRedoLog('reopen', taskId: toStore.id, details: {'text': toStore.text})); } catch (_) {}
       // Persist time entry for this task (if using sqlite this appends a row)
       _upsertTimeEntry(toStore);
       // If we're currently showing backlog, reload to reflect the new top item
@@ -3240,6 +3248,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       backlogList.insert(0, toStore);
       await _saveList(_storage('simplepresent_backlog.json'), backlogList);
       unawaited(_appendRedoLog('move_to_backlog', taskId: toStore.id, details: {'from': 'today', 'to': 'backlog'}));
+      try { unawaited(_appendRedoLog('reopen', taskId: toStore.id, details: {'text': toStore.text})); } catch (_) {}
       _upsertTimeEntry(toStore);
       // If we're currently showing backlog, reload to reflect the new top item
       if (_showingBacklog || _currentFile == _storage('simplepresent_backlog.json')) {
@@ -3564,6 +3573,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         await _saveList(_storage('simplepresent_backlog.json'), backlogList);
 
         _showTopToast('task moved to backlog');
+        try { unawaited(_appendRedoLog('reopen', taskId: restored.id, details: {'text': restored.text})); } catch (_) {}
       } catch (_) {
         _showTopToast('failed to move task');
       }
@@ -3585,7 +3595,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         });
         await _saveToday(); // persist removal from backlog
         await _appendDone([moved]);
-        try { unawaited(_appendRedoLog('mark_done', taskId: moved.id, details: {'text': finalTask.text})); } catch (_) {}
+        try { unawaited(_appendRedoLog('done', taskId: moved.id, details: {'text': finalTask.text})); } catch (_) {}
         // If recurring, create next occurrence
         try {
           final rec = finalTask.recurrence;
@@ -4750,7 +4760,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                     // Log marking done (include task title)
                                                     try {
                                                       final title = t.text;
-                                                      unawaited(_appendRedoLog('mark_done', taskId: _today[i].id, details: {'text': title}));
+                                                      unawaited(_appendRedoLog('done', taskId: _today[i].id, details: {'text': title}));
                                                     } catch (_) {}
                                                     // Clear notification flags for this task
                                                     try {

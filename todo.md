@@ -275,6 +275,7 @@
 - [x] wiederkehrend nur an werktagen (optional)
 - [?] keine toasts by sync
 - [x] zurück-button in der done-liste
+- [ ] reopen sound
 
 ## notes
 
