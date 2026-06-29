@@ -12,6 +12,9 @@ ANDROID_RES="$PROJECT_ROOT/android/app/src/main/res"
 SVG_BACKGROUND="$SVG_DIR/color_teal_icon.svg"
 SVG_NOTIFICATION="$SVG_DIR/white_transparent_icon.svg"
 
+# Background color for adaptive launcher icon (user requested)
+LAUNCH_BG_COLOR="#00251aff"
+
 # Density map and sizes (launcher: mdpi=48 ... xxxhdpi=192; notification: mdpi=24 ... xxxhdpi=96)
 declare -A LAUNCHER_SIZES=( [mdpi]=48 [hdpi]=72 [xhdpi]=96 [xxhdpi]=144 [xxxhdpi]=192 )
 declare -A NOTIF_SIZES=( [mdpi]=24 [hdpi]=36 [xhdpi]=48 [xxhdpi]=72 [xxxhdpi]=96 )
@@ -63,21 +66,35 @@ done
 # --- Launcher background PNG (solid color, used as ic_launcher_background) ---
 mkdir -p "$ANDROID_RES/drawable"
 if command -v magick >/dev/null 2>&1; then
-  magick -size 432x432 xc:"#00251a" "$ANDROID_RES/drawable/ic_launcher_background.png"
+  magick -size 432x432 xc:"$LAUNCH_BG_COLOR" "$ANDROID_RES/drawable/ic_launcher_background.png"
 else
-  convert -size 432x432 xc:"#00251a" "$ANDROID_RES/drawable/ic_launcher_background.png"
+  convert -size 432x432 xc:"$LAUNCH_BG_COLOR" "$ANDROID_RES/drawable/ic_launcher_background.png"
 fi
-echo "Background PNG generated"
+echo "Background PNG generated ($LAUNCH_BG_COLOR)"
 
-# --- Splash screen PNG (white, replaces launch_background.xml) ---
+# Copy background into density-specific drawable folders so they don't contain the foreground
+for d in drawable-mdpi drawable-hdpi drawable-xhdpi drawable-xxhdpi drawable-xxxhdpi; do
+  dst="$ANDROID_RES/$d"
+  mkdir -p "$dst"
+  # copy the generated background; let Android scale if sizes differ
+  cp "$ANDROID_RES/drawable/ic_launcher_background.png" "$dst/ic_launcher_background.png"
+  echo "Copied background to $dst/ic_launcher_background.png"
+done
+
+# --- Splash screen PNG (1x1, 8-bit palette) ---
+# Create a 1x1 PNG approximating the launcher background color but reduced to an 8-bit palette
+SPLASH_COLOR="$LAUNCH_BG_COLOR"
+mkdir -p "$ANDROID_RES/drawable-v21"
 if command -v magick >/dev/null 2>&1; then
-  magick -size 1x1 xc:white "$ANDROID_RES/drawable/launch_background.png"
-  magick -size 1x1 xc:white "$ANDROID_RES/drawable-v21/launch_background.png"
+  # generate 1x1 and reduce to 8-bit palette
+  magick -size 1x1 xc:"$SPLASH_COLOR" -colors 256 -type Palette "$ANDROID_RES/drawable/launch_background.png"
+  magick -size 1x1 xc:"$SPLASH_COLOR" -colors 256 -type Palette "$ANDROID_RES/drawable-v21/launch_background.png"
 else
-  convert -size 1x1 xc:white "$ANDROID_RES/drawable/launch_background.png"
-  convert -size 1x1 xc:white "$ANDROID_RES/drawable-v21/launch_background.png"
+  # ImageMagick not available; fall back to a plain 1x1 in the given color (may be truecolor)
+  convert -size 1x1 xc:"$SPLASH_COLOR" "$ANDROID_RES/drawable/launch_background.png"
+  convert -size 1x1 xc:"$SPLASH_COLOR" "$ANDROID_RES/drawable-v21/launch_background.png"
 fi
-echo "Splash PNGs generated"
+echo "Splash PNGs generated (8-bit if possible): $SPLASH_COLOR"
 
 # --- Remove any stale XMLs that have been superseded by PNGs ---
 rm -f "$ANDROID_RES/drawable/ic_launcher_background.xml"
