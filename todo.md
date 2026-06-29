@@ -294,10 +294,10 @@
 - [ ] install server soll updaten können
 - [ ] fällige aufgaben automatisch aus dem backlog ins today verschieben
 - [ ] sync redo-log klappt nicht. aber braucht es das wirklich? rückbauen?
-- [ ] scheduled funktioniert nicht mehr?!
+- [x] repeat funktioniert nicht mehr?!
 - [x] jsons in unterordner
 - [x] jsons pro task. die einzelnen listen _backlog, _done , _today, _trash sollen dann als unterordner struktur abgebildet werden.
-- [ ] 
+- [ ] done setzten stoppt die stopuhr nicht mehr und setzt auch in progress nicht mehr zurück!
 
 ## notes
 

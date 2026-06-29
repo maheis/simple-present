@@ -933,6 +933,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (movedToDone.isNotEmpty) {
           doneList.addAll(movedToDone.reversed);
           await _saveList(_storage('simplepresent_done.json'), doneList);
+          // Create recurrence entries for moved done tasks (they're already
+          // appended to Done via the bulk move above).
+          try {
+            for (final t in movedToDone) {
+              unawaited(_createNextRecurrenceIfNeeded(t, appendToDone: false));
+            }
+          } catch (_) {}
         }
         await _saveList(_storage('simplepresent_today.json'), <TaskItem>[]);
       }
@@ -1037,6 +1044,74 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await _loadList(_storage('simplepresent_done.json'), existing);
       existing.addAll(items);
       await _saveList(_storage('simplepresent_done.json'), existing);
+    } catch (_) {}
+  }
+
+  Future<void> _createNextRecurrenceIfNeeded(TaskItem task, {bool appendToDone = true}) async {
+    try {
+      if (appendToDone) {
+        await _appendDone([task]);
+      }
+    } catch (_) {}
+    try {
+      final rec = task.recurrence;
+      if (rec != null && rec.isNotEmpty) {
+        final base = task.scheduledAt ?? DateTime.now();
+        final next = _computeNextRecurrence(base, rec);
+        if (next != null) {
+          final newId = '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+          final newTask = task.copyWith(
+            id: newId,
+            createdAt: DateTime.now(),
+            completedAt: null,
+            done: false,
+            inProgress: false,
+            stopwatchAccumulatedSeconds: 0,
+            stopwatchRunning: false,
+            stopwatchStartedAt: null,
+            scheduledAt: next,
+          );
+          if (_isSameDay(next, DateTime.now())) {
+            final filename = _storage('simplepresent_today.json');
+            final List<TaskItem> todayList = [];
+            await _loadList(filename, todayList);
+            todayList.insert(0, newTask);
+            await _saveList(filename, todayList);
+            try {
+              unawaited(_appendRedoLog('create', taskId: newTask.id, details: {'text': newTask.text, 'generated_from': task.id}));
+            } catch (_) {}
+            // If the UI currently shows Today, update the in-memory view immediately
+            try {
+              if (_currentFile == filename && mounted) {
+                setState(() {
+                  _today.insert(0, newTask);
+                });
+                unawaited(_updateListCounts());
+              }
+            } catch (_) {}
+            try { _showTopToast('Folgeaufgabe erstellt'); } catch (_) {}
+          } else {
+            final filename = _storage('simplepresent_backlog.json');
+            final List<TaskItem> backlogList = [];
+            await _loadList(filename, backlogList);
+            backlogList.insert(0, newTask);
+            await _saveList(filename, backlogList);
+            try {
+              unawaited(_appendRedoLog('create', taskId: newTask.id, details: {'text': newTask.text, 'generated_from': task.id}));
+            } catch (_) {}
+            // If the UI currently shows Backlog, update the in-memory view immediately
+            try {
+              if ((_currentFile == filename || _showingBacklog) && mounted) {
+                setState(() {
+                  _today.insert(0, newTask);
+                });
+                unawaited(_updateListCounts());
+              }
+            } catch (_) {}
+            try { _showTopToast('Folgeaufgabe erstellt'); } catch (_) {}
+          }
+        }
+      }
     } catch (_) {}
   }
 
@@ -2962,6 +3037,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               }
             }
           } catch (_) {}
+            // If the task was marked done, move it to the Done list and
+            // create the next recurrence occurrence if applicable. This
+            // applies regardless of which view the change originated from.
+            try {
+              if (val == true) {
+                // Only move the task into Done (and create the next recurrence)
+                // when the task was in Backlog. Tasks completed while viewing
+                // Today should remain in Today (daily migration handles archiving).
+                if (_showingBacklog || _currentFile == _storage('simplepresent_backlog.json')) {
+                  // movedTask is current _today[idx] (we set done above)
+                  final movedTask = _today[idx];
+                  // remove from current in-memory list and persist
+                  setState(() {
+                    _today.removeAt(idx);
+                    _expanded.clear();
+                  });
+                  await _saveToday();
+                  await _createNextRecurrenceIfNeeded(movedTask, appendToDone: true);
+                } else {
+                  // Stay in Today: just persist the updated Today list
+                  await _saveToday();
+                  // Ensure recurrence entries are created even when task remains in Today
+                  try {
+                    await _createNextRecurrenceIfNeeded(_today[idx], appendToDone: false);
+                  } catch (_) {}
+                }
+              }
+            } catch (_) {}
 
           // Now append the consolidated edit entry but with subtasks removed to avoid JSON noise.
           final beforeCopy = beforeSnapshot != null ? Map<String, dynamic>.from(beforeSnapshot) : null;
@@ -3819,40 +3922,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _expanded.clear();
         });
         await _saveToday(); // persist removal from backlog
-        await _appendDone([moved]);
         try { unawaited(_appendRedoLog('done', taskId: moved.id, details: {'text': finalTask.text})); } catch (_) {}
-        // If recurring, create next occurrence
-        try {
-          final rec = finalTask.recurrence;
-          if (rec != null && rec.isNotEmpty) {
-            final base = finalTask.scheduledAt ?? DateTime.now();
-            final next = _computeNextRecurrence(base, rec);
-            if (next != null) {
-              final newId = '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
-              final newTask = finalTask.copyWith(
-                  id: newId,
-                  createdAt: DateTime.now(),
-                  completedAt: null,
-                  done: false,
-                  inProgress: false,
-                  stopwatchAccumulatedSeconds: 0,
-                  stopwatchRunning: false,
-                  stopwatchStartedAt: null,
-                  scheduledAt: next);
-              if (_isSameDay(next, DateTime.now())) {
-                final List<TaskItem> todayList = [];
-                await _loadList(_storage('simplepresent_today.json'), todayList);
-                todayList.insert(0, newTask);
-                await _saveList(_storage('simplepresent_today.json'), todayList);
-              } else {
-                final List<TaskItem> backlogList = [];
-                await _loadList(_storage('simplepresent_backlog.json'), backlogList);
-                backlogList.insert(0, newTask);
-                await _saveList(_storage('simplepresent_backlog.json'), backlogList);
-              }
-            }
-          }
-        } catch (_) {}
+        await _createNextRecurrenceIfNeeded(moved, appendToDone: true);
         _showTopToast('task moved to done');
         _playDading();
       } catch (_) {
@@ -4973,6 +5044,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                     } catch (_) {}
                                                     try {
                                                       await _saveToday();
+                                                    } catch (_) {}
+                                                    // Create recurrence even if the task remains in Today
+                                                    try {
+                                                      await _createNextRecurrenceIfNeeded(_today[i], appendToDone: false);
                                                     } catch (_) {}
                                                     _registerActivity();
                                                     _showTopToast('task marked done');
