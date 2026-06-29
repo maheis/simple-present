@@ -283,7 +283,12 @@
 - [x] zurück-button in der done-liste
 - [x] reopen sound
 - [x] burger menü für die buttons
-- [ ] android sound unterbricht musik wiedergaben...
+- [?] android sound unterbricht musik wiedergaben...
+- [ ] icons für...
+  - [ ] notes
+  - [ ] statistik
+  - [ ] redo log
+  - [ ] settings
 
 ## notes
 

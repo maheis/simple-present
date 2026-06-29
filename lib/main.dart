@@ -2116,7 +2116,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _notifiedDue.add(key);
           try {
             if (_scheduledReminderSoundEnabled) {
-              await _audioPlayer.play(AssetSource('sounds/pop.mp3'));
+              await _playShortSound('sounds/pop.mp3', alert: false);
             }
           } catch (_) {}
           try {
@@ -3759,21 +3759,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _playDading() async {
-    try {
-      // Try to play bundled asset: assets/sounds/ding.mp3
-      await _audioPlayer.play(AssetSource('sounds/ding.mp3'));
-    } catch (e) {
-      // Fallback to system click if asset missing or playback fails
-      SystemSound.play(SystemSoundType.click);
-    }
+    await _playShortSound('sounds/ding.mp3', alert: false);
   }
 
   Future<void> _playThere() async {
+    await _playShortSound('sounds/there.mp3', alert: true);
+  }
+
+  Future<void> _playShortSound(String asset, {bool alert = false}) async {
     try {
-      await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+      if (Platform.isAndroid) {
+        // On Android, avoid taking audio focus — use system sounds which don't stop music
+        SystemSound.play(alert ? SystemSoundType.alert : SystemSoundType.click);
+      } else {
+        await _audioPlayer.play(AssetSource(asset));
+      }
     } catch (e) {
       try {
-        SystemSound.play(SystemSoundType.alert);
+        SystemSound.play(alert ? SystemSoundType.alert : SystemSoundType.click);
       } catch (_) {}
     }
   }
@@ -3853,7 +3856,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           if (_idleFired) return;
           if (_idleSoundEnabled) {
             try {
-              await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+              await _playShortSound('sounds/there.mp3', alert: true);
             } catch (_) {
               SystemSound.play(SystemSoundType.alert);
             }
@@ -3883,7 +3886,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
       if (_idleSoundEnabled) {
         try {
-          await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+          await _playShortSound('sounds/there.mp3', alert: true);
         } catch (_) {
           SystemSound.play(SystemSoundType.alert);
         }
@@ -3974,7 +3977,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           if (_attentionFired) return;
           if (_attentionSoundEnabled) {
             try {
-              await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+              await _playShortSound('sounds/there.mp3', alert: true);
             } catch (_) {}
           }
           if (_attentionFlashEnabled) {
@@ -4002,7 +4005,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
       if (_attentionSoundEnabled) {
         try {
-          await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+          await _playShortSound('sounds/there.mp3', alert: true);
         } catch (_) {}
       }
       if (_attentionFlashEnabled) {
@@ -4039,7 +4042,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           if (_reminderFired) return;
           if (_reminderSoundEnabled) {
             try {
-              await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+              await _playShortSound('sounds/there.mp3', alert: true);
             } catch (_) {}
           }
           if (_reminderFlashEnabled) {
@@ -4067,7 +4070,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
       if (_reminderSoundEnabled) {
         try {
-          await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+          await _playShortSound('sounds/there.mp3', alert: true);
         } catch (_) {}
       }
       if (_reminderFlashEnabled) {
@@ -4104,7 +4107,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           if (_urgentFired) return;
           if (_urgentSoundEnabled) {
             try {
-              await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+              await _playShortSound('sounds/there.mp3', alert: true);
             } catch (_) {}
           }
           if (_urgentFlashEnabled) {
@@ -4132,7 +4135,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
       if (_urgentSoundEnabled) {
         try {
-          await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+          await _playShortSound('sounds/there.mp3', alert: true);
         } catch (_) {}
       }
       if (_urgentFlashEnabled) {
@@ -4196,7 +4199,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final bring = stage['bringToFront'] == true;
     if (sound) {
       try {
-        await _audioPlayer.play(AssetSource('sounds/there.mp3'));
+        await _playShortSound('sounds/there.mp3', alert: true);
       } catch (_) {
         SystemSound.play(SystemSoundType.alert);
       }
