@@ -2968,7 +2968,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           // apply the done/undone change to the task
           final t = _today[idx];
           final now = val == true ? DateTime.now() : null;
-          setState(() => _today[idx] = t.copyWith(done: val, completedAt: now));
+          if (val == true) {
+            // stop any running stopwatch to avoid further time accumulation
+            try {
+              await _stopStopwatch(idx);
+            } catch (_) {}
+            // ensure inProgress is cleared when marking done
+            setState(() => _today[idx] = t.copyWith(done: true, completedAt: now, inProgress: false, inProgressAt: null, stopwatchRunning: false, stopwatchStartedAt: null));
+          } else {
+            setState(() => _today[idx] = t.copyWith(done: false, completedAt: null));
+          }
           final afterSnapshot = _today[idx].toJson();
           // Handle subtask-level diffs separately so the consolidated `edit` entry
           // does not contain large JSON blobs for subtasks.
