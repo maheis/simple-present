@@ -263,9 +263,13 @@
 - [ ] sync: self signed certs prüfen (ca-chain)
 - [ ] android: aktionen in der notification (erledigt, in arbeit)
 - [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben! (primärgerät-definieren?)
+- [ ] papierkorb:
+        schiebt sync in den papierkorb?
+        papierkorb sichtbar machen (um wiederherstellen zu können)
 - [?] 24 Uhr move today -> backlog
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [ ] redo log, um sync und auch andere fehler rückgängig machen zu können
+- [?] keine toasts by sync
+- [x] redo log, um sync und auch andere fehler rückgängig machen zu können
   - [x] erstmal nur im log speichern, was passiert ist (task-id, action, timestamp, user-id)
   - [x] zweiter schritt ist dann die möglichkeit, die aktion rückgängig zu machen (undo)
   - [x] undo ins redo log
@@ -274,16 +278,12 @@
   - [x] nothing todo als toast
   - [x] sehr schnelle änderungen werden nicht erfasst
   - [x] statt tabelle als kachel
-- [ ] papierkorb:
-        schiebt sync in den papierkorb?
-        papierkorb sichtbar machen (um wiederherstellen zu können)
 - [x] toast bzw. gesamtes aktions log
 - [x] wiederkehrend nur an werktagen (optional)
-- [?] keine toasts by sync
 - [x] zurück-button in der done-liste
 - [x] reopen sound
-- [ ] burger menü für die buttons
-- [ ] android sound unterbricht musik wiedergaben...enferne 
+- [x] burger menü für die buttons
+- [ ] android sound unterbricht musik wiedergaben...
 
 ## notes
 

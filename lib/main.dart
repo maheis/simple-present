@@ -4392,88 +4392,37 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.bar_chart),
-                                        tooltip: 'Statistics',
-                                        padding: Platform.isAndroid
-                                            ? const EdgeInsets.symmetric(horizontal: 2.0)
-                                            : const EdgeInsets.symmetric(horizontal: 6.0),
-                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                        visualDensity: VisualDensity.compact,
-                                        onPressed: () async { await _finalizeAllEdits(); await _openStats(); },
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.settings),
-                                        tooltip: 'Settings',
-                                        padding: Platform.isAndroid
-                                            ? const EdgeInsets.symmetric(horizontal: 2.0)
-                                            : const EdgeInsets.symmetric(horizontal: 6.0),
-                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                        visualDensity: VisualDensity.compact,
-                                        onPressed: () async { await _finalizeAllEdits(); await _openSettings(); },
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.notes),
-                                        tooltip: 'notes',
-                                        padding: Platform.isAndroid
-                                            ? const EdgeInsets.symmetric(horizontal: 2.0)
-                                            : const EdgeInsets.symmetric(horizontal: 6.0),
-                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                        visualDensity: VisualDensity.compact,
-                                        onPressed: () async { await _finalizeAllEdits(); await _openNotes(); },
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.history),
-                                        tooltip: 'Redo log',
-                                        padding: Platform.isAndroid
-                                            ? const EdgeInsets.symmetric(horizontal: 2.0)
-                                            : const EdgeInsets.symmetric(horizontal: 6.0),
-                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                        visualDensity: VisualDensity.compact,
-                                        onPressed: () async { 
-                                          final res = await Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => const RedoLogPage()));
-                                          if (res is Map && res['undo'] == true && res['entry'] is Map<String, dynamic>) {
-                                            // refresh UI
-                                            try { await _loadToday(); } catch (_) {}
-                                            try { _showTopToast('Undo applied'); } catch (_) {}
-                                            // push the undo entry to cloud so other devices can observe it
-                                            try { unawaited(_pushRedoLogEntryToCloud(Map<String, dynamic>.from(res['entry']))); } catch (_) {}
-                                          } else if (res == true) {
-                                            try { await _loadToday(); } catch (_) {}
-                                            try { _showTopToast('Undo applied'); } catch (_) {}
+                                      PopupMenuButton<String>(
+                                        icon: Icon(Icons.more_vert, color: Theme.of(context).iconTheme.color),
+                                        onSelected: (v) async {
+                                          await _finalizeAllEdits();
+                                          if (v == 'stats') await _openStats();
+                                          else if (v == 'settings') await _openSettings();
+                                          else if (v == 'notes') await _openNotes();
+                                          else if (v == 'redo') {
+                                            final res = await Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => const RedoLogPage()));
+                                            if (res is Map && res['undo'] == true && res['entry'] is Map<String, dynamic>) {
+                                              try { await _loadToday(); } catch (_) {}
+                                              try { _showTopToast('Undo applied'); } catch (_) {}
+                                              try { unawaited(_pushRedoLogEntryToCloud(Map<String, dynamic>.from(res['entry']))); } catch (_) {}
+                                            } else if (res == true) {
+                                              try { await _loadToday(); } catch (_) {}
+                                              try { _showTopToast('Undo applied'); } catch (_) {}
+                                            }
+                                          } else if (v == 'done') {
+                                            await _switchFile(true);
                                           }
                                         },
-                                      ),
-                                      // Done button (opens archived/done view)
-                                      IconButton(
-                                        icon: Image.asset(
-                                          'assets/icons/white_transparent_done.png',
-                                          width: 20,
-                                          height: 20,
-                                        ),
-                                        tooltip: 'Done',
-                                        padding: Platform.isAndroid
-                                            ? const EdgeInsets.symmetric(horizontal: 2.0)
-                                            : const EdgeInsets.symmetric(horizontal: 6.0),
-                                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                        visualDensity: VisualDensity.compact,
-                                        onPressed: () async { await _finalizeAllEdits(); await _switchFile(true); },
-                                      ),
-                                      Visibility(
-                                        visible: !_showingDone,
-                                        maintainSize: true,
-                                        maintainAnimation: true,
-                                        maintainState: true,
-                                        child: IconButton(
-                                          icon: const Icon(Icons.arrow_forward_ios),
-                                          tooltip: 'Next',
-                                          padding: Platform.isAndroid
-                                              ? const EdgeInsets.only(left: 2.0, right: 0.0)
-                                              : const EdgeInsets.only(left: 6.0, right: 0.0),
-                                          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                                          visualDensity: VisualDensity.compact,
-                                          onPressed: () async { await _finalizeAllEdits(); await _cycleView(true); },
-                                        ),
+                                        itemBuilder: (ctx) {
+                                          final items = <PopupMenuEntry<String>>[];
+                                          items.add(PopupMenuItem(value: 'stats', child: Row(children: [Icon(Icons.bar_chart, size: 18), const SizedBox(width: 8), const Text('Statistics')])));
+                                          items.add(PopupMenuItem(value: 'settings', child: Row(children: [Icon(Icons.settings, size: 18), const SizedBox(width: 8), const Text('Settings')])));
+                                          items.add(PopupMenuItem(value: 'notes', child: Row(children: [Icon(Icons.notes, size: 18), const SizedBox(width: 8), const Text('Notes')])));
+                                          items.add(PopupMenuItem(value: 'redo', child: Row(children: [Icon(Icons.history, size: 18), const SizedBox(width: 8), const Text('Redo log')])));
+                                          items.add(PopupMenuItem(value: 'done', child: Row(children: [Image.asset('assets/icons/white_transparent_done.png', width: 18, height: 18), const SizedBox(width: 8), const Text('Done')] )));
+                                          // 'Next' removed by request
+                                          return items;
+                                        },
                                       ),
                                     ],
                                   ),
