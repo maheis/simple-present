@@ -239,6 +239,20 @@
 - [x] registrierte geräte zu diesem account anzeigen lassen und entfernbar machen
 - [x] sync: notes?
 - [x] aufgaben mit zukunftstermin werden im backlog ins backlog gemoved!
+- [x] redo log, um sync und auch andere fehler rückgängig machen zu können
+  - [x] erstmal nur im log speichern, was passiert ist (task-id, action, timestamp, user-id)
+  - [x] zweiter schritt ist dann die möglichkeit, die aktion rückgängig zu machen (undo)
+  - [x] undo ins redo log
+  - [x] subtask hübscher, wird aktuell noch mit {} und json inhalten dargestellt
+  - [x] undo hübscher, wird aktuell noch mit {} und json inhalten dargestellt
+  - [x] nothing todo als toast
+  - [x] sehr schnelle änderungen werden nicht erfasst
+  - [x] statt tabelle als kachel
+- [x] toast bzw. gesamtes aktions log
+- [x] wiederkehrend nur an werktagen (optional)
+- [x] zurück-button in der done-liste
+- [x] reopen sound
+- [x] burger menü für die buttons
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Worklog an Aufgaben...
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
@@ -266,29 +280,24 @@
 - [ ] papierkorb:
         schiebt sync in den papierkorb?
         papierkorb sichtbar machen (um wiederherstellen zu können)
+- [ ] Windows Zertifikat für exe?!
 - [?] 24 Uhr move today -> backlog
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [?] keine toasts by sync
-- [x] redo log, um sync und auch andere fehler rückgängig machen zu können
-  - [x] erstmal nur im log speichern, was passiert ist (task-id, action, timestamp, user-id)
-  - [x] zweiter schritt ist dann die möglichkeit, die aktion rückgängig zu machen (undo)
-  - [x] undo ins redo log
-  - [x] subtask hübscher, wird aktuell noch mit {} und json inhalten dargestellt
-  - [x] undo hübscher, wird aktuell noch mit {} und json inhalten dargestellt
-  - [x] nothing todo als toast
-  - [x] sehr schnelle änderungen werden nicht erfasst
-  - [x] statt tabelle als kachel
-- [x] toast bzw. gesamtes aktions log
-- [x] wiederkehrend nur an werktagen (optional)
-- [x] zurück-button in der done-liste
-- [x] reopen sound
-- [x] burger menü für die buttons
 - [?] android sound unterbricht musik wiedergaben...
+        -> spielt jetzt gar keinen sound mehr ab!
 - [ ] icons für...
   - [ ] notes
   - [ ] statistik
   - [ ] redo log
   - [ ] settings
+- [ ] install server soll updaten können
+- [ ] fällige aufgaben automatisch aus dem backlog ins today verschieben
+- [ ] sync redo-log klappt nicht. aber braucht es das wirklich? rückbauen?
+- [ ] scheduled funktioniert nicht mehr?!
+- [x] jsons in unterordner
+- [x] jsons pro task. die einzelnen listen _backlog, _done , _today, _trash sollen dann als unterordner struktur abgebildet werden.
+- [ ] 
 
 ## notes
 

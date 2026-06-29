@@ -475,6 +475,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // when accessing file keys.
   String _storage(String name) => kDebugMode ? 'debug_$name' : name;
 
+  String _listDirBase(String filename) {
+    var name = filename;
+    if (name.startsWith('debug_')) name = name.substring('debug_'.length);
+    if (name.startsWith('simplepresent_')) name = name.substring('simplepresent_'.length);
+    if (name.endsWith('.json')) name = name.substring(0, name.length - 5);
+    return name; // e.g. 'today', 'backlog', 'done', 'trash'
+  }
+
+  bool _isListDir(String filename) {
+    final base = _listDirBase(filename);
+    return base == 'today' || base == 'backlog' || base == 'done' || base == 'trash';
+  }
+
   // Zoom state: tile height and font scaling
   double _tileHeight = 16.0;
   // default/min tile height constants removed (unused)
@@ -609,12 +622,85 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<Directory> get _appDir async {
     final dir = await getApplicationDocumentsDirectory();
-    return dir;
+    final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
+    final sub = Directory('${dir.path}/$folderName');
+    try {
+      if (!await sub.exists()) await sub.create(recursive: true);
+    } catch (_) {}
+    return sub;
   }
 
   Future<File> _fileFor(String name) async {
     final dir = await _appDir;
     return File('${dir.path}/$name');
+  }
+
+  Future<void> _migrateOldFiles() async {
+    try {
+      final parent = await getApplicationDocumentsDirectory();
+      final sub = await _appDir; // ensures subdir exists
+      final names = <String>[
+        'simplepresent_today.json',
+        'simplepresent_backlog.json',
+        'simplepresent_done.json',
+        'simplepresent_trash.json',
+        'simplepresent_settings.json',
+        'simplepresent_redo.log',
+        'simplepresent_notes.txt'
+      ];
+      for (final name in names) {
+        try {
+          final candidateName = kDebugMode ? 'debug_$name' : name;
+          final oldFile = File('${parent.path}/$candidateName');
+          final newFile = File('${sub.path}/$candidateName');
+          if (await oldFile.exists()) {
+            if (!await newFile.exists()) {
+              try {
+                await oldFile.rename(newFile.path);
+              } catch (_) {
+                try {
+                  await oldFile.copy(newFile.path);
+                  await oldFile.delete();
+                } catch (_) {}
+              }
+            }
+          }
+        } catch (_) {}
+      }
+      // Convert any moved list-array JSON files into per-task files
+      for (final name in names) {
+        final candidates = kDebugMode ? <String>['debug_$name'] : <String>[name];
+        for (final candidate in candidates) {
+          try {
+            final moved = File('${sub.path}/$candidate');
+            if (!await moved.exists()) continue;
+            // Only convert JSON array files
+            try {
+              final text = await moved.readAsString();
+              final data = jsonDecode(text);
+              if (data is List) {
+                final base = _listDirBase(candidate);
+                if (base.isEmpty) continue;
+                final dir = Directory('${sub.path}/$base');
+                if (!await dir.exists()) await dir.create(recursive: true);
+                final encoder = const JsonEncoder.withIndent('  ');
+                for (var i = 0; i < data.length; i++) {
+                  try {
+                    final item = TaskItem.fromJson(data[i]);
+                    final fname = '${i.toString().padLeft(8, '0')}_${item.id}.json';
+                    final f = File('${dir.path}/$fname');
+                    await f.writeAsString(encoder.convert(item.toJson()));
+                  } catch (_) {}
+                }
+                try {
+                  await moved.delete();
+                } catch (_) {}
+              }
+            } catch (_) {}
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _appendRedoLog(String action, {String? taskId, Map<String, dynamic>? details}) async {
@@ -684,6 +770,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
         return;
       }
+      if (_isListDir(filename)) {
+        final dir = Directory('${(await _appDir).path}/${_listDirBase(filename)}');
+        if (!await dir.exists()) await dir.create(recursive: true);
+        return;
+      }
       final f = await _fileFor(filename);
       if (!await f.exists()) {
         await f.writeAsString('[]');
@@ -703,6 +794,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _currentFile = _storage('simplepresent_today.json');
     // JSON file storage only.
     _useSqlite = false;
+    // Migrate any existing files from the documents root into the
+    // dedicated `simplepresent/` subfolder so previous installs keep data.
+    await _migrateOldFiles();
     await _loadSettings();
     await _ensureInitialFiles();
 
@@ -764,6 +858,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (_useSqlite) {
         final rows = _sqliteStorage.readTaskList(filename);
         target.addAll(rows.map(TaskItem.fromJson));
+        return;
+      }
+      if (_isListDir(filename)) {
+        final dir = Directory('${(await _appDir).path}/${_listDirBase(filename)}');
+        if (await dir.exists()) {
+          final files = dir.listSync().whereType<File>().toList()
+            ..sort((a, b) => a.path.compareTo(b.path));
+          for (final f in files) {
+            try {
+              final text = await f.readAsString();
+              final data = jsonDecode(text);
+              target.add(TaskItem.fromJson(data));
+            } catch (_) {}
+          }
+        }
         return;
       }
       final f = await _fileFor(filename);
@@ -935,13 +1044,36 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       {bool triggerCloudSync = true}) async {
     try {
       final encoder = const JsonEncoder.withIndent('  ');
-      final text = encoder.convert(source.map((e) => e.toJson()).toList());
       if (_useSqlite) {
         _sqliteStorage.writeTaskList(
           filename,
           source.map((e) => e.toJson()).toList(),
         );
+      } else if (_isListDir(filename)) {
+        final dir = Directory('${(await _appDir).path}/${_listDirBase(filename)}');
+        if (!await dir.exists()) await dir.create(recursive: true);
+        // write each task as its own file with index prefix to preserve order
+        final Set<String> keep = {};
+        for (var i = 0; i < source.length; i++) {
+          final t = source[i];
+          final name = '${i.toString().padLeft(8, '0')}_${t.id}.json';
+          final f = File('${dir.path}/$name');
+          await f.writeAsString(encoder.convert(t.toJson()));
+          keep.add(f.path);
+        }
+        // remove orphaned files
+        try {
+          final existing = dir.listSync().whereType<File>().map((f) => f.path).toList();
+          for (final p in existing) {
+            if (!keep.contains(p)) {
+              try {
+                await File(p).delete();
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
       } else {
+        final text = encoder.convert(source.map((e) => e.toJson()).toList());
         final f = await _fileFor(filename);
         await f.writeAsString(text);
       }
