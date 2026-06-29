@@ -944,6 +944,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         await _saveList(_storage('simplepresent_today.json'), <TaskItem>[]);
       }
 
+      // Promote backlog tasks scheduled for today into Today (automatic move).
+      try {
+        final List<TaskItem> backlogList2 = [];
+        await _loadList(_storage('simplepresent_backlog.json'), backlogList2);
+        final todayDate = DateTime.now();
+        final promote = backlogList2.where((t) => t.scheduledAt != null && _isSameDay(t.scheduledAt!, todayDate)).toList();
+        if (promote.isNotEmpty) {
+          // remove promoted items from backlog
+          backlogList2.removeWhere((t) => t.scheduledAt != null && _isSameDay(t.scheduledAt!, todayDate));
+          // new today list consists of promoted items (at top)
+          final List<TaskItem> newToday = [];
+          newToday.addAll(promote);
+          // save updated lists
+          await _saveList(_storage('simplepresent_backlog.json'), backlogList2);
+          await _saveList(_storage('simplepresent_today.json'), newToday);
+          // notify user
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _showTopToast('${promote.length} Aufgabe(n) aus Backlog nach Heute verschoben');
+          });
+        }
+      } catch (_) {}
+
       settings['lastRunDate'] = todayKey;
       final enc = const JsonEncoder.withIndent('  ');
       try {

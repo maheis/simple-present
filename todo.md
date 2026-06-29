@@ -288,11 +288,11 @@
         -> spielt jetzt gar keinen sound mehr ab!
 - [ ] icons für...
   - [ ] notes
-  - [ ] statistik
+  - [x] statistik
   - [ ] redo log
   - [ ] settings
 - [ ] install server soll updaten können
-- [ ] fällige aufgaben automatisch aus dem backlog ins today verschieben
+- [ ] aufgaben mit datum "heute" automatisch aus dem backlog ins today verschieben!
 - [x] sync redo-log klappt nicht. aber braucht es das wirklich? rückbauen?
 - [x] repeat funktioniert nicht mehr?!
 - [x] jsons in unterordner
