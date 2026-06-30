@@ -1186,8 +1186,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         } catch (_) {}
       } else {
         final text = encoder.convert(source.map((e) => e.toJson()).toList());
-        final f = await _fileFor(filename);
-        await f.writeAsString(text);
+          final f = await _fileFor(filename);
+          // Write to a temporary file first and then rename to the final file
+          // to avoid leaving a truncated/empty file if the process is killed
+          // or the write is interrupted (observed on Windows clients).
+          final tmp = File('${f.path}.tmp');
+          await tmp.writeAsString(text);
+          try {
+            // On some platforms renaming over an existing file can fail,
+            // so remove the destination first if it exists.
+            if (await f.exists()) {
+              try {
+                await f.delete();
+              } catch (_) {}
+            }
+            await tmp.rename(f.path);
+          } catch (_) {
+            // Best-effort fallback: attempt to copy contents and remove temp.
+            try {
+              await f.writeAsString(text);
+              if (await tmp.exists()) await tmp.delete();
+            } catch (_) {}
+          }
       }
       if (triggerCloudSync) {
         unawaited(_syncPushToCloud(filename, source));
