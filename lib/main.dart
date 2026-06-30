@@ -1152,6 +1152,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             // Do NOT delete the destination beforehand — deleting triggers
             // explicit DELETE dispositions which OneDrive may react to.
             try {
+              // On Windows renaming over an existing file can behave
+              // differently; delete first to avoid platform-specific
+              // replace semantics that can lead to unexpected disposition
+              // events.
+              if (Platform.isWindows && await f.exists()) {
+                try {
+                  await f.delete();
+                } catch (_) {}
+              }
               await tmp.rename(f.path);
             } catch (_) {
               // If rename fails (e.g. because the destination exists or
@@ -2131,6 +2140,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
         // Optional debug write logging
         _debugWriteLog = readBool('debugWriteLog', _debugWriteLog);
+        // If debug logging is enabled in settings, create an initial entry
+        // so the logfile appears immediately for debugging verification.
+        try {
+          if (_debugWriteLog) unawaited(_debugLog('debugWriteLog enabled'));
+        } catch (_) {}
         final rwFrom = data['reminderWindowFrom'];
         if (rwFrom is String && rwFrom.isNotEmpty) {
           _reminderWindowFrom = rwFrom;
