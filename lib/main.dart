@@ -618,7 +618,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _startScheduledChecker();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _inputFocus.requestFocus();
+        if (!Platform.isAndroid) _inputFocus.requestFocus();
       }
     });
 
@@ -3802,7 +3802,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // Ensure the title field has focus
       WidgetsBinding.instance.addPostFrameCallback((_) {
         try {
-          _editFocusNodes.putIfAbsent(newId, () => FocusNode()).requestFocus();
+          if (!Platform.isAndroid) _editFocusNodes.putIfAbsent(newId, () => FocusNode()).requestFocus();
         } catch (_) {}
       });
       _showTopToast('task duplicated');
@@ -4012,7 +4012,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _saveToday();
     // Log creation for redo/undo purposes
     unawaited(_appendRedoLog('create', taskId: newId, details: {'text': input}));
-    _inputFocus.requestFocus();
+    if (!Platform.isAndroid) _inputFocus.requestFocus();
     _registerActivity();
   }
 
@@ -4592,7 +4592,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   onScaleUpdate: (_) {},
                   behavior: HitTestBehavior.translucent,
                   onTap: () {
-                    _inputFocus.requestFocus();
+                    if (!Platform.isAndroid) _inputFocus.requestFocus();
                     _registerActivity();
                   },
                   child: Column(
@@ -5899,7 +5899,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                         child: TextField(
                                           controller: _controller,
                                           focusNode: _inputFocus,
-                                          autofocus: !_showingDone,
+                                          autofocus: !_showingDone && !Platform.isAndroid,
                                           enabled: !_showingDone,
                                           textInputAction: TextInputAction.done,
                                           decoration: InputDecoration(
@@ -5912,8 +5912,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                           ),
                                           onSubmitted:
                                               _showingDone ? null : _addToToday,
-                                          onTapOutside: (_) =>
-                                              _inputFocus.requestFocus(),
+                                          onTapOutside: (_) {
+                                            if (!Platform.isAndroid) _inputFocus.requestFocus();
+                                          },
                                         ),
                                       ),
                                       const SizedBox(width: 8),

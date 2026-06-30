@@ -59,7 +59,8 @@
 - [x] settings file wird nicht korrekt im ordner verwendet!
 - [x] revoked device toast kommt von unten, alle toasts von unten sollen auf die standard von oben umgebaut werden
 - [ ] manchmal werden aufgaben falsch selektiert (bei kachel button move oder verschieben)
-- [ ] manchmal werden andere aufgauben auch in progress gesetzt wenn ich eine auf in progress setze
+- [ ] manchmal werden andere aufgauben auch in progress gesetzt wenn ich eine auf in progress setze (performance? müsste ein delay nach der aktion sein? beobachten konnte ich es wenn der pc ausgelastet war)
+- [ ] android sollte nicht immer den fokus auf neue aufgabe legen!
 
 ## notes
 
