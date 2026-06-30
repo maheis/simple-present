@@ -3,8 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET_DIR="$HOME/.local/share/simplepresent"
-DATA_DIR="$HOME/Documents"
-JSON="$DATA_DIR/simplepresent_*.json"
+DATA_DIR="$HOME/Documents/simplepresent"
 
 APP_ID="be.heister.simplepresent"
 DESKTOP_ENTRY_NAME="$APP_ID.desktop"
@@ -50,17 +49,11 @@ fi
 # Optionally remove user data files
 if [ "$REMOVE_DATA" -eq 1 ]; then
   echo "Removing user data files..."
-  if [ -f "$JSON_TASKS" ]; then
-    rm -f "$JSON_TASKS"
-    echo "Removed $JSON_TASKS"
+  if [ -d "$DATA_DIR" ]; then
+    rm -rf "$DATA_DIR"
+    echo "Removed $DATA_DIR"
   else
-    echo "$JSON_TASKS not found"
-  fi
-  if [ -f "$JSON_TIMES" ]; then
-    rm -f "$JSON_TIMES"
-    echo "Removed $JSON_TIMES"
-  else
-    echo "$JSON_TIMES not found"
+    echo "$DATA_DIR not found"
   fi
 else
   echo "User data preserved. To delete data run with --remove-data or rerun with --yes --remove-data."
