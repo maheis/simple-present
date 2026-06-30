@@ -1933,6 +1933,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           } catch (_) {}
         }
       } else {
+        // Ensure legacy file in parent documents directory is migrated here
+        final parent = await getApplicationDocumentsDirectory();
+        final candidateName = _storage('simplepresent_settings.json');
+        try {
+          final legacy = File('${parent.path}/$candidateName');
+          if (await legacy.exists()) {
+            final dest = await _fileFor(candidateName);
+            try {
+              // prefer rename to preserve permissions; fallback to copy
+              await legacy.rename(dest.path);
+            } catch (_) {
+              try {
+                await legacy.copy(dest.path);
+                await legacy.delete();
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
+
         final f = await _fileFor(_storage('simplepresent_settings.json'));
         if (!await f.exists()) return;
         data = jsonDecode(await f.readAsString()) as Map<String, dynamic>;

@@ -9,7 +9,31 @@ class SqliteStorage {
 
   Future<void> init({required bool debugMode}) async {
     final dir = await getApplicationDocumentsDirectory();
-    _storageRoot = dir.path;
+    final folderName = debugMode ? 'simplepresent-debug' : 'simplepresent';
+    final sub = Directory('${dir.path}/$folderName');
+    try {
+      if (!await sub.exists()) await sub.create(recursive: true);
+    } catch (_) {}
+
+    // Migrate legacy time entries file from documents root into the
+    // app-specific subfolder if present (preserve debug naming).
+    try {
+      final candidateName = debugMode ? 'debug_simplepresent_time_entries.json' : 'simplepresent_time_entries.json';
+      final legacy = File('${dir.path}/$candidateName');
+      if (await legacy.exists()) {
+        final dest = File('${sub.path}/$candidateName');
+        try {
+          await legacy.rename(dest.path);
+        } catch (_) {
+          try {
+            await legacy.copy(dest.path);
+            await legacy.delete();
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+
+    _storageRoot = sub.path;
   }
 
   String _filePath(String name) {
