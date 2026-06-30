@@ -1110,21 +1110,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           final content = encoder.convert(t.toJson());
           try {
             await tmp.writeAsString(content);
-            // Replace existing file atomically: delete destination first
-            if (await f.exists()) {
-              try {
-                await f.delete();
-              } catch (_) {}
-            }
+            // Try to atomically rename the temp file to the final name.
+            // Do NOT delete the destination beforehand — deleting triggers
+            // explicit DELETE dispositions which OneDrive may react to.
             try {
               await tmp.rename(f.path);
             } catch (_) {
-              // fallback to write directly if rename fails
+              // If rename fails (e.g. because the destination exists or
+              // the platform doesn't allow overwrite), fall back to
+              // overwriting the destination file in place to avoid a
+              // separate delete event that OneDrive could act upon.
               try {
                 await f.writeAsString(content);
                 if (await tmp.exists()) await tmp.delete();
               } catch (_) {}
             }
+          } catch (_) {
+            // best-effort: attempt direct write
+            try {
+              await f.writeAsString(content);
+            } catch (_) {}
+          }
           } catch (_) {
             // best-effort: attempt direct write
             try {
