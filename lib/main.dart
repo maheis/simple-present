@@ -559,6 +559,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _countBacklog = 0;
   int _countDone = 0;
 
+  // Optional override for storage path (set via settings 'storagePath')
+  String? _storagePathOverride;
+  // Enable debug write logging
+  bool _debugWriteLog = false;
+
   late final Future<void> _initFuture = _initializeApp();
 
   // Snapshot of last persisted `_today` list used to detect local changes
@@ -621,6 +626,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<Directory> get _appDir async {
+    // If user specified an explicit storage path in settings, prefer it.
+    if (_storagePathOverride != null && _storagePathOverride!.isNotEmpty) {
+      final sub = Directory(_storagePathOverride!);
+      try {
+        if (!await sub.exists()) await sub.create(recursive: true);
+      } catch (_) {}
+      return sub;
+    }
     final dir = await getApplicationDocumentsDirectory();
     final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
     final sub = Directory('${dir.path}/$folderName');
@@ -708,6 +721,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ),
         );
       }));
+    } catch (_) {}
+  }
+
+  Future<void> _debugLog(String msg) async {
+    try {
+      if (!_debugWriteLog) return;
+      final f = await _fileFor(_storage('simplepresent_debug.log'));
+      final stamp = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(DateTime.now());
+      await f.writeAsString('[$stamp] $msg\n', mode: FileMode.append);
     } catch (_) {}
   }
 
@@ -1275,29 +1297,38 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await _saveList(_storage('simplepresent_done.json'), done,
           triggerCloudSync: false);
       await _loadToday();
-    } finally {
-      _applyingCloudState = false;
-    }
-  }
-
-  String? _cloudListNameForFilename(String filename) {
-    if (filename.contains('simplepresent_today.json')) return 'today';
-    if (filename.contains('simplepresent_backlog.json')) return 'backlog';
-    if (filename.contains('simplepresent_done.json')) return 'done';
-    return null;
-  }
-
-  Set<String> _knownIdSetForList(String listName) {
-    if (listName == 'today') return _cloudKnownTodayIds;
-    if (listName == 'backlog') return _cloudKnownBacklogIds;
-    return _cloudKnownDoneIds;
-  }
-
-  Future<void> _syncPushToCloud(String filename, List<TaskItem> source) async {
-    if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState || _suppressCloudPushes) return;
-    // Finalize open edits before pushing local state to the server so the
-    // server receives the user's intended final versions.
-    try {
+            try {
+              await _debugLog('write tmp: ${tmp.path}');
+              await tmp.writeAsString(content);
+              // Try to atomically rename the temp file to the final name.
+              // Do NOT delete the destination beforehand — deleting triggers
+              // explicit DELETE dispositions which OneDrive may react to.
+              try {
+                await tmp.rename(f.path);
+                await _debugLog('rename tmp->final: ${f.path}');
+              } catch (_) {
+                // If rename fails (e.g. because the destination exists or
+                // the platform doesn't allow overwrite), fall back to
+                // overwriting the destination file in place to avoid a
+                // separate delete event that OneDrive could act upon.
+                try {
+                  await f.writeAsString(content);
+                  if (await tmp.exists()) await tmp.delete();
+                  await _debugLog('wrote final by overwrite: ${f.path}');
+                } catch (_) {
+                  await _debugLog('failed to write final for: ${f.path}');
+                }
+              }
+            } catch (e) {
+              // best-effort: attempt direct write
+              await _debugLog('tmp write failed for ${tmp.path}: $e');
+              try {
+                await f.writeAsString(content);
+                await _debugLog('wrote final direct: ${f.path}');
+              } catch (e2) {
+                await _debugLog('direct write failed for ${f.path}: $e2');
+              }
+            }
       await _finalizeAllEdits();
     } catch (_) {}
     final listName = _cloudListNameForFilename(filename);
@@ -2090,6 +2121,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (knownDone is List) {
           _cloudKnownDoneIds = knownDone.map((e) => e.toString()).toSet();
         }
+        // Optional storage path override
+        final storagePath = data['storagePath'];
+        if (storagePath is String && storagePath.isNotEmpty) {
+          _storagePathOverride = storagePath;
+        }
+        // Optional debug write logging
+        _debugWriteLog = readBool('debugWriteLog', _debugWriteLog);
         final rwFrom = data['reminderWindowFrom'];
         if (rwFrom is String && rwFrom.isNotEmpty) {
           _reminderWindowFrom = rwFrom;
@@ -2202,6 +2240,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'doneRetentionDays': _doneRetentionDays,
         'maxTasksToday': _maxTasksToday,
         'maxTasksBacklog': _maxTasksBacklog,
+        // Optional override for storage location
+        'storagePath': _storagePathOverride ?? '',
+        // Enable debug logging of write operations
+        'debugWriteLog': _debugWriteLog,
       };
 
       // Preserve lastRunDate if present in existing settings so daily-reset runs only once per day
@@ -8015,7 +8057,28 @@ class _RedoLogPageState extends State<RedoLogPage> {
     try {
       final f = await _fileForName(_storageName(name));
       final encoder = const JsonEncoder.withIndent('  ');
-      await f.writeAsString(encoder.convert(list));
+      final content = encoder.convert(list);
+      try {
+        await _debugLog('write list file tmp for: ${f.path}');
+      } catch (_) {}
+      // write atomically via temp file in the same dir
+      final tmp = File('${f.path}.tmp');
+      try {
+        await tmp.writeAsString(content);
+        try {
+          await tmp.rename(f.path);
+          await _debugLog('wrote list file: ${f.path}');
+        } catch (_) {
+          await f.writeAsString(content);
+          if (await tmp.exists()) await tmp.delete();
+          await _debugLog('wrote list file by overwrite: ${f.path}');
+        }
+      } catch (e) {
+        try {
+          await f.writeAsString(content);
+          await _debugLog('direct wrote list file: ${f.path}');
+        } catch (_) {}
+      }
     } catch (_) {}
   }
 
