@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter/foundation.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:path/path.dart' as p;
 // Pointer scroll events (task zoom via Ctrl+wheel) disabled — no import needed
 import 'package:path_provider/path_provider.dart';
 import 'package:simple_present/sync/cloud_sync_client.dart';
@@ -1176,6 +1177,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               }
               await tmp.rename(f.path);
               unawaited(_forceDebugLog('wrote task file: ${f.path}'));
+              // Small delay and verify the file exists; if not, attempt fallback
+              try {
+                await Future.delayed(const Duration(milliseconds: 120));
+                if (!await f.exists()) {
+                  unawaited(_forceDebugLog('post-rename check: file missing ${f.path}; attempting fallback write'));
+                  try {
+                    await f.writeAsString(content);
+                    unawaited(_forceDebugLog('fallback wrote task file: ${f.path}'));
+                  } catch (_) {
+                    unawaited(_forceDebugLog('fallback write failed for: ${f.path}'));
+                  }
+                  // directory snapshot for diagnostics
+                  try {
+                    final names = (await dir.list().toList()).whereType<File>().map((e) => p.basename(p.normalize(e.path))).join(',');
+                    unawaited(_forceDebugLog('dir-snapshot after write: ${dir.path} -> $names'));
+                  } catch (_) {}
+                }
+              } catch (_) {}
             } catch (_) {
               // If rename fails (e.g. because the destination exists or
               // the platform doesn't allow overwrite), fall back to
@@ -1194,20 +1213,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               unawaited(_forceDebugLog('direct wrote task file: ${f.path}'));
             } catch (_) {}
           }
-          // Use filename (basename) only for matching to avoid differences
-          // in absolute path representation (slashes, case, OneDrive prefixes).
-          final fname = File(f.path).uri.pathSegments.isNotEmpty
-              ? File(f.path).uri.pathSegments.last.toLowerCase()
-              : File(f.path).uri.path.toLowerCase();
-          keep.add(fname);
+            // Use filename (basename) only for matching to avoid differences
+            // in absolute path representation (slashes, case, OneDrive prefixes).
+            final fname = p.basename(p.normalize(f.path)).toLowerCase();
+            keep.add(fname);
         }
         // remove orphaned files
         try {
           final existingFiles = dir.listSync().whereType<File>().toList();
           for (final fileObj in existingFiles) {
-            final existingName = fileObj.uri.pathSegments.isNotEmpty
-                ? fileObj.uri.pathSegments.last.toLowerCase()
-                : fileObj.uri.path.toLowerCase();
+            final existingName = p.basename(p.normalize(fileObj.path)).toLowerCase();
             if (!keep.contains(existingName)) {
               try {
                 await fileObj.delete();
@@ -1234,6 +1249,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             }
             await tmp.rename(f.path);
             unawaited(_forceDebugLog('wrote list file: ${f.path}'));
+            try {
+              await Future.delayed(const Duration(milliseconds: 120));
+              if (!await f.exists()) {
+                unawaited(_forceDebugLog('post-rename check: list file missing ${f.path}; attempting fallback write'));
+                try {
+                  await f.writeAsString(text);
+                  unawaited(_forceDebugLog('fallback wrote list file: ${f.path}'));
+                } catch (_) {
+                  unawaited(_forceDebugLog('fallback write failed for list file: ${f.path}'));
+                }
+                try {
+                  final names = (await (f.parent).list().toList()).whereType<File>().map((e) => p.basename(p.normalize(e.path))).join(',');
+                  unawaited(_forceDebugLog('dir-snapshot after list write: ${f.parent.path} -> $names'));
+                } catch (_) {}
+              }
+            } catch (_) {}
           } catch (_) {
             // Best-effort fallback: attempt to copy contents and remove temp.
             try {
