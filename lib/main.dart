@@ -104,6 +104,22 @@ Future<void> main() async {
   runApp(const SimplePresentApp());
 }
 
+// Top-level debug logger used by multiple widgets. It writes to
+// `<Documents>/simplepresent/simplepresent_debug.log` (or the
+// debug variant when in debug mode). This is intentionally simple so
+// different widgets can call it without needing an instance.
+Future<void> _debugLog(String msg) async {
+  try {
+    final dir = await getApplicationDocumentsDirectory();
+    final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
+    final sub = Directory('${dir.path}/$folderName');
+    if (!await sub.exists()) await sub.create(recursive: true);
+    final f = File('${sub.path}/simplepresent_debug.log');
+    final stamp = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(DateTime.now());
+    await f.writeAsString('[$stamp] $msg\n', mode: FileMode.append);
+  } catch (_) {}
+}
+
 class SimplePresentApp extends StatelessWidget {
   const SimplePresentApp({super.key});
   @override
@@ -1153,12 +1169,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               await f.writeAsString(content);
             } catch (_) {}
           }
-          } catch (_) {
-            // best-effort: attempt direct write
-            try {
-              await f.writeAsString(content);
-            } catch (_) {}
-          }
           keep.add(f.path);
         }
         // remove orphaned files
@@ -1297,108 +1307,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await _saveList(_storage('simplepresent_done.json'), done,
           triggerCloudSync: false);
       await _loadToday();
-            try {
-              await _debugLog('write tmp: ${tmp.path}');
-              await tmp.writeAsString(content);
-              // Try to atomically rename the temp file to the final name.
-              // Do NOT delete the destination beforehand — deleting triggers
-              // explicit DELETE dispositions which OneDrive may react to.
-              try {
-                await tmp.rename(f.path);
-                await _debugLog('rename tmp->final: ${f.path}');
-              } catch (_) {
-                // If rename fails (e.g. because the destination exists or
-                // the platform doesn't allow overwrite), fall back to
-                // overwriting the destination file in place to avoid a
-                // separate delete event that OneDrive could act upon.
-                try {
-                  await f.writeAsString(content);
-                  if (await tmp.exists()) await tmp.delete();
-                  await _debugLog('wrote final by overwrite: ${f.path}');
-                } catch (_) {
-                  await _debugLog('failed to write final for: ${f.path}');
-                }
-              }
-            } catch (e) {
-              // best-effort: attempt direct write
-              await _debugLog('tmp write failed for ${tmp.path}: $e');
-              try {
-                await f.writeAsString(content);
-                await _debugLog('wrote final direct: ${f.path}');
-              } catch (e2) {
-                await _debugLog('direct write failed for ${f.path}: $e2');
-              }
-            }
       await _finalizeAllEdits();
     } catch (_) {}
-    final listName = _cloudListNameForFilename(filename);
-    if (listName == null) return;
-    // Suppress toasts originating from sync operations.
-    _suppressSyncToasts = true;
-    _cloudSyncBusy = true;
-    try {
-      final client = CloudSyncClient(
-        serverBaseUrl: _cloudServerUrl.trim(),
-        allowInsecureCertificates: _cloudAllowInsecureTls,
-      );
-      final modifiedAt = DateTime.now().millisecondsSinceEpoch;
-      _cloudStateVersion += 1;
-
-      final currentIds = source.map((t) => t.id).toSet();
-      final knownIds = _knownIdSetForList(listName);
-      final removedIds = knownIds.difference(currentIds).toList();
-
-      final items = <Map<String, dynamic>>[];
-      for (var i = 0; i < source.length; i++) {
-        final task = source[i];
-        final encryptedPayload = await CloudSyncClient.encryptStatePayload(
-          payload: <String, dynamic>{
-            'task': task.toJson(),
-            'list': listName,
-            'position': i,
-          },
-          phrase: _cloudWordPhrase,
-        );
-        items.add(<String, dynamic>{
-          'id': 'task:${task.id}',
-          'payload': encryptedPayload,
-          'modified_at': modifiedAt,
-          'tombstone': false,
-          'origin_device_id': _cloudDeviceId.trim(),
-          'version': _cloudStateVersion,
-        });
-      }
-
-      for (final removed in removedIds) {
-        items.add(<String, dynamic>{
-          'id': 'task:$removed',
-          'payload': <String, dynamic>{'reason': 'removed'},
-          'modified_at': modifiedAt,
-          'tombstone': true,
-          'origin_device_id': _cloudDeviceId.trim(),
-          'version': _cloudStateVersion,
-        });
-      }
-
-      await client.pushItems(
-        accountId: _cloudAccountId.trim(),
-        token: _cloudToken.trim(),
-        items: items,
-      );
-
-      knownIds
-        ..clear()
-        ..addAll(currentIds);
-      _cloudLastSyncModifiedAt = modifiedAt;
-      await _saveSettings();
-      _onCloudSyncSuccess();
-    } catch (e) {
-      _onCloudSyncError(e);
-    } finally {
-      _cloudSyncBusy = false;
-      _suppressSyncToasts = false;
-      _flushPendingCloudTimeEntrySync();
-    }
   }
 
   void _queueCloudTimeEntrySync(TaskItem task) {
@@ -1485,6 +1395,99 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } finally {
       _cloudSyncBusy = false;
       _flushPendingCloudTimeEntrySync();
+    }
+  }
+
+  Future<void> _syncPushToCloud(String filename, List<TaskItem> source) async {
+    if (!_cloudSyncConfigured || _cloudSyncBusy || _applyingCloudState || _suppressCloudPushes) return;
+    final listName = _cloudListNameForFilename(filename);
+    if (listName == null) return;
+    // Suppress toasts originating from sync operations.
+    _suppressSyncToasts = true;
+    _cloudSyncBusy = true;
+    try {
+      final client = CloudSyncClient(
+        serverBaseUrl: _cloudServerUrl.trim(),
+        allowInsecureCertificates: _cloudAllowInsecureTls,
+      );
+      final modifiedAt = DateTime.now().millisecondsSinceEpoch;
+      _cloudStateVersion += 1;
+
+      final currentIds = source.map((t) => t.id).toSet();
+      final knownIds = _knownIdSetForList(listName);
+      final removedIds = knownIds.difference(currentIds).toList();
+
+      final items = <Map<String, dynamic>>[];
+      for (var i = 0; i < source.length; i++) {
+        final task = source[i];
+        final encryptedPayload = await CloudSyncClient.encryptStatePayload(
+          payload: <String, dynamic>{
+            'task': task.toJson(),
+            'list': listName,
+            'position': i,
+          },
+          phrase: _cloudWordPhrase,
+        );
+        items.add(<String, dynamic>{
+          'id': 'task:${task.id}',
+          'payload': encryptedPayload,
+          'modified_at': modifiedAt,
+          'tombstone': false,
+          'origin_device_id': _cloudDeviceId.trim(),
+          'version': _cloudStateVersion,
+        });
+      }
+
+      for (final removed in removedIds) {
+        items.add(<String, dynamic>{
+          'id': 'task:$removed',
+          'payload': <String, dynamic>{'reason': 'removed'},
+          'modified_at': modifiedAt,
+          'tombstone': true,
+          'origin_device_id': _cloudDeviceId.trim(),
+          'version': _cloudStateVersion,
+        });
+      }
+
+      await client.pushItems(
+        accountId: _cloudAccountId.trim(),
+        token: _cloudToken.trim(),
+        items: items,
+      );
+
+      knownIds
+        ..clear()
+        ..addAll(currentIds);
+      _cloudLastSyncModifiedAt = modifiedAt;
+      await _saveSettings();
+      _onCloudSyncSuccess();
+    } catch (e) {
+      _onCloudSyncError(e);
+    } finally {
+      _cloudSyncBusy = false;
+      _suppressSyncToasts = false;
+      _flushPendingCloudTimeEntrySync();
+    }
+  }
+
+  String? _cloudListNameForFilename(String filename) {
+    final lower = filename.toLowerCase();
+    if (lower.contains('simplepresent_today') || lower.contains('/today')) return 'today';
+    if (lower.contains('simplepresent_backlog') || lower.contains('/backlog')) return 'backlog';
+    if (lower.contains('simplepresent_done') || lower.contains('/done')) return 'done';
+    return null;
+  }
+
+  Set<String> _knownIdSetForList(String listName) {
+    switch (listName) {
+      case 'today':
+        return _cloudKnownTodayIds;
+      case 'backlog':
+        return _cloudKnownBacklogIds;
+      case 'done':
+        return _cloudKnownDoneIds;
+      default:
+        return <String>{};
     }
   }
 
@@ -5967,7 +5970,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ),
     );
   }
-}
+
+  }
 
 class StatsPage extends StatefulWidget {
   const StatsPage({
@@ -8517,3 +8521,4 @@ class _QrScannerPageState extends State<_QrScannerPage> {
     );
   }
 }
+ 
