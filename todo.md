@@ -46,9 +46,18 @@
 - [x] jsons in unterordner
 - [x] jsons pro task. die einzelnen listen _backlog, _done , _today, _trash sollen dann als unterordner struktur abgebildet werden.
 - [x] done setzten stoppt die stopuhr nicht mehr und setzt auch in progress nicht mehr zurück!
-- [ ] repeat optional uhrzeit+repeatzeut dynamisch oder fixe uhrzeit
-- [ ] repeat 2 weekly?
+- [ ] repeat 
+  - [ ] optional uhrzeit+repeatzeit dynamisch oder fixe uhrzeit
+  - [ ] weekly
+    - [ ] 2 ?
+    - [ ] 3 ?
+    - [ ] weekday
+  - [ ] monthly
+    - [ ] day of month (first, last, first weekday...)
+  - [ ] yearly
+  - [ ] ask next repeat date on creating follow up task (no ask option in task)
 - [x] settings file wird nicht korrekt im ordner verwendet!
+- [ ] revogkd device toast kommt von unten, alle toasts von unten sollen auf die standard von oben umgebaut werden
 
 ## notes
 
