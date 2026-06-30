@@ -1106,7 +1106,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           final t = source[i];
           final name = '${i.toString().padLeft(8, '0')}_${t.id}.json';
           final f = File('${dir.path}/$name');
-          await f.writeAsString(encoder.convert(t.toJson()));
+          final tmp = File('${dir.path}/$name.tmp');
+          final content = encoder.convert(t.toJson());
+          try {
+            await tmp.writeAsString(content);
+            // Replace existing file atomically: delete destination first
+            if (await f.exists()) {
+              try {
+                await f.delete();
+              } catch (_) {}
+            }
+            try {
+              await tmp.rename(f.path);
+            } catch (_) {
+              // fallback to write directly if rename fails
+              try {
+                await f.writeAsString(content);
+                if (await tmp.exists()) await tmp.delete();
+              } catch (_) {}
+            }
+          } catch (_) {
+            // best-effort: attempt direct write
+            try {
+              await f.writeAsString(content);
+            } catch (_) {}
+          }
           keep.add(f.path);
         }
         // remove orphaned files
