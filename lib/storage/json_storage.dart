@@ -15,23 +15,9 @@ class SqliteStorage {
       if (!await sub.exists()) await sub.create(recursive: true);
     } catch (_) {}
 
-    // Migrate legacy time entries file from documents root into the
-    // app-specific subfolder if present (preserve debug naming).
-    try {
-      final candidateName = debugMode ? 'debug_simplepresent_time_entries.json' : 'simplepresent_time_entries.json';
-      final legacy = File('${dir.path}/$candidateName');
-      if (await legacy.exists()) {
-        final dest = File('${sub.path}/$candidateName');
-        try {
-          await legacy.rename(dest.path);
-        } catch (_) {
-          try {
-            await legacy.copy(dest.path);
-            await legacy.delete();
-          } catch (_) {}
-        }
-      }
-    } catch (_) {}
+    // Legacy migration removed: time entries are expected to reside under
+    // the `simplepresent` application subfolder. No automatic migration
+    // from the documents root is performed.
 
     _storageRoot = sub.path;
   }

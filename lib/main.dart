@@ -635,73 +635,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return File('${dir.path}/$name');
   }
 
-  Future<void> _migrateOldFiles() async {
-    try {
-      final parent = await getApplicationDocumentsDirectory();
-      final sub = await _appDir; // ensures subdir exists
-      final names = <String>[
-        'simplepresent_today.json',
-        'simplepresent_backlog.json',
-        'simplepresent_done.json',
-        'simplepresent_trash.json',
-        'simplepresent_settings.json',
-        'simplepresent_redo.log',
-        'simplepresent_notes.txt'
-      ];
-      for (final name in names) {
-        try {
-          final candidateName = kDebugMode ? 'debug_$name' : name;
-          final oldFile = File('${parent.path}/$candidateName');
-          final newFile = File('${sub.path}/$candidateName');
-          if (await oldFile.exists()) {
-            if (!await newFile.exists()) {
-              try {
-                await oldFile.rename(newFile.path);
-              } catch (_) {
-                try {
-                  await oldFile.copy(newFile.path);
-                  await oldFile.delete();
-                } catch (_) {}
-              }
-            }
-          }
-        } catch (_) {}
-      }
-      // Convert any moved list-array JSON files into per-task files
-      for (final name in names) {
-        final candidates = kDebugMode ? <String>['debug_$name'] : <String>[name];
-        for (final candidate in candidates) {
-          try {
-            final moved = File('${sub.path}/$candidate');
-            if (!await moved.exists()) continue;
-            // Only convert JSON array files
-            try {
-              final text = await moved.readAsString();
-              final data = jsonDecode(text);
-              if (data is List) {
-                final base = _listDirBase(candidate);
-                if (base.isEmpty) continue;
-                final dir = Directory('${sub.path}/$base');
-                if (!await dir.exists()) await dir.create(recursive: true);
-                final encoder = const JsonEncoder.withIndent('  ');
-                for (var i = 0; i < data.length; i++) {
-                  try {
-                    final item = TaskItem.fromJson(data[i]);
-                    final fname = '${i.toString().padLeft(8, '0')}_${item.id}.json';
-                    final f = File('${dir.path}/$fname');
-                    await f.writeAsString(encoder.convert(item.toJson()));
-                  } catch (_) {}
-                }
-                try {
-                  await moved.delete();
-                } catch (_) {}
-              }
-            } catch (_) {}
-          } catch (_) {}
-        }
-      }
-    } catch (_) {}
-  }
+  // Legacy migration logic removed. Files should already live under
+  // the `simplepresent` application subfolder; no automatic migration
+  // from the documents root is performed.
 
   Future<void> _appendRedoLog(String action, {String? taskId, Map<String, dynamic>? details}) async {
     try {
@@ -809,9 +745,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _currentFile = _storage('simplepresent_today.json');
     // JSON file storage only.
     _useSqlite = false;
-    // Migrate any existing files from the documents root into the
-    // dedicated `simplepresent/` subfolder so previous installs keep data.
-    await _migrateOldFiles();
+    // Legacy migration removed: files are expected to live under
+    // the app-specific `simplepresent/` subfolder. No automatic
+    // migration is performed.
     await _loadSettings();
     await _ensureInitialFiles();
 
@@ -7788,8 +7724,15 @@ class _RedoLogPageState extends State<RedoLogPage> {
   }
 
   Future<File> _fileForName(String name) async {
+    // Resolve the application documents directory and ensure we use
+    // the same `simplepresent` subfolder as the rest of the app.
     final dir = await getApplicationDocumentsDirectory();
-    return File('${dir.path}/$name');
+    final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
+    final sub = Directory('${dir.path}/$folderName');
+    try {
+      if (!await sub.exists()) await sub.create(recursive: true);
+    } catch (_) {}
+    return File('${sub.path}/$name');
   }
 
   String _storageName(String name) => kDebugMode ? 'debug_$name' : name;

@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="${1:-$SCRIPT_DIR}"
 TARGET_DIR="$HOME/.local/share/simplepresent"
-DATA_DIR="$HOME/Documents"
+DATA_DIR="$HOME/Documents/simplepresent"
 
 echo "Source: $SRC_DIR"
 echo "Target: $TARGET_DIR"
