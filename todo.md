@@ -1,5 +1,17 @@
 # ToDo
 
+- [x] keine toasts by sync
+- [x] icons für...
+  - [x] notes
+  - [x] statistik
+  - [x] redo log
+  - [x] settings
+- [x] aufgaben mit datum "heute" automatisch aus dem backlog ins today verschieben!
+- [x] sync redo-log klappt nicht. aber braucht es das wirklich? rückbauen?
+- [x] repeat funktioniert nicht mehr?!
+- [x] jsons in unterordner
+- [x] jsons pro task. die einzelnen listen _backlog, _done , _today, _trash sollen dann als unterordner struktur abgebildet werden.
+- [x] done setzten stoppt die stopuhr nicht mehr und setzt auch in progress nicht mehr zurück!
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Worklog an Aufgaben...
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
@@ -32,20 +44,8 @@
       jetzt ist das icon wieder vermatscht, glaube muss transparentes icon mit gößerem transparenten rand sein, damit es rund passt
 - [?] 24 Uhr move today -> backlog
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [?] keine toasts by sync
-- [?] android sound unterbricht musik wiedergaben...
+- [ ] android sound unterbricht musik wiedergaben...
         -> spielt jetzt gar keinen sound mehr ab!
-- [x] icons für...
-  - [x] notes
-  - [x] statistik
-  - [x] redo log
-  - [x] settings
-- [?] aufgaben mit datum "heute" automatisch aus dem backlog ins today verschieben!
-- [x] sync redo-log klappt nicht. aber braucht es das wirklich? rückbauen?
-- [x] repeat funktioniert nicht mehr?!
-- [x] jsons in unterordner
-- [x] jsons pro task. die einzelnen listen _backlog, _done , _today, _trash sollen dann als unterordner struktur abgebildet werden.
-- [x] done setzten stoppt die stopuhr nicht mehr und setzt auch in progress nicht mehr zurück!
 - [ ] repeat
   - [ ] optional dynamische zeit, fertigmeldung + intervall. 
   - [ ] weekly
@@ -57,7 +57,7 @@
   - [ ] yearly
   - [ ] ask next repeat date on creating follow up task (no ask option in task)
 - [x] settings file wird nicht korrekt im ordner verwendet!
-- [ ] revoked device toast kommt von unten, alle toasts von unten sollen auf die standard von oben umgebaut werden
+- [x] revoked device toast kommt von unten, alle toasts von unten sollen auf die standard von oben umgebaut werden
 - [ ] manchmal werden aufgaben falsch selektiert (bei kachel button move oder verschieben)
 - [ ] manchmal werden andere aufgauben auch in progress gesetzt wenn ich eine auf in progress setze
 

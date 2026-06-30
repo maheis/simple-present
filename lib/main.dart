@@ -6115,6 +6115,11 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool cloudSyncFailed;
   late String cloudSyncLastError;
   late bool autoPurgeDoneEnabled;
+  // local toast state for SettingsPage
+  OverlayEntry? _toastEntryLocal;
+  Timer? _toastTimerLocal;
+  String? _lastToastMessageLocal;
+  DateTime? _lastToastAtLocal;
   // local cache for devices shown in settings
   List<Map<String, dynamic>> _settingsCloudDevices = <Map<String, dynamic>>[];
 
@@ -6153,10 +6158,61 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       await client.revokeDevice(token: cloudToken.trim(), deviceId: deviceId);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('device revoked')));
+        _showTopToastLocal('device revoked');
         await _fetchCloudDevicesSettings();
       }
     } catch (_) {}
+  }
+
+  void _showTopToastLocal(String message) {
+    final now = DateTime.now();
+    if (_lastToastMessageLocal != null && _lastToastMessageLocal == message) {
+      if (_lastToastAtLocal != null && now.difference(_lastToastAtLocal!).inSeconds < 3) return;
+    }
+    if (_lastToastAtLocal != null && now.difference(_lastToastAtLocal!).inMilliseconds < 700) return;
+    _lastToastMessageLocal = message;
+    _lastToastAtLocal = now;
+
+    _toastTimerLocal?.cancel();
+    _toastEntryLocal?.remove();
+
+    final overlay = Overlay.of(context, rootOverlay: true);
+    _toastEntryLocal = OverlayEntry(
+      builder: (ctx) => SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 10, left: 12, right: 12),
+            child: TweenAnimationBuilder<Offset>(
+              duration: const Duration(milliseconds: 260),
+              tween: Tween(begin: const Offset(0, -1), end: Offset.zero),
+              curve: Curves.easeOutCubic,
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                  ),
+                  child: Text(message, style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                ),
+              ),
+              builder: (context, offset, child) {
+                return Transform.translate(offset: Offset(0, offset.dy * 60), child: child);
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(_toastEntryLocal!);
+    _toastTimerLocal = Timer(const Duration(milliseconds: 1650), () {
+      _toastEntryLocal?.remove();
+      _toastEntryLocal = null;
+    });
   }
 
   Future<void> _showDevicesDialogSettings() async {
@@ -8029,7 +8085,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
       if (!await f.exists()) return;
       final text = await f.readAsString();
       await Clipboard.setData(ClipboardData(text: text));
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied redo log to clipboard')));
+      if (mounted) _showTopToastLocal('Copied redo log to clipboard');
     } catch (_) {}
   }
 
@@ -8511,7 +8567,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
                                   ),
                                   const SizedBox(height: 6),
                                   Row(mainAxisSize: MainAxisSize.min, children: [
-                                    IconButton(icon: const Icon(Icons.copy), tooltip: 'Copy entry', onPressed: () async { await Clipboard.setData(ClipboardData(text: jsonEncode(e))); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied entry'))); }),
+                                    IconButton(icon: const Icon(Icons.copy), tooltip: 'Copy entry', onPressed: () async { await Clipboard.setData(ClipboardData(text: jsonEncode(e))); if (mounted) _showTopToastLocal('Copied entry'); }),
                                     IconButton(icon: const Icon(Icons.open_in_new), tooltip: 'View details', onPressed: () => _showDetails(e)),
                                     IconButton(icon: const Icon(Icons.undo), tooltip: 'Undo action', onPressed: () async {
                                       final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Undo action?'), content: Text('Undo "${e['action']}" for ${_shortDetails(e)}?'), actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Undo'))]));
