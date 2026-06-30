@@ -46,7 +46,6 @@
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [?] android sound unterbricht musik wiedergaben...
         -> spielt jetzt gar keinen sound mehr ab!
-- [ ] repeat
 - [x] repeat
   - [x] weekly
     - [x] 2

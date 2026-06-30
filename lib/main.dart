@@ -2485,8 +2485,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           } catch (_) {}
           try {
             await _nativeWindowChannel.invokeMethod('notify', <String, String>{
-              'title': _appTitle,
-              'body': 'due: ${t.text}',
+              //'title': _appTitle,
+              'title': '',
+              'body': '${t.text}',
               'icon': 'assets/icons/color_transparent_icon.png',
             });
           } catch (_) {}
