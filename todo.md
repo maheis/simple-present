@@ -44,18 +44,18 @@
       jetzt ist das icon wieder vermatscht, glaube muss transparentes icon mit gößerem transparenten rand sein, damit es rund passt
 - [?] 24 Uhr move today -> backlog
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [ ] android sound unterbricht musik wiedergaben...
+- [?] android sound unterbricht musik wiedergaben...
         -> spielt jetzt gar keinen sound mehr ab!
 - [ ] repeat
-  - [ ] optional dynamische zeit, fertigmeldung + intervall. 
-  - [ ] weekly
-    - [ ] 2 ?
-    - [ ] 3 ?
-    - [ ] weekday
-  - [ ] monthly
-    - [ ] day of month (first, last, first weekday...)
-  - [ ] yearly
-  - [ ] ask next repeat date on creating follow up task (no ask option in task)
+- [x] repeat
+  - [x] weekly
+    - [x] 2
+    - [x] 3
+  - [x] monthly
+    - [x] day of month (first, last, first weekday, last weekday...)
+  - [x] yearly
+  - [x] ask next repeat date on creating follow up task (implemented)
+- [ ] repeat optional: dynamische zeit, fertigmeldung + intervall.
 - [x] settings file wird nicht korrekt im ordner verwendet!
 - [x] revoked device toast kommt von unten, alle toasts von unten sollen auf die standard von oben umgebaut werden
 - [ ] manchmal werden aufgaben falsch selektiert (bei kachel button move oder verschieben)

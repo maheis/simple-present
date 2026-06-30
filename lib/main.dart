@@ -1085,6 +1085,46 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final base = task.scheduledAt ?? DateTime.now();
         final next = _computeNextRecurrence(base, rec);
         if (next != null) {
+          // Ask the user whether to accept the computed next date, choose
+          // another date, or skip creating the follow-up.
+          DateTime chosen = next;
+          if (mounted) {
+            try {
+              final pretty = DateFormat('yyyy-MM-dd HH:mm').format(next);
+              final action = await showDialog<String?>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Create follow-up task'),
+                  content: Text('Create next occurrence on $pretty?'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.of(ctx).pop('skip'), child: const Text('Skip')),
+                    TextButton(onPressed: () => Navigator.of(ctx).pop('choose'), child: const Text('Choose')),
+                    TextButton(onPressed: () => Navigator.of(ctx).pop('create'), child: const Text('Create')),
+                  ],
+                ),
+              );
+              if (action == 'skip' || action == null) {
+                // user chose not to create
+                return;
+              }
+              if (action == 'choose') {
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: next,
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(2100),
+                );
+                if (date == null) return;
+                final time = await showTimePicker(
+                  context: context,
+                  initialTime: TimeOfDay.fromDateTime(next),
+                );
+                final t = time ?? TimeOfDay.fromDateTime(next);
+                chosen = DateTime(date.year, date.month, date.day, t.hour, t.minute);
+              }
+            } catch (_) {}
+          }
+
           final newId = '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
           final newTask = task.copyWith(
             id: newId,
@@ -1095,9 +1135,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             stopwatchAccumulatedSeconds: 0,
             stopwatchRunning: false,
             stopwatchStartedAt: null,
-            scheduledAt: next,
+            scheduledAt: chosen,
           );
-          if (_isSameDay(next, DateTime.now())) {
+          if (_isSameDay(chosen, DateTime.now())) {
             final filename = _storage('simplepresent_today.json');
             final List<TaskItem> todayList = [];
             await _loadList(filename, todayList);
@@ -3468,10 +3508,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     String baseRec = task.recurrence ?? '';
     String selected = baseRec.startsWith('daily:') ? 'daily' : baseRec;
     // weekdays selection: 1=Mon .. 7=Sun
-    // Default: all days selected. If recurrence explicitly contains a
-    // 'daily:...' mask, use that mask; if it's plain 'daily' leave all
-    // selected.
     final weekSelected = List<bool>.filled(7, true);
+    // weekly/monthly helper values
+    int weeklyInterval = 1;
+    int yearlyInterval = 1;
+    String monthlyMode = 'dom'; // 'dom' or 'weekday'
+    int dom = DateTime.now().day;
+    String weekdayMode = 'first'; // 'first' or 'last'
+    int weekday = DateTime.now().weekday; // 1-7
+
     if (baseRec.startsWith('daily:')) {
       final parts = baseRec.split(':');
       if (parts.length > 1 && parts[1].trim().isNotEmpty) {
@@ -3530,6 +3575,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         color: (selected == 'weekly') ? Theme.of(ctx2).colorScheme.primary : null,
                       ),
                     ),
+                    if (selected == 'weekly')
+                      Padding(
+                        padding: const EdgeInsets.only(left: 12.0, right: 12.0),
+                        child: Row(
+                          children: [
+                            const Text('Interval (weeks):'),
+                            const SizedBox(width: 8),
+                            DropdownButton<int>(
+                              value: weeklyInterval,
+                              items: List.generate(12, (i) => i + 1).map((v) => DropdownMenuItem(value: v, child: Text('$v'))).toList(),
+                              onChanged: (v) => setState2(() => weeklyInterval = v ?? 1),
+                            ),
+                          ],
+                        ),
+                      ),
                     ListTile(
                       title: const Text('Monthly'),
                       onTap: () => setState2(() => selected = 'monthly'),
@@ -3538,6 +3598,62 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         color: (selected == 'monthly') ? Theme.of(ctx2).colorScheme.primary : null,
                       ),
                     ),
+                    if (selected == 'monthly')
+                      Column(
+                        children: [
+                          Row(
+                            children: [
+                              Radio<String>(value: 'dom', groupValue: monthlyMode, onChanged: (v) => setState2(() => monthlyMode = v ?? 'dom')),
+                              const SizedBox(width: 6),
+                              const Text('Day of month'),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 80,
+                                child: TextFormField(
+                                  initialValue: '$dom',
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(isDense: true),
+                                  onChanged: (val) => setState2(() => dom = int.tryParse(val) ?? dom),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              Radio<String>(value: 'weekday', groupValue: monthlyMode, onChanged: (v) => setState2(() => monthlyMode = v ?? 'weekday')),
+                              const SizedBox(width: 6),
+                              const Text('Weekday rule'),
+                              const SizedBox(width: 8),
+                              DropdownButton<String>(value: weekdayMode, items: const [DropdownMenuItem(value: 'first', child: Text('first')), DropdownMenuItem(value: 'last', child: Text('last'))], onChanged: (v) => setState2(() => weekdayMode = v ?? 'first')),
+                              const SizedBox(width: 8),
+                              DropdownButton<int>(value: weekday, items: List.generate(7, (i) => i + 1).map((d) => DropdownMenuItem(value: d, child: Text(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d-1]))).toList(), onChanged: (v) => setState2(() => weekday = v ?? DateTime.now().weekday)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ListTile(
+                      title: const Text('Yearly'),
+                      onTap: () => setState2(() => selected = 'yearly'),
+                      trailing: Icon(
+                        (selected == 'yearly') ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                        color: (selected == 'yearly') ? Theme.of(ctx2).colorScheme.primary : null,
+                      ),
+                    ),
+                    if (selected == 'yearly')
+                      Padding(
+                        padding: const EdgeInsets.only(left: 12.0, right: 12.0),
+                        child: Row(
+                          children: [
+                            const Text('Interval (years):'),
+                            const SizedBox(width: 8),
+                            DropdownButton<int>(
+                              value: yearlyInterval,
+                              items: List.generate(5, (i) => i + 1).map((v) => DropdownMenuItem(value: v, child: Text('$v'))).toList(),
+                              onChanged: (v) => setState2(() => yearlyInterval = v ?? 1),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 );
           }),
@@ -3563,6 +3679,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       } else {
         newRec = 'daily:${picked.join(',')}';
       }
+    } else if (selected == 'weekly') {
+      // weekly with interval
+      newRec = 'weekly:$weeklyInterval';
+    } else if (selected == 'monthly') {
+      if (monthlyMode == 'dom') {
+        final safeDom = dom.clamp(1, 31);
+        newRec = 'monthly:day=$safeDom';
+      } else {
+        // weekday rule like monthly:weekday=first:1
+        newRec = 'monthly:weekday=$weekdayMode:$weekday';
+      }
+    } else if (selected == 'yearly') {
+      newRec = yearlyInterval <= 1 ? 'yearly' : 'yearly:$yearlyInterval';
     } else if (selected.isEmpty) {
       newRec = '';
     } else {
@@ -4263,55 +4392,126 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   DateTime? _computeNextRecurrence(DateTime base, String recurrence) {
     try {
-      // Support new recurrence format variants:
-      // - 'daily' => every day
-      // - 'daily:1,2,3' => daily but only on specified weekdays (1=Mon..7=Sun)
-      // - 'weekly', 'monthly' preserved
-      if (recurrence.startsWith('daily:')) {
-        final parts = recurrence.split(':');
-        final daysPart = parts.length > 1 ? parts[1] : '';
-        final allowed = <int>{};
-        for (final p in daysPart.split(',')) {
-          final n = int.tryParse(p.trim());
-          if (n != null && n >= 1 && n <= 7) allowed.add(n);
-        }
-        // If no specific weekdays provided, fall back to plain daily
-        if (allowed.isEmpty) {
+      final s = recurrence.trim();
+      if (s.isEmpty) return null;
+
+      // DAILY variants
+      if (s.startsWith('daily')) {
+        // daily or daily:1,2,3 (weekday filter)
+        if (s == 'daily') {
           return DateTime(base.year, base.month, base.day + 1, base.hour, base.minute, base.second);
         }
-        // Search forward for the next date matching an allowed weekday
-        for (int i = 1; i <= 14; i++) {
-          final cand = base.add(Duration(days: i));
-          if (allowed.contains(cand.weekday)) {
-            return DateTime(cand.year, cand.month, cand.day, base.hour, base.minute, base.second);
+        final parts = s.split(':');
+        if (parts.length > 1) {
+          final daysPart = parts[1];
+          final allowed = <int>{};
+          for (final p in daysPart.split(',')) {
+            final n = int.tryParse(p.trim());
+            if (n != null && n >= 1 && n <= 7) allowed.add(n);
           }
+          if (allowed.isEmpty) return DateTime(base.year, base.month, base.day + 1, base.hour, base.minute, base.second);
+          for (int i = 1; i <= 30; i++) {
+            final cand = base.add(Duration(days: i));
+            if (allowed.contains(cand.weekday)) return DateTime(cand.year, cand.month, cand.day, base.hour, base.minute, base.second);
+          }
+          return null;
         }
-        return null;
       }
-      switch (recurrence) {
-        case 'daily':
-          return DateTime(base.year, base.month, base.day + 1, base.hour, base.minute, base.second);
-        case 'weekly':
-          return base.add(const Duration(days: 7));
-        case 'monthly':
-          // Add one month, clamping day to last valid day
-          int y = base.year + ((base.month) ~/ 12);
+
+      // WEEKLY variants: 'weekly' or 'weekly:N' where N is interval weeks
+      if (s.startsWith('weekly')) {
+        final parts = s.split(':');
+        if (parts.length == 1) return base.add(const Duration(days: 7));
+        final n = int.tryParse(parts[1]);
+        if (n != null && n > 0) return base.add(Duration(days: 7 * n));
+        return base.add(const Duration(days: 7));
+      }
+
+      // MONTHLY variants: 'monthly' or 'monthly:day=15' or 'monthly:weekday=first:1' / 'monthly:weekday=last:1'
+      if (s.startsWith('monthly')) {
+        final after = s.contains(':') ? s.split(':').sublist(1).join(':') : '';
+        if (after.isEmpty || after == '') {
+          // simple monthly: add one month preserving day (clamped)
+          int y = base.year;
           int m = base.month + 1;
-          // normalize year/month rollover
-          if (m > 12) {
-            m = 1;
-            y += 1;
-          }
+          if (m > 12) { m = 1; y += 1; }
           final lastDay = DateTime(y, m + 1, 0).day;
           final d = base.day <= lastDay ? base.day : lastDay;
           return DateTime(y, m, d, base.hour, base.minute, base.second);
-        default:
-          return null;
+        }
+        // parse key=value or weekday spec
+        try {
+          // day=15
+          if (after.startsWith('day=')) {
+            final v = int.tryParse(after.substring(4));
+            if (v != null && v >= 1 && v <= 31) {
+              // find next month where day exists and date > base
+              for (int add = 1; add <= 24; add++) {
+                int y = base.year + ((base.month - 1 + add) ~/ 12);
+                int m = ((base.month - 1 + add) % 12) + 1;
+                final lastDay = DateTime(y, m + 1, 0).day;
+                final day = v <= lastDay ? v : lastDay;
+                final cand = DateTime(y, m, day, base.hour, base.minute, base.second);
+                if (cand.isAfter(base)) return cand;
+              }
+              return null;
+            }
+          }
+          if (after.startsWith('weekday=')) {
+            // weekday=first:1 or weekday=last:1 -> rest = 'first:1'
+            final rest = after.substring('weekday='.length);
+            final parts2 = rest.split(':');
+            if (parts2.length >= 2) {
+              final which = parts2[0];
+              final wd = int.tryParse(parts2[1]);
+              if (wd != null && wd >= 1 && wd <= 7) {
+                for (int add = 1; add <= 24; add++) {
+                  int y = base.year + ((base.month - 1 + add) ~/ 12);
+                  int m = ((base.month - 1 + add) % 12) + 1;
+                  DateTime cand;
+                  if (which == 'first') {
+                    // find first weekday wd in month m
+                    final firstOfMonth = DateTime(y, m, 1);
+                    int offset = (wd - firstOfMonth.weekday) % 7;
+                    if (offset < 0) offset += 7;
+                    cand = firstOfMonth.add(Duration(days: offset));
+                  } else {
+                    // last
+                    final lastDayDate = DateTime(y, m + 1, 0);
+                    int offset = (lastDayDate.weekday - wd) % 7;
+                    if (offset < 0) offset += 7;
+                    cand = lastDayDate.subtract(Duration(days: offset));
+                  }
+                  cand = DateTime(cand.year, cand.month, cand.day, base.hour, base.minute, base.second);
+                  if (cand.isAfter(base)) return cand;
+                }
+              }
+            }
+          }
+        } catch (_) {}
+        return null;
       }
+
+      // YEARLY
+      if (s.startsWith('yearly')) {
+        // simple yearly: add one year, clamping feb29
+        try {
+          final y = base.year + 1;
+          final m = base.month;
+          final lastDay = DateTime(y, m + 1, 0).day;
+          final d = base.day <= lastDay ? base.day : lastDay;
+          return DateTime(y, m, d, base.hour, base.minute, base.second);
+        } catch (_) { return null; }
+      }
+
+      return null;
     } catch (_) {
       return null;
     }
   }
+
+  // Public wrapper for tests and external callers
+  DateTime? computeNextRecurrence(DateTime base, String recurrence) => _computeNextRecurrence(base, recurrence);
 
   void _startAttentionTimer() {
     _attentionTimer = Timer(_attentionDuration, () async {
@@ -7899,6 +8099,7 @@ class _StatsPageState extends State<StatsPage> {
                         ],
                       ],
                     ),
+                    
             ),
           ],
         ),
