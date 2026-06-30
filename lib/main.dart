@@ -4106,8 +4106,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _playShortSound(String asset, {bool alert = false}) async {
     try {
       if (Platform.isAndroid) {
-        // On Android, avoid taking audio focus — use system sounds which don't stop music
-        SystemSound.play(alert ? SystemSoundType.alert : SystemSoundType.click);
+        // Try playing the bundled asset via the audio player first; on some
+        // Android setups SystemSound may not produce audible output. If the
+        // audio player fails (or interrupts music) the SystemSound fallback
+        // remains available in the catch block.
+        try {
+          await _audioPlayer.play(AssetSource(asset));
+          return;
+        } catch (_) {
+          try { SystemSound.play(alert ? SystemSoundType.alert : SystemSoundType.click); } catch (_) {}
+          return;
+        }
       } else {
         await _audioPlayer.play(AssetSource(asset));
       }
