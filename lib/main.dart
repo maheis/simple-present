@@ -1194,11 +1194,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               unawaited(_forceDebugLog('direct wrote task file: ${f.path}'));
             } catch (_) {}
           }
-          keep.add(f.path);
+          keep.add(File(f.path).absolute.path.toLowerCase());
         }
         // remove orphaned files
         try {
-          final existing = dir.listSync().whereType<File>().map((f) => f.path).toList();
+          final existing = dir
+              .listSync()
+              .whereType<File>()
+              .map((f) => File(f.path).absolute.path.toLowerCase())
+              .toList();
           for (final p in existing) {
             if (!keep.contains(p)) {
               try {
