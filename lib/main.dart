@@ -120,6 +120,20 @@ Future<void> _debugLog(String msg) async {
   } catch (_) {}
 }
 
+// Force-write debug log regardless of instance flag. Use this when the
+// instance-scoped `_debugLog` may be disabled or shadowed.
+Future<void> _forceDebugLog(String msg) async {
+  try {
+    final dir = await getApplicationDocumentsDirectory();
+    final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
+    final sub = Directory('${dir.path}/$folderName');
+    if (!await sub.exists()) await sub.create(recursive: true);
+    final f = File('${sub.path}/simplepresent_debug.log');
+    final stamp = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(DateTime.now());
+    await f.writeAsString('[$stamp] $msg\n', mode: FileMode.append);
+  } catch (_) {}
+}
+
 class SimplePresentApp extends StatelessWidget {
   const SimplePresentApp({super.key});
   @override
@@ -1147,21 +1161,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           final tmp = File('${dir.path}/$name.tmp');
           final content = encoder.convert(t.toJson());
           try {
-            await tmp.writeAsString(content);
+              await tmp.writeAsString(content);
             // Try to atomically rename the temp file to the final name.
             // Do NOT delete the destination beforehand — deleting triggers
             // explicit DELETE dispositions which OneDrive may react to.
             try {
-              // On Windows renaming over an existing file can behave
-              // differently; delete first to avoid platform-specific
+              // Delete destination first to avoid platform-specific
               // replace semantics that can lead to unexpected disposition
-              // events.
-              if (Platform.isWindows && await f.exists()) {
+              // events (observed with some cloud providers/indexers).
+              if (await f.exists()) {
                 try {
                   await f.delete();
                 } catch (_) {}
               }
               await tmp.rename(f.path);
+              unawaited(_forceDebugLog('wrote task file: ${f.path}'));
             } catch (_) {
               // If rename fails (e.g. because the destination exists or
               // the platform doesn't allow overwrite), fall back to
@@ -1170,12 +1184,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               try {
                 await f.writeAsString(content);
                 if (await tmp.exists()) await tmp.delete();
+                unawaited(_forceDebugLog('wrote task file by overwrite: ${f.path}'));
               } catch (_) {}
             }
           } catch (_) {
             // best-effort: attempt direct write
             try {
               await f.writeAsString(content);
+              unawaited(_forceDebugLog('direct wrote task file: ${f.path}'));
             } catch (_) {}
           }
           keep.add(f.path);
@@ -1187,6 +1203,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             if (!keep.contains(p)) {
               try {
                 await File(p).delete();
+                unawaited(_forceDebugLog('deleted orphaned task file: $p'));
               } catch (_) {}
             }
           }
@@ -1208,11 +1225,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               } catch (_) {}
             }
             await tmp.rename(f.path);
+            unawaited(_forceDebugLog('wrote list file: ${f.path}'));
           } catch (_) {
             // Best-effort fallback: attempt to copy contents and remove temp.
             try {
               await f.writeAsString(text);
               if (await tmp.exists()) await tmp.delete();
+              unawaited(_forceDebugLog('wrote list file by overwrite: ${f.path}'));
             } catch (_) {}
           }
       }
@@ -1984,6 +2003,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final f = await _fileFor(_storage('simplepresent_settings.json'));
         if (!await f.exists()) return;
         data = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
+        // Log where settings were loaded from and current storage override
+        unawaited(_forceDebugLog('loaded settings from: ${f.path}; storagePathOverride=${_storagePathOverride ?? ''}'));
         // Clean up legacy keys that should no longer be persisted
         var cleaned = false;
         if (data.containsKey('window')) {
