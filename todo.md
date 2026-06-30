@@ -47,6 +47,7 @@
 - [x] jsons pro task. die einzelnen listen _backlog, _done , _today, _trash sollen dann als unterordner struktur abgebildet werden.
 - [x] done setzten stoppt die stopuhr nicht mehr und setzt auch in progress nicht mehr zurück!
 - [ ] repeat
+  - [ ] optional dynamische zeit, fertigmeldung + intervall. 
   - [ ] weekly
     - [ ] 2 ?
     - [ ] 3 ?

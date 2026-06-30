@@ -1194,20 +1194,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               unawaited(_forceDebugLog('direct wrote task file: ${f.path}'));
             } catch (_) {}
           }
-          keep.add(File(f.path).absolute.path.toLowerCase());
+          // Use filename (basename) only for matching to avoid differences
+          // in absolute path representation (slashes, case, OneDrive prefixes).
+          final fname = File(f.path).uri.pathSegments.isNotEmpty
+              ? File(f.path).uri.pathSegments.last.toLowerCase()
+              : File(f.path).uri.path.toLowerCase();
+          keep.add(fname);
         }
         // remove orphaned files
         try {
-          final existing = dir
-              .listSync()
-              .whereType<File>()
-              .map((f) => File(f.path).absolute.path.toLowerCase())
-              .toList();
-          for (final p in existing) {
-            if (!keep.contains(p)) {
+          final existingFiles = dir.listSync().whereType<File>().toList();
+          for (final fileObj in existingFiles) {
+            final existingName = fileObj.uri.pathSegments.isNotEmpty
+                ? fileObj.uri.pathSegments.last.toLowerCase()
+                : fileObj.uri.path.toLowerCase();
+            if (!keep.contains(existingName)) {
               try {
-                await File(p).delete();
-                unawaited(_forceDebugLog('deleted orphaned task file: $p'));
+                await fileObj.delete();
+                unawaited(_forceDebugLog('deleted orphaned task file: ${fileObj.path}'));
               } catch (_) {}
             }
           }
