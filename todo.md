@@ -60,6 +60,8 @@
 - [ ] manchmal werden aufgaben falsch selektiert (bei kachel button move oder verschieben)
 - [ ] manchmal werden andere aufgauben auch in progress gesetzt wenn ich eine auf in progress setze (performance? müsste ein delay nach der aktion sein? beobachten konnte ich es wenn der pc ausgelastet war)
 - [x] android sollte nicht immer den fokus auf neue aufgabe legen!
+- [ ] aufgaben die ins backlog geschoben werden lösen ein "there" aus. d.h. irgendwie wird der status geändert.
+- [x] repeat aufgaben die automatisch ins today geschoben weden, legen direkt eine repeat aufgabe an! damit doppeln die aufgaben sich!
 
 ## notes
 

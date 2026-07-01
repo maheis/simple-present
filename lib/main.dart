@@ -227,6 +227,7 @@ class TaskItem {
     this.important = false,
     this.inProgress = false,
     this.recurrence,
+    this.askRepeatDateOnRecreation = false,
     this.completedAt,
     this.inProgressAt,
     this.importantAt,
@@ -255,6 +256,8 @@ class TaskItem {
   final List<TaskStep> subtasks;
   // recurrence values: 'daily', 'weekly', 'monthly' or null
   final String? recurrence;
+  // whether to ask user for repeat date when creating follow-up task
+  final bool askRepeatDateOnRecreation;
   // Stopwatch state per task
   final int
       stopwatchAccumulatedSeconds; // total seconds accumulated when not running
@@ -270,6 +273,7 @@ class TaskItem {
     bool? important,
     bool? inProgress,
     Object? recurrence = _noChange,
+    bool? askRepeatDateOnRecreation,
     Object? completedAt = _noChange,
     Object? inProgressAt = _noChange,
     Object? importantAt = _noChange,
@@ -308,6 +312,7 @@ class TaskItem {
           recurrence: identical(recurrence, _noChange)
             ? this.recurrence
             : (recurrence == null ? null : (recurrence as String)),
+      askRepeatDateOnRecreation: askRepeatDateOnRecreation ?? this.askRepeatDateOnRecreation,
       stopwatchAccumulatedSeconds:
           stopwatchAccumulatedSeconds ?? this.stopwatchAccumulatedSeconds,
       stopwatchRunning: stopwatchRunning ?? this.stopwatchRunning,
@@ -339,6 +344,7 @@ class TaskItem {
         'stopwatch_started_at': stopwatchStartedAt?.toIso8601String(),
         'work_minutes': workMinutes,
         'recurrence': recurrence,
+        'ask_repeat_date_on_recreation': askRepeatDateOnRecreation,
       };
 
   static DateTime? _parseDate(dynamic v) {
@@ -405,6 +411,7 @@ class TaskItem {
         recurrence: (map['recurrence'] ?? map['repeat'] ?? '').toString().isNotEmpty
           ? (map['recurrence'] ?? map['repeat'] ?? '').toString()
           : null,
+        askRepeatDateOnRecreation: map['ask_repeat_date_on_recreation'] == true,
     );
   }
 }
@@ -937,13 +944,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (movedToDone.isNotEmpty) {
           doneList.addAll(movedToDone.reversed);
           await _saveList(_storage('simplepresent_done.json'), doneList);
-          // Create recurrence entries for moved done tasks (they're already
-          // appended to Done via the bulk move above).
-          try {
-            for (final t in movedToDone) {
-              unawaited(_createNextRecurrenceIfNeeded(t, appendToDone: false));
-            }
-          } catch (_) {}
+          // Note: Do NOT create recurrence entries here - only when user explicitly marks done via _setDone()
         }
         await _saveList(_storage('simplepresent_today.json'), <TaskItem>[]);
       }
@@ -1085,10 +1086,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final base = task.scheduledAt ?? DateTime.now();
         final next = _computeNextRecurrence(base, rec);
         if (next != null) {
-          // Ask the user whether to accept the computed next date, choose
-          // another date, or skip creating the follow-up.
+          // Only ask user if askRepeatDateOnRecreation is enabled for this task
           DateTime chosen = next;
-          if (mounted) {
+          if (task.askRepeatDateOnRecreation && mounted) {
             try {
               final pretty = DateFormat('yyyy-MM-dd HH:mm').format(next);
               final action = await showDialog<String?>(
@@ -1166,8 +1166,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               unawaited(_appendRedoLog('create', taskId: newTask.id, details: {'text': newTask.text, 'generated_from': task.id}));
             } catch (_) {}
             // If the UI currently shows Backlog, update the in-memory view immediately
+            // Only update _today if we're actually showing the backlog file
             try {
-              if ((_currentFile == filename || _showingBacklog) && mounted) {
+              if (_showingBacklog && _currentFile == filename && mounted) {
                 setState(() {
                   _today.insert(0, newTask);
                 });
@@ -3655,6 +3656,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           ],
                         ),
                       ),
+                    const SizedBox(height: 12),
+                    CheckboxListTile(
+                      title: const Text('Ask repeat date on recreation'),
+                      value: task.askRepeatDateOnRecreation,
+                      onChanged: (v) => setState2(() => _today[index] = _today[index].copyWith(askRepeatDateOnRecreation: v ?? false)),
+                      dense: true,
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
                   ],
                 );
           }),
@@ -4149,7 +4158,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _setDone(int index, bool value) async {
     // If we're in the Done view and the user unchecks done, move the task to Backlog
     final original = _today[index];
-    if (!value && _currentFile == _storage('simplepresent_done.json')) {
+    if (!value && (_showingDone || _currentFile == _storage('simplepresent_done.json'))) {
       try {
         final restored = original.copyWith(done: false, completedAt: null);
         setState(() {
@@ -4174,7 +4183,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
 
     // If we're in the Backlog view and the user marks a task done, move it to Done list
-    if (value && _currentFile == _storage('simplepresent_backlog.json')) {
+    if (value && (_showingBacklog || _currentFile == _storage('simplepresent_backlog.json'))) {
       try {
         // stop running stopwatch for this task before moving to Done
         await _stopStopwatch(index);
@@ -4187,7 +4196,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         });
         await _saveToday(); // persist removal from backlog
         try { unawaited(_appendRedoLog('done', taskId: moved.id, details: {'text': finalTask.text})); } catch (_) {}
-        await _createNextRecurrenceIfNeeded(moved, appendToDone: true);
+        // Note: Do NOT create recurrence entries here - this is a pure list move without user "done" interaction
         _showTopToast('task moved to done');
         _playDading();
       } catch (_) {
