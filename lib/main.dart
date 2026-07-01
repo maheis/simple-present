@@ -1670,10 +1670,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   String _cloudSyncStatusTooltip() {
     if (!_cloudSyncConfigured) {
-      return 'Cloud-Sync nicht konfiguriert.';
+      return 'cloud-sync is not configured';
     }
     if (_cloudSyncBusy) {
-      return 'Synchronisierung läuft...';
+      return 'synchronization in progress...';
     }
     final lastSuccess = _cloudLastSyncSuccessAt > 0
         ? DateFormat('yyyy-MM-dd HH:mm:ss').format(
@@ -1683,16 +1683,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (_cloudSyncFailed) {
       final reason = _cloudSyncLastError.isNotEmpty
           ? _cloudSyncLastError
-          : 'Unbekannter Fehler';
+          : 'unknown error';
       if (lastSuccess != null) {
-        return 'Synchronisierung fehlgeschlagen\n$reason\nZuletzt erfolgreich: $lastSuccess';
+        return 'synchronization failed\n$reason\nlast successful: $lastSuccess';
       }
-      return 'Synchronisierung fehlgeschlagen\n$reason';
+      return 'synchronization failed\n$reason';
     }
     if (lastSuccess != null) {
-      return 'Synchronisierung ok\nZuletzt synchronisiert: $lastSuccess';
+      return 'synchronization ok\nlast synchronized: $lastSuccess';
     }
-    return 'Noch nicht synchronisiert.';
+    return 'not yet synchronized.';
   }
 
   Color _cloudSyncStatusColor(ColorScheme scheme) {
@@ -1705,11 +1705,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _manualSyncNow() async {
     if (!_cloudSyncConfigured) {
-      _showTopToast('Cloud-Sync nicht konfiguriert.');
+      _showTopToast('cloud-sync is not configured');
       return;
     }
     if (_cloudSyncBusy) {
-      _showTopToast('Synchronisierung läuft bereits...');
+      _showTopToast('synchronization in progress...');
       return;
     }
 
@@ -1723,7 +1723,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _suppressSyncToasts = true;
     try {
       // Full sync: Push ALL local lists to cloud first, then pull remote state
-      _showTopToast('Synchronisiere...');
+      _showTopToast('synchronizing...');
       
       // Step 1: Upload all local lists (today, backlog, done)
       final todayFile = _storage('simplepresent_today.json');
@@ -1756,9 +1756,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // Step 4: Reload current view to reflect all changes
       await _loadToday();
       
-      _showTopToast('Synchronisierung abgeschlossen');
+      _showTopToast('synchronization completed');
     } catch (e) {
-      _showTopToast('Synchronisierung fehlgeschlagen');
+      _showTopToast('synchronization failed');
     } finally {
       _suppressSyncToasts = false;
     }
@@ -1777,7 +1777,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (isOutdated && !_versionWarningShown) {
           _versionWarningShown = true;
           _showTopToast(
-              'Warnung: Client-Version $kClientVersion ist älter als Server-Version $health.');
+              'warning: client-version $kClientVersion is older than server-version $health.');
         }
       }
     } catch (_) {
@@ -1801,10 +1801,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _cloudArchiveLastWarnedDays != days) {
         _cloudArchiveLastWarnedDays = days;
         _showTopToast(
-            'Cloud-Hinweis: Archivierung in $days Tagen ohne Aktivität.');
+            'cloud notice: archiving in $days days without activity.');
       }
       if (showToastIfWarning && status.archived) {
-        _showTopToast('Cloud-Account ist archiviert.');
+        _showTopToast('cloud account is archived.');
       }
     } catch (_) {
       // Optionaler Status-Endpunkt, Fehler hier sollen normalen Sync nicht blockieren.
@@ -6204,7 +6204,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                               ),
                                               const SizedBox(width: 6),
                                               Tooltip(
-                                                message: 'Jetzt synchronisieren',
+                                                message: 'synchronize',
                                                 child: InkWell(
                                                   onTap:
                                                       _cloudSyncBusy ? null : _manualSyncNow,
@@ -7551,7 +7551,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Note: Cloud accounts must be used actively. Inactive accounts are automatically archived after 30 days.',
+                'note: cloud accounts must be used actively. inactive accounts are automatically archived after 30 days.',
                 style: TextStyle(fontSize: 11, color: Colors.orangeAccent),
               ),
               const SizedBox(height: 8),
