@@ -121,19 +121,7 @@ Future<void> _debugLog(String msg) async {
   } catch (_) {}
 }
 
-// Force-write debug log regardless of instance flag. Use this when the
-// instance-scoped `_debugLog` may be disabled or shadowed.
-Future<void> _forceDebugLog(String msg) async {
-  try {
-    final dir = await getApplicationDocumentsDirectory();
-    final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
-    final sub = Directory('${dir.path}/$folderName');
-    if (!await sub.exists()) await sub.create(recursive: true);
-    final f = File('${sub.path}/simplepresent_debug.log');
-    final stamp = DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(DateTime.now());
-    await f.writeAsString('[$stamp] $msg\n', mode: FileMode.append);
-  } catch (_) {}
-}
+// Force-write debug log removed. Use _debugLog() instead (respects _debugWriteLog flag)
 
 class SimplePresentApp extends StatelessWidget {
   const SimplePresentApp({super.key});
@@ -1217,22 +1205,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 } catch (_) {}
               }
               await tmp.rename(f.path);
-              unawaited(_forceDebugLog('wrote task file: ${f.path}'));
+              unawaited(_debugLog('wrote task file: ${f.path}'));
               // Small delay and verify the file exists; if not, attempt fallback
               try {
                 await Future.delayed(const Duration(milliseconds: 120));
                 if (!await f.exists()) {
-                  unawaited(_forceDebugLog('post-rename check: file missing ${f.path}; attempting fallback write'));
+                  unawaited(_debugLog('post-rename check: file missing ${f.path}; attempting fallback write'));
                   try {
                     await f.writeAsString(content);
-                    unawaited(_forceDebugLog('fallback wrote task file: ${f.path}'));
+                    unawaited(_debugLog('fallback wrote task file: ${f.path}'));
                   } catch (_) {
-                    unawaited(_forceDebugLog('fallback write failed for: ${f.path}'));
+                    unawaited(_debugLog('fallback write failed for: ${f.path}'));
                   }
                   // directory snapshot for diagnostics
                   try {
                     final names = (await dir.list().toList()).whereType<File>().map((e) => p.basename(p.normalize(e.path))).join(',');
-                    unawaited(_forceDebugLog('dir-snapshot after write: ${dir.path} -> $names'));
+                    unawaited(_debugLog('dir-snapshot after write: ${dir.path} -> $names'));
                   } catch (_) {}
                 }
               } catch (_) {}
@@ -1244,14 +1232,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               try {
                 await f.writeAsString(content);
                 if (await tmp.exists()) await tmp.delete();
-                unawaited(_forceDebugLog('wrote task file by overwrite: ${f.path}'));
+                unawaited(_debugLog('wrote task file by overwrite: ${f.path}'));
               } catch (_) {}
             }
           } catch (_) {
             // best-effort: attempt direct write
             try {
               await f.writeAsString(content);
-              unawaited(_forceDebugLog('direct wrote task file: ${f.path}'));
+              unawaited(_debugLog('direct wrote task file: ${f.path}'));
             } catch (_) {}
           }
             // Use filename (basename) only for matching to avoid differences
@@ -1267,7 +1255,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             if (!keep.contains(existingName)) {
               try {
                 await fileObj.delete();
-                unawaited(_forceDebugLog('deleted orphaned task file: ${fileObj.path}'));
+                unawaited(_debugLog('deleted orphaned task file: ${fileObj.path}'));
               } catch (_) {}
             }
           }
@@ -1289,20 +1277,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               } catch (_) {}
             }
             await tmp.rename(f.path);
-            unawaited(_forceDebugLog('wrote list file: ${f.path}'));
+            unawaited(_debugLog('wrote list file: ${f.path}'));
             try {
               await Future.delayed(const Duration(milliseconds: 120));
               if (!await f.exists()) {
-                unawaited(_forceDebugLog('post-rename check: list file missing ${f.path}; attempting fallback write'));
+                unawaited(_debugLog('post-rename check: list file missing ${f.path}; attempting fallback write'));
                 try {
                   await f.writeAsString(text);
-                  unawaited(_forceDebugLog('fallback wrote list file: ${f.path}'));
+                  unawaited(_debugLog('fallback wrote list file: ${f.path}'));
                 } catch (_) {
-                  unawaited(_forceDebugLog('fallback write failed for list file: ${f.path}'));
+                  unawaited(_debugLog('fallback write failed for list file: ${f.path}'));
                 }
                 try {
                   final names = (await (f.parent).list().toList()).whereType<File>().map((e) => p.basename(p.normalize(e.path))).join(',');
-                  unawaited(_forceDebugLog('dir-snapshot after list write: ${f.parent.path} -> $names'));
+                  unawaited(_debugLog('dir-snapshot after list write: ${f.parent.path} -> $names'));
                 } catch (_) {}
               }
             } catch (_) {}
@@ -1311,7 +1299,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             try {
               await f.writeAsString(text);
               if (await tmp.exists()) await tmp.delete();
-              unawaited(_forceDebugLog('wrote list file by overwrite: ${f.path}'));
+              unawaited(_debugLog('wrote list file by overwrite: ${f.path}'));
             } catch (_) {}
           }
       }
@@ -2119,7 +2107,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (!await f.exists()) return;
         data = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
         // Log where settings were loaded from and current storage override
-        unawaited(_forceDebugLog('loaded settings from: ${f.path}; storagePathOverride=${_storagePathOverride ?? ''}'));
+        unawaited(_debugLog('loaded settings from: ${f.path}; storagePathOverride=${_storagePathOverride ?? ''}'));
         // Clean up legacy keys that should no longer be persisted
         var cleaned = false;
         if (data.containsKey('window')) {
