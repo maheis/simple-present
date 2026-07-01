@@ -1734,8 +1734,43 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // prefers not to see transient sync toasts).
     _suppressSyncToasts = true;
     try {
+      // Full sync: Push ALL local lists to cloud first, then pull remote state
+      _showTopToast('Synchronisiere...');
+      
+      // Step 1: Upload all local lists (today, backlog, done)
+      final todayFile = _storage('simplepresent_today.json');
+      final backlogFile = _storage('simplepresent_backlog.json');
+      final doneFile = _storage('simplepresent_done.json');
+      
+      final todayList = <TaskItem>[];
+      final backlogList = <TaskItem>[];
+      final doneList = <TaskItem>[];
+      
+      await Future.wait([
+        _loadList(todayFile, todayList),
+        _loadList(backlogFile, backlogList),
+        _loadList(doneFile, doneList),
+      ]);
+      
+      // Upload all lists in parallel
+      await Future.wait([
+        _syncPushToCloud(todayFile, todayList),
+        _syncPushToCloud(backlogFile, backlogList),
+        _syncPushToCloud(doneFile, doneList),
+      ]);
+      
+      // Step 2: Pull remote state from cloud
       await _syncPullFromCloud();
+      
+      // Step 3: Fetch server version
       await _fetchServerVersion();
+      
+      // Step 4: Reload current view to reflect all changes
+      await _loadToday();
+      
+      _showTopToast('Synchronisierung abgeschlossen');
+    } catch (e) {
+      _showTopToast('Synchronisierung fehlgeschlagen');
     } finally {
       _suppressSyncToasts = false;
     }

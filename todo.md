@@ -62,7 +62,8 @@
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] manchmal werden aufgaben falsch selektiert (bei kachel button move oder verschieben)
 - [ ] manchmal werden andere aufgauben auch in progress gesetzt wenn ich eine auf in progress setze (performance? müsste ein delay nach der aktion sein? beobachten konnte ich es wenn der pc ausgelastet war)
-- [ ] sync button muss ein vollständiges synchronisieren auslösen!
+- [x] sync button muss ein vollständiges synchronisieren auslösen!
+        -> lädt jetzt alle 3 Listen hoch, zieht Remote State, reloaded UI
 
 ## notes
 
