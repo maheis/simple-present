@@ -42,10 +42,10 @@
       kleines app icon in der taks auswahl und benachrichtigung klappt auch
       app icon ist 4 eckig auf weißem grund (rund)
       jetzt ist das icon wieder vermatscht, glaube muss transparentes icon mit gößerem transparenten rand sein, damit es rund passt
-- [?] 24 Uhr move today -> backlog
+- [x] 24 Uhr move today -> backlog
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [?] android sound unterbricht musik wiedergaben...
-        -> spielt jetzt gar keinen sound mehr ab!
+- [x] android sound unterbricht musik wiedergaben...
+        -> nutzt jetzt SystemSound auf Android (unterbricht nicht, Audio-Focus-freundlich)
 - [x] repeat
   - [x] weekly
     - [x] 2
@@ -53,14 +53,14 @@
   - [x] monthly
     - [x] day of month (first, last, first weekday, last weekday...)
   - [x] yearly
-  - [x] ask next repeat date on creating follow up task (implemented)
-- [ ] repeat optional: dynamische zeit, fertigmeldung + intervall.
+  - [x] ask next repeat date on creating follow up task
+- [x] repeat optional: dynamische zeit, fertigmeldung + intervall. -> "ask next repeat" reicht!
 - [x] settings file wird nicht korrekt im ordner verwendet!
 - [x] revoked device toast kommt von unten, alle toasts von unten sollen auf die standard von oben umgebaut werden
 - [ ] manchmal werden aufgaben falsch selektiert (bei kachel button move oder verschieben)
 - [ ] manchmal werden andere aufgauben auch in progress gesetzt wenn ich eine auf in progress setze (performance? müsste ein delay nach der aktion sein? beobachten konnte ich es wenn der pc ausgelastet war)
 - [x] android sollte nicht immer den fokus auf neue aufgabe legen!
-- [ ] aufgaben die ins backlog geschoben werden lösen ein "there" aus. d.h. irgendwie wird der status geändert.
+- [x] aufgaben die ins backlog geschoben werden lösen ein "there" aus. d.h. irgendwie wird der status geändert. -> find ich eigentlich gut!
 - [x] repeat aufgaben die automatisch ins today geschoben weden, legen direkt eine repeat aufgabe an! damit doppeln die aufgaben sich!
 
 ## notes

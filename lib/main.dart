@@ -3518,6 +3518,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     int dom = DateTime.now().day;
     String weekdayMode = 'first'; // 'first' or 'last'
     int weekday = DateTime.now().weekday; // 1-7
+    bool askRepeatDateOnRecreation = task.askRepeatDateOnRecreation;
 
     if (baseRec.startsWith('daily:')) {
       final parts = baseRec.split(':');
@@ -3658,9 +3659,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       ),
                     const SizedBox(height: 12),
                     CheckboxListTile(
-                      title: const Text('Ask repeat date on recreation'),
-                      value: task.askRepeatDateOnRecreation,
-                      onChanged: (v) => setState2(() => _today[index] = _today[index].copyWith(askRepeatDateOnRecreation: v ?? false)),
+                      title: const Text('ask date on follow up creation'),
+                      value: askRepeatDateOnRecreation,
+                      onChanged: (v) => setState2(() => askRepeatDateOnRecreation = v ?? false),
                       dense: true,
                       controlAffinity: ListTileControlAffinity.leading,
                     ),
@@ -3709,7 +3710,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
 
     setState(() {
-      _today[index] = _today[index].copyWith(recurrence: newRec.isEmpty ? null : newRec);
+      _today[index] = _today[index].copyWith(
+        recurrence: newRec.isEmpty ? null : newRec,
+        askRepeatDateOnRecreation: askRepeatDateOnRecreation,
+      );
     });
     await _saveToday();
   }
@@ -4245,25 +4249,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _playShortSound(String asset, {bool alert = false}) async {
     try {
       if (Platform.isAndroid) {
-        // Try playing the bundled asset via the audio player first; on some
-        // Android setups SystemSound may not produce audible output. If the
-        // audio player fails (or interrupts music) the SystemSound fallback
-        // remains available in the catch block.
+        // On Android: use SystemSound to avoid interrupting music playback.
+        // SystemSound is a native system sound that doesn't interfere with media.
         try {
-          await _audioPlayer.play(AssetSource(asset));
-          return;
-        } catch (_) {
-          try { SystemSound.play(alert ? SystemSoundType.alert : SystemSoundType.click); } catch (_) {}
-          return;
-        }
+          SystemSound.play(alert ? SystemSoundType.alert : SystemSoundType.click);
+        } catch (_) {}
       } else {
-        await _audioPlayer.play(AssetSource(asset));
+        // On Desktop/iOS: use the audio player with the asset
+        try {
+          await _audioPlayer.setReleaseMode(ReleaseMode.stop);
+          await _audioPlayer.play(AssetSource(asset));
+        } catch (_) {
+          // Fallback to system sound if asset playback fails
+          try {
+            SystemSound.play(alert ? SystemSoundType.alert : SystemSoundType.click);
+          } catch (_) {}
+        }
       }
-    } catch (e) {
-      try {
-        SystemSound.play(alert ? SystemSoundType.alert : SystemSoundType.click);
-      } catch (_) {}
-    }
+    } catch (_) {}
   }
 
   Future<void> _removeFromToday(int index) async {
