@@ -3729,28 +3729,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return;
       }
       final item = backlogList.removeAt(index);
-      await _saveList(backlogFile, backlogList, triggerCloudSync: false);
-
-      // Insert into today's persisted list at the top
+      
+      // Prepare today list and item to move
       final todayFile = _storage('simplepresent_today.json');
-      final List<TaskItem> todayList = [];
-      await _loadList(todayFile, todayList);
-      todayList.insert(0, item.copyWith(done: false, inProgress: false));
-      await _saveList(todayFile, todayList, triggerCloudSync: false);
+      final movedItem = item.copyWith(done: false, inProgress: false);
+      
+      // Perform both saves in parallel (they operate on different files)
+      await Future.wait([
+        _saveList(backlogFile, backlogList, triggerCloudSync: false),
+        _saveList(todayFile, [..._today, movedItem], triggerCloudSync: false),
+      ]);
+
+      // Update UI immediately without reloading from disk
+      setState(() {
+        _today.insert(0, movedItem);
+      });
+      
+      _showTopToast('task moved to today');
 
       // Log move from backlog to today
       unawaited(_appendRedoLog('move_to_today', taskId: item.id, details: {'from': 'backlog', 'to': 'today'}));
 
-      // Reload the currently shown list into memory so the UI updates correctly
-      await _loadToday();
-      _showTopToast('task moved to today');
-
-      // Push both lists to cloud after local state is stable to avoid
-      // race conditions where an intermediate push could cause the
-      // server to send back an inconsistent/empty payload.
+      // Update header counts
+      unawaited(_updateListCounts());
+      
+      // Push both lists to cloud after local state is stable (run in background)
       try {
         unawaited(_syncPushToCloud(backlogFile, backlogList));
-        unawaited(_syncPushToCloud(todayFile, todayList));
+        unawaited(_syncPushToCloud(todayFile, [..._today]));
       } catch (_) {}
     } catch (_) {
       _showTopToast('failed to move task to today');
