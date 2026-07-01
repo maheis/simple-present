@@ -4277,25 +4277,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _playShortSound(String asset, {bool alert = false}) async {
     try {
-      if (Platform.isAndroid) {
-        // On Android: use SystemSound to avoid interrupting music playback.
-        // SystemSound is a native system sound that doesn't interfere with media.
-        try {
-          SystemSound.play(alert ? SystemSoundType.alert : SystemSoundType.click);
-        } catch (_) {}
-      } else {
-        // On Desktop/iOS: use the audio player with the asset
-        try {
-          await _audioPlayer.setReleaseMode(ReleaseMode.stop);
-          await _audioPlayer.play(AssetSource(asset));
-        } catch (_) {
-          // Fallback to system sound if asset playback fails
-          try {
-            SystemSound.play(alert ? SystemSoundType.alert : SystemSoundType.click);
-          } catch (_) {}
-        }
-      }
-    } catch (_) {}
+      await _debugLog('_playShortSound: starting playback of $asset (alert=$alert)');
+      await _audioPlayer.setReleaseMode(ReleaseMode.stop);
+      await _audioPlayer.play(AssetSource(asset));
+      await _debugLog('_playShortSound: playback started successfully');
+    } catch (e) {
+      await _debugLog('_playShortSound: failed - $e');
+    }
   }
 
   Future<void> _removeFromToday(int index) async {
