@@ -1155,7 +1155,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 unawaited(_updateListCounts());
               }
             } catch (_) {}
-            try { _showTopToast('Folgeaufgabe erstellt'); } catch (_) {}
+            try { _showTopToast('follow up created'); } catch (_) {}
           } else {
             final filename = _storage('simplepresent_backlog.json');
             final List<TaskItem> backlogList = [];
@@ -1175,7 +1175,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 unawaited(_updateListCounts());
               }
             } catch (_) {}
-            try { _showTopToast('Folgeaufgabe erstellt'); } catch (_) {}
+            try { _showTopToast('follow up created'); } catch (_) {}
           }
         }
       }
@@ -4797,6 +4797,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         child: FutureBuilder<void>(
           future: _initFuture,
           builder: (context, snap) {
+            // Show loading screen while initializing (syncing lists and migrating tasks)
+            if (snap.connectionState == ConnectionState.waiting) {
+              return Scaffold(
+                body: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 24),
+                      Text(
+                        'dice tasks...',
+                        style: TextStyle(fontSize: 16, fontFamily: _fontFamily),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+            
             return Scaffold(
               body: Stack(
                 children: [
