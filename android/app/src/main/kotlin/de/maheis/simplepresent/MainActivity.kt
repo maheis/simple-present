@@ -20,6 +20,7 @@ class MainActivity : FlutterActivity() {
 	private val CHANNEL_ID = "simple_present_channel"
 	private val ACTION_TASK_DONE = "be.heister.simplepresent.ACTION_TASK_DONE"
 	private val ACTION_TASK_IN_PROGRESS = "be.heister.simplepresent.ACTION_TASK_IN_PROGRESS"
+	private val ACTION_OPEN_FROM_WIDGET = "be.heister.simplepresent.ACTION_OPEN_FROM_WIDGET"
 	private val EXTRA_TASK_ID = "task_id"
 	private val EXTRA_NOTIFICATION_ID = "notification_id"
 	private val PERMISSION_REQUEST_CODE = 1001
@@ -29,6 +30,7 @@ class MainActivity : FlutterActivity() {
 	private var pendingPermissionResult: MethodChannel.Result? = null
 	private var windowChannel: MethodChannel? = null
 	private val pendingTaskActions = mutableListOf<Pair<String, String>>()
+	private val pendingOpenTaskIds = mutableListOf<String>()
 
 	override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
 		super.configureFlutterEngine(flutterEngine)
@@ -70,6 +72,7 @@ class MainActivity : FlutterActivity() {
 
 		// Cloud Sync HTTP client channel removed - not needed with proper Apache config
 		flushPendingTaskActions()
+		flushPendingOpenTasks()
 		handleIntent(intent)
 	}
 
@@ -191,11 +194,17 @@ class MainActivity : FlutterActivity() {
 		val action = intent?.action ?: return
 		if (
 			action != ACTION_TASK_DONE &&
-			action != ACTION_TASK_IN_PROGRESS
+			action != ACTION_TASK_IN_PROGRESS &&
+			action != ACTION_OPEN_FROM_WIDGET
 		) return
 
 		val taskId = intent.getStringExtra(EXTRA_TASK_ID)?.trim().orEmpty()
 		if (taskId.isEmpty()) return
+
+		if (action == ACTION_OPEN_FROM_WIDGET) {
+			dispatchOpenTask(taskId)
+			return
+		}
 
 		val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, -1)
 		if (notificationId > 0) {
@@ -247,6 +256,39 @@ class MainActivity : FlutterActivity() {
 				)
 			} catch (_: Exception) {
 				pendingTaskActions.add(item)
+			}
+		}
+	}
+
+	private fun dispatchOpenTask(taskId: String) {
+		val channel = windowChannel
+		if (channel == null) {
+			pendingOpenTaskIds.add(taskId)
+			return
+		}
+		try {
+			channel.invokeMethod(
+				"openTaskFromWidget",
+				mapOf("taskId" to taskId)
+			)
+		} catch (_: Exception) {
+			pendingOpenTaskIds.add(taskId)
+		}
+	}
+
+	private fun flushPendingOpenTasks() {
+		if (pendingOpenTaskIds.isEmpty()) return
+		val channel = windowChannel ?: return
+		val queued = pendingOpenTaskIds.toList()
+		pendingOpenTaskIds.clear()
+		for (taskId in queued) {
+			try {
+				channel.invokeMethod(
+					"openTaskFromWidget",
+					mapOf("taskId" to taskId)
+				)
+			} catch (_: Exception) {
+				pendingOpenTaskIds.add(taskId)
 			}
 		}
 	}

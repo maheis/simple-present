@@ -648,6 +648,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _debugWriteLog = false;
   final List<Map<String, String>> _pendingNotificationTaskActions =
       <Map<String, String>>[];
+  final List<String> _pendingWidgetOpenTaskIds = <String>[];
 
   final Stream<int> _loadingTickStream =
       Stream<int>.periodic(const Duration(milliseconds: 220), (x) => x);
@@ -958,22 +959,38 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
     _initializationComplete = true;
     await _processPendingNotificationTaskActions();
+    await _processPendingWidgetOpenTasks();
   }
 
   Future<void> _handleNativeWindowMethodCall(MethodCall call) async {
-    if (call.method != 'notificationTaskAction') return;
-    final args = call.arguments;
-    if (args is! Map) return;
-    final taskId = (args['taskId'] ?? '').toString().trim();
-    final action = (args['action'] ?? '').toString().trim();
-    if (taskId.isEmpty || action.isEmpty) return;
+    if (call.method == 'notificationTaskAction') {
+      final args = call.arguments;
+      if (args is! Map) return;
+      final taskId = (args['taskId'] ?? '').toString().trim();
+      final action = (args['action'] ?? '').toString().trim();
+      if (taskId.isEmpty || action.isEmpty) return;
 
-    final payload = <String, String>{'taskId': taskId, 'action': action};
-    if (!_initializationComplete) {
-      _pendingNotificationTaskActions.add(payload);
+      final payload = <String, String>{'taskId': taskId, 'action': action};
+      if (!_initializationComplete) {
+        _pendingNotificationTaskActions.add(payload);
+        return;
+      }
+      await _applyNotificationTaskAction(taskId: taskId, action: action);
       return;
     }
-    await _applyNotificationTaskAction(taskId: taskId, action: action);
+
+    if (call.method == 'openTaskFromWidget') {
+      final args = call.arguments;
+      if (args is! Map) return;
+      final taskId = (args['taskId'] ?? '').toString().trim();
+      if (taskId.isEmpty) return;
+      if (!_initializationComplete) {
+        _pendingWidgetOpenTaskIds.add(taskId);
+        return;
+      }
+      await _openTaskFromWidget(taskId);
+      return;
+    }
   }
 
   Future<void> _processPendingNotificationTaskActions() async {
@@ -986,6 +1003,73 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final action = (entry['action'] ?? '').trim();
       if (taskId.isEmpty || action.isEmpty) continue;
       await _applyNotificationTaskAction(taskId: taskId, action: action);
+    }
+  }
+
+  Future<void> _processPendingWidgetOpenTasks() async {
+    if (_pendingWidgetOpenTaskIds.isEmpty) return;
+    final pending = List<String>.from(_pendingWidgetOpenTaskIds);
+    _pendingWidgetOpenTaskIds.clear();
+    for (final taskId in pending) {
+      final id = taskId.trim();
+      if (id.isEmpty) continue;
+      await _openTaskFromWidget(id);
+    }
+  }
+
+  Future<void> _openTaskFromWidget(String taskId) async {
+    try {
+      final todayFile = _storage('simplepresent_today.json');
+      if (_currentFile != todayFile || _showingBacklog || _showingDone) {
+        await _switchFile(false);
+      } else {
+        await _loadToday();
+      }
+
+      final idx = _today.indexWhere((t) => t.id == taskId);
+      if (idx == -1) {
+        unawaited(_debugLog(
+            'widget open ignored: task not found in today ($taskId)'));
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _expanded.clear();
+        _expanded.add(taskId);
+        _editControllers.putIfAbsent(taskId, () {
+          final c = TextEditingController(text: _today[idx].text.trim());
+          c.addListener(() {
+            if (mounted) setState(() {});
+            _scheduleAutoSave(taskId);
+          });
+          return c;
+        });
+        _notesControllers.putIfAbsent(taskId, () {
+          final n = TextEditingController(text: _today[idx].notes ?? '');
+          n.addListener(() {
+            if (mounted) setState(() {});
+            _scheduleAutoSave(taskId);
+          });
+          return n;
+        });
+      });
+
+      try {
+        _stagedEditBefore.putIfAbsent(taskId, () => _today[idx].toJson());
+      } catch (_) {}
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final k = _tileKeys[taskId];
+        if (k != null && k.currentContext != null) {
+          try {
+            Scrollable.ensureVisible(k.currentContext!,
+                duration: const Duration(milliseconds: 300), alignment: 0.08);
+          } catch (_) {}
+        }
+      });
+    } catch (e) {
+      unawaited(_debugLog('widget open failed: $taskId, $e'));
     }
   }
 
