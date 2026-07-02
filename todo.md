@@ -72,7 +72,8 @@
 - [x] hübschere und fancy lade animation im loading screen
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
 - [x] burger menü alles klein
-- [ ] sort!
+- [?] sort bei öffnen von listen
+- [ ] termin im backlog < einer woche soll wochentag da stehen, termin > 1 woche soll datum stehen
 
 ## notes
 

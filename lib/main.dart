@@ -1606,24 +1606,33 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _loadToday() async {
     await _loadList(_currentFile, _today);
-    // If we're showing the Backlog, promote items that are scheduled for today
-    // to the top while preserving relative order.
+    // Apply list-specific ordering only for display when opening a list.
     try {
       if (_currentFile == _storage('simplepresent_backlog.json')) {
-        final todayDate = DateTime.now();
-        final scheduledToday = <TaskItem>[];
-        final rest = <TaskItem>[];
-        for (final t in _today) {
-          if (t.scheduledAt != null && _isSameDay(t.scheduledAt!, todayDate)) {
-            scheduledToday.add(t);
-          } else {
-            rest.add(t);
-          }
+        // Backlog: sort by scheduled date/time (earliest first).
+        // Tasks without a schedule stay after scheduled tasks.
+        // For equal keys, preserve original order to avoid visual jumping.
+        final indexed = <MapEntry<int, TaskItem>>[];
+        for (var i = 0; i < _today.length; i++) {
+          indexed.add(MapEntry(i, _today[i]));
         }
+
+        indexed.sort((a, b) {
+          final aSched = a.value.scheduledAt;
+          final bSched = b.value.scheduledAt;
+          if (aSched != null && bSched != null) {
+            final byDate = aSched.compareTo(bSched);
+            if (byDate != 0) return byDate;
+            return a.key.compareTo(b.key);
+          }
+          if (aSched != null) return -1;
+          if (bSched != null) return 1;
+          return a.key.compareTo(b.key);
+        });
+
         _today
           ..clear()
-          ..addAll(scheduledToday)
-          ..addAll(rest);
+          ..addAll(indexed.map((e) => e.value));
       } else if (_currentFile == _storage('simplepresent_done.json')) {
         // Sort done list by completion timestamp (newest first). Tasks without
         // `completedAt` are placed at the end, preserving relative order where
