@@ -598,6 +598,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String _cloudSyncLastError = '';
   int _cloudArchiveLastWarnedDays = -1;
   Timer? _cloudPullTimer;
+  bool _dailyMigrationBusy = false;
+  String? _dailyMigrationLastRunMem;
   bool _autoPromoteDueBacklogBusy = false;
   bool _cloudSyncBusy = false;
   bool _applyingCloudState = false;
@@ -637,16 +639,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _countToday = 0;
   int _countBacklog = 0;
   int _countDone = 0;
+  bool _initializationComplete = false;
+  Future<void> _storageWriteChain = Future.value();
 
   // Optional override for storage path (set via settings 'storagePath')
   String? _storagePathOverride;
   // Enable debug write logging
   bool _debugWriteLog = false;
-
-  // Startup self-heal stats for duplicate/invalid task IDs.
-  bool _collectDedupeStats = false;
-  int _startupReplacedEmptyIds = 0;
-  int _startupRemovedDuplicates = 0;
 
   final Stream<int> _loadingTickStream =
       Stream<int>.periodic(const Duration(milliseconds: 220), (x) => x);
@@ -692,6 +691,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      if (!_initializationComplete) return;
       // When the app gains focus after being in background, ensure daily
       // migration runs if we passed midnight while the app was inactive.
       unawaited(_performDailyMigrationIfNeeded());
@@ -862,6 +862,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _initializeApp() async {
+    final initStartedAt = DateTime.now();
+    const minLoadingDuration = Duration(milliseconds: 1800);
     // ensure current file respects debug mode
     _currentFile = _storage('simplepresent_today.json');
     // JSON file storage only.
@@ -872,37 +874,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _loadSettings();
     await _ensureInitialFiles();
 
-    // Self-heal list files once at startup by deduplicating task IDs.
-    // `_loadList` already dedupes in memory; we persist that normalized state.
-    try {
-      final todayFile = _storage('simplepresent_today.json');
-      final backlogFile = _storage('simplepresent_backlog.json');
-      final doneFile = _storage('simplepresent_done.json');
-      final today = <TaskItem>[];
-      final backlog = <TaskItem>[];
-      final done = <TaskItem>[];
-      _collectDedupeStats = true;
-      _startupReplacedEmptyIds = 0;
-      _startupRemovedDuplicates = 0;
-      await _loadList(todayFile, today);
-      await _loadList(backlogFile, backlog);
-      await _loadList(doneFile, done);
-      _collectDedupeStats = false;
-      await Future.wait([
-        _saveList(todayFile, today, triggerCloudSync: false),
-        _saveList(backlogFile, backlog, triggerCloudSync: false),
-        _saveList(doneFile, done, triggerCloudSync: false),
-      ]);
-      final repairedTotal =
-          _startupReplacedEmptyIds + _startupRemovedDuplicates;
-      if (repairedTotal > 0) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          _showTopToast(
-              'list repair: $repairedTotal entries fixed (${_startupRemovedDuplicates} duplicates, ${_startupReplacedEmptyIds} empty IDs)');
-        });
-      }
-    } catch (_) {}
+    // Do not rewrite all lists at startup.
+    // Startup-wide resaves can cause excessive churn on list-dir storage.
 
     // Set a sensible default size on startup (width x height).
     // On Windows place the window at the top-right edge of the primary screen.
@@ -954,23 +927,33 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     // Ensure daily migration runs now if needed, and schedule a timer for
     // the next midnight so it also runs when the app remains open overnight.
+    var ranDailyMigration = false;
     try {
-      await _performDailyMigrationIfNeeded();
+      ranDailyMigration = await _performDailyMigrationIfNeeded();
       _scheduleDailyMigrationTimer();
     } catch (_) {}
 
+    await _syncPullFromCloud();
+    // If daily migration already ran in this startup path, it already includes
+    // backlog due -> today promotion. Avoid a second immediate promotion pass.
+    if (!ranDailyMigration) {
+      await _promoteDueBacklogToToday(showToast: true);
+    }
     await _loadToday();
     // Request Android 13+ notification permission on startup via native channel.
     unawaited(_requestAndroidNotificationPermission());
     // Run cleanup of old Done tasks if enabled
     unawaited(_purgeOldDoneTasksIfEnabled());
-    await _syncPullFromCloud();
-    await _promoteDueBacklogToToday(showToast: true);
-    await _loadToday();
     unawaited(_fetchServerVersion());
     _startCloudPullTimer();
     // Start dynamic inactivity timers according to loaded settings
     _startInactivityTimers();
+
+    final elapsed = DateTime.now().difference(initStartedAt);
+    if (elapsed < minLoadingDuration) {
+      await Future.delayed(minLoadingDuration - elapsed);
+    }
+    _initializationComplete = true;
   }
 
   Future<void> _requestAndroidNotificationPermission() async {
@@ -1021,7 +1004,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       final seen = <String>{};
       int replacedIds = 0;
-      int removedDuplicates = 0;
+      int reassignedDuplicates = 0;
       final normalized = <TaskItem>[];
 
       for (final t in list) {
@@ -1032,29 +1015,44 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           replacedIds++;
         }
         if (seen.contains(id)) {
-          removedDuplicates++;
-          continue;
+          // Keep the item but reassign ID instead of dropping data.
+          id =
+              '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+          while (seen.contains(id)) {
+            id =
+                '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+          }
+          reassignedDuplicates++;
         }
         seen.add(id);
         normalized.add(id == t.id ? t : t.copyWith(id: id));
       }
 
-      if (replacedIds > 0 || removedDuplicates > 0) {
+      if (replacedIds > 0 || reassignedDuplicates > 0) {
         list
           ..clear()
           ..addAll(normalized);
-        if (_collectDedupeStats) {
-          _startupReplacedEmptyIds += replacedIds;
-          _startupRemovedDuplicates += removedDuplicates;
-        }
         unawaited(_debugLog(
-            'dedupe on load for $sourceName: replaced_empty_ids=$replacedIds, removed_duplicates=$removedDuplicates'));
+            'dedupe on load for $sourceName: replaced_empty_ids=$replacedIds, reassigned_duplicate_ids=$reassignedDuplicates'));
       }
     } catch (_) {}
   }
 
-  Future<void> _performDailyMigrationIfNeeded() async {
+  Future<bool> _performDailyMigrationIfNeeded() async {
+    if (_dailyMigrationBusy) {
+      unawaited(_debugLog('daily migration skipped: busy'));
+      return false;
+    }
+    final todayKey = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    if (_dailyMigrationLastRunMem == todayKey) {
+      unawaited(_debugLog(
+          'daily migration skipped: in-memory already ran ($todayKey)'));
+      return false;
+    }
+    _dailyMigrationBusy = true;
+    var didRun = false;
     try {
+      unawaited(_debugLog('daily migration started: $todayKey'));
       Map<String, dynamic> settings = {};
       try {
         if (_useSqlite) {
@@ -1076,9 +1074,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       } catch (_) {
         settings = {};
       }
-      final todayKey = DateFormat('yyyy-MM-dd').format(DateTime.now());
       final lastRun = settings['lastRunDate'] as String?;
-      if (lastRun == todayKey) return;
+      if (lastRun == todayKey) {
+        _dailyMigrationLastRunMem = todayKey;
+        unawaited(_debugLog(
+            'daily migration skipped: settings already ran ($todayKey)'));
+        return false;
+      }
+
+      // Run this migration at most once per app session/day, even if writing
+      // settings fails later. This prevents repeated today->backlog clears.
+      _dailyMigrationLastRunMem = todayKey;
+      didRun = true;
 
       // First run today -> migrate open tasks from today -> backlog
       final List<TaskItem> todayList = [];
@@ -1110,6 +1117,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         await _saveList(_storage('simplepresent_today.json'), <TaskItem>[]);
       }
 
+      // Move tasks that are already marked done from Backlog to Done.
+      try {
+        final backlogList = <TaskItem>[];
+        await _loadList(_storage('simplepresent_backlog.json'), backlogList);
+        final doneFromBacklog = backlogList.where((t) => t.done).toList();
+        if (doneFromBacklog.isNotEmpty) {
+          backlogList.removeWhere((t) => t.done);
+          final doneList = <TaskItem>[];
+          await _loadList(_storage('simplepresent_done.json'), doneList);
+          doneList.insertAll(0, doneFromBacklog);
+          await Future.wait([
+            _saveList(_storage('simplepresent_backlog.json'), backlogList,
+                triggerCloudSync: false),
+            _saveList(_storage('simplepresent_done.json'), doneList,
+                triggerCloudSync: false),
+          ]);
+          unawaited(_debugLog(
+              'daily migration backlog cleanup: movedDoneFromBacklog=${doneFromBacklog.length}'));
+        }
+      } catch (_) {}
+
       // Promote backlog tasks that are due (today or overdue) into Today.
       await _promoteDueBacklogToToday(showToast: true);
 
@@ -1138,11 +1166,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _showTopToast(parts.join(', '));
         }
       });
-    } catch (_) {}
+      unawaited(_debugLog(
+          'daily migration finished: movedToBacklog=$movedToBacklogCount, movedToDone=${movedToDone.length}'));
+      return true;
+    } catch (_) {
+      return didRun;
+    } finally {
+      _dailyMigrationBusy = false;
+    }
   }
 
   Future<int> _promoteDueBacklogToToday({bool showToast = false}) async {
-    if (_autoPromoteDueBacklogBusy) return 0;
+    if (_autoPromoteDueBacklogBusy) {
+      unawaited(_debugLog('promote due backlog skipped: busy'));
+      return 0;
+    }
     _autoPromoteDueBacklogBusy = true;
     try {
       final backlogFile = _storage('simplepresent_backlog.json');
@@ -1172,7 +1210,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return true;
       });
 
-      if (!changed) return 0;
+      if (!changed) {
+        unawaited(_debugLog('promote due backlog: nothing to move'));
+        return 0;
+      }
 
       if (promote.isNotEmpty) {
         todayList.insertAll(0, promote);
@@ -1199,6 +1240,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               '${promote.length} task(s) moved from backlog to today');
         });
       }
+
+      unawaited(_debugLog(
+          'promote due backlog finished: moved=${promote.length}, backlog=${backlogList.length}, today=${todayList.length}'));
 
       return promote.length;
     } catch (_) {
@@ -1415,156 +1459,149 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _saveList(String filename, List<TaskItem> source,
       {bool triggerCloudSync = true}) async {
-    try {
-      final encoder = const JsonEncoder.withIndent('  ');
-      if (_useSqlite) {
-        _sqliteStorage.writeTaskList(
-          filename,
-          source.map((e) => e.toJson()).toList(),
-        );
-      } else if (_isListDir(filename)) {
-        final dir =
-            Directory('${(await _appDir).path}/${_listDirBase(filename)}');
-        if (!await dir.exists()) await dir.create(recursive: true);
-        // write each task as its own file with index prefix to preserve order
-        final Set<String> keep = {};
-        for (var i = 0; i < source.length; i++) {
-          final t = source[i];
-          final name = '${i.toString().padLeft(8, '0')}_${t.id}.json';
-          final f = File('${dir.path}/$name');
-          final tmp = File('${dir.path}/$name.tmp');
-          final content = encoder.convert(t.toJson());
-          try {
-            await tmp.writeAsString(content);
-            // Try to atomically rename the temp file to the final name.
-            // Do NOT delete the destination beforehand — deleting triggers
-            // explicit DELETE dispositions which OneDrive may react to.
+    await (_storageWriteChain =
+        _storageWriteChain.catchError((_) {}).then((_) async {
+      try {
+        final encoder = const JsonEncoder.withIndent('  ');
+        if (_useSqlite) {
+          _sqliteStorage.writeTaskList(
+            filename,
+            source.map((e) => e.toJson()).toList(),
+          );
+        } else if (_isListDir(filename)) {
+          final dir =
+              Directory('${(await _appDir).path}/${_listDirBase(filename)}');
+          if (!await dir.exists()) await dir.create(recursive: true);
+          // write each task as its own file with index prefix to preserve order
+          final Set<String> keep = {};
+          for (var i = 0; i < source.length; i++) {
+            final t = source[i];
+            final name = '${i.toString().padLeft(8, '0')}_${t.id}.json';
+            final f = File('${dir.path}/$name');
+            final tmp = File('${dir.path}/$name.tmp');
+            final content = encoder.convert(t.toJson());
             try {
-              // Delete destination first to avoid platform-specific
-              // replace semantics that can lead to unexpected disposition
-              // events (observed with some cloud providers/indexers).
-              if (await f.exists()) {
+              await tmp.writeAsString(content);
+              // Try to atomically rename the temp file to the final name.
+              // Do NOT delete the destination beforehand — deleting triggers
+              // explicit DELETE dispositions which OneDrive may react to.
+              try {
+                await tmp.rename(f.path);
+                unawaited(_debugLog('wrote task file: ${f.path}'));
+                // Small delay and verify the file exists; if not, attempt fallback
                 try {
-                  await f.delete();
+                  await Future.delayed(const Duration(milliseconds: 120));
+                  if (!await f.exists()) {
+                    unawaited(_debugLog(
+                        'post-rename check: file missing ${f.path}; attempting fallback write'));
+                    try {
+                      await f.writeAsString(content);
+                      unawaited(
+                          _debugLog('fallback wrote task file: ${f.path}'));
+                    } catch (_) {
+                      unawaited(
+                          _debugLog('fallback write failed for: ${f.path}'));
+                    }
+                    // directory snapshot for diagnostics
+                    try {
+                      final names = (await dir.list().toList())
+                          .whereType<File>()
+                          .map((e) => p.basename(p.normalize(e.path)))
+                          .join(',');
+                      unawaited(_debugLog(
+                          'dir-snapshot after write: ${dir.path} -> $names'));
+                    } catch (_) {}
+                  }
+                } catch (_) {}
+              } catch (_) {
+                // If rename fails (e.g. because the destination exists or
+                // the platform doesn't allow overwrite), fall back to
+                // overwriting the destination file in place to avoid a
+                // separate delete event that OneDrive could act upon.
+                try {
+                  await f.writeAsString(content);
+                  if (await tmp.exists()) await tmp.delete();
+                  unawaited(
+                      _debugLog('wrote task file by overwrite: ${f.path}'));
                 } catch (_) {}
               }
-              await tmp.rename(f.path);
-              unawaited(_debugLog('wrote task file: ${f.path}'));
-              // Small delay and verify the file exists; if not, attempt fallback
-              try {
-                await Future.delayed(const Duration(milliseconds: 120));
-                if (!await f.exists()) {
-                  unawaited(_debugLog(
-                      'post-rename check: file missing ${f.path}; attempting fallback write'));
-                  try {
-                    await f.writeAsString(content);
-                    unawaited(_debugLog('fallback wrote task file: ${f.path}'));
-                  } catch (_) {
-                    unawaited(
-                        _debugLog('fallback write failed for: ${f.path}'));
-                  }
-                  // directory snapshot for diagnostics
-                  try {
-                    final names = (await dir.list().toList())
-                        .whereType<File>()
-                        .map((e) => p.basename(p.normalize(e.path)))
-                        .join(',');
-                    unawaited(_debugLog(
-                        'dir-snapshot after write: ${dir.path} -> $names'));
-                  } catch (_) {}
-                }
-              } catch (_) {}
             } catch (_) {
-              // If rename fails (e.g. because the destination exists or
-              // the platform doesn't allow overwrite), fall back to
-              // overwriting the destination file in place to avoid a
-              // separate delete event that OneDrive could act upon.
+              // best-effort: attempt direct write
               try {
                 await f.writeAsString(content);
-                if (await tmp.exists()) await tmp.delete();
-                unawaited(_debugLog('wrote task file by overwrite: ${f.path}'));
+                unawaited(_debugLog('direct wrote task file: ${f.path}'));
               } catch (_) {}
             }
-          } catch (_) {
-            // best-effort: attempt direct write
-            try {
-              await f.writeAsString(content);
-              unawaited(_debugLog('direct wrote task file: ${f.path}'));
-            } catch (_) {}
+            // Use filename (basename) only for matching to avoid differences
+            // in absolute path representation (slashes, case, OneDrive prefixes).
+            final fname = p.basename(p.normalize(f.path)).toLowerCase();
+            keep.add(fname);
           }
-          // Use filename (basename) only for matching to avoid differences
-          // in absolute path representation (slashes, case, OneDrive prefixes).
-          final fname = p.basename(p.normalize(f.path)).toLowerCase();
-          keep.add(fname);
-        }
-        // remove orphaned files
-        try {
-          final existingFiles = dir.listSync().whereType<File>().toList();
-          for (final fileObj in existingFiles) {
-            final existingName =
-                p.basename(p.normalize(fileObj.path)).toLowerCase();
-            if (!keep.contains(existingName)) {
-              try {
-                await fileObj.delete();
-                unawaited(
-                    _debugLog('deleted orphaned task file: ${fileObj.path}'));
-              } catch (_) {}
-            }
-          }
-        } catch (_) {}
-      } else {
-        final text = encoder.convert(source.map((e) => e.toJson()).toList());
-        final f = await _fileFor(filename);
-        // Write to a temporary file first and then rename to the final file
-        // to avoid leaving a truncated/empty file if the process is killed
-        // or the write is interrupted (observed on Windows clients).
-        final tmp = File('${f.path}.tmp');
-        await tmp.writeAsString(text);
-        try {
-          // On some platforms renaming over an existing file can fail,
-          // so remove the destination first if it exists.
-          if (await f.exists()) {
-            try {
-              await f.delete();
-            } catch (_) {}
-          }
-          await tmp.rename(f.path);
-          unawaited(_debugLog('wrote list file: ${f.path}'));
+          // remove orphaned files
           try {
-            await Future.delayed(const Duration(milliseconds: 120));
-            if (!await f.exists()) {
-              unawaited(_debugLog(
-                  'post-rename check: list file missing ${f.path}; attempting fallback write'));
-              try {
-                await f.writeAsString(text);
-                unawaited(_debugLog('fallback wrote list file: ${f.path}'));
-              } catch (_) {
-                unawaited(_debugLog(
-                    'fallback write failed for list file: ${f.path}'));
+            final existingFiles = dir.listSync().whereType<File>().toList();
+            for (final fileObj in existingFiles) {
+              final existingName =
+                  p.basename(p.normalize(fileObj.path)).toLowerCase();
+              if (!keep.contains(existingName)) {
+                try {
+                  await fileObj.delete();
+                  unawaited(
+                      _debugLog('deleted orphaned task file: ${fileObj.path}'));
+                } catch (_) {}
               }
-              try {
-                final names = (await (f.parent).list().toList())
-                    .whereType<File>()
-                    .map((e) => p.basename(p.normalize(e.path)))
-                    .join(',');
-                unawaited(_debugLog(
-                    'dir-snapshot after list write: ${f.parent.path} -> $names'));
-              } catch (_) {}
             }
           } catch (_) {}
-        } catch (_) {
-          // Best-effort fallback: attempt to copy contents and remove temp.
+        } else {
+          final text = encoder.convert(source.map((e) => e.toJson()).toList());
+          final f = await _fileFor(filename);
+          // Write to a temporary file first and then rename to the final file
+          // to avoid leaving a truncated/empty file if the process is killed
+          // or the write is interrupted (observed on Windows clients).
+          final tmp = File('${f.path}.tmp');
+          await tmp.writeAsString(text);
           try {
-            await f.writeAsString(text);
-            if (await tmp.exists()) await tmp.delete();
-            unawaited(_debugLog('wrote list file by overwrite: ${f.path}'));
-          } catch (_) {}
+            // Avoid explicit delete before replace to reduce delete-churn
+            // in synced folders.
+            await tmp.rename(f.path);
+            unawaited(_debugLog('wrote list file: ${f.path}'));
+            try {
+              await Future.delayed(const Duration(milliseconds: 120));
+              if (!await f.exists()) {
+                unawaited(_debugLog(
+                    'post-rename check: list file missing ${f.path}; attempting fallback write'));
+                try {
+                  await f.writeAsString(text);
+                  unawaited(_debugLog('fallback wrote list file: ${f.path}'));
+                } catch (_) {
+                  unawaited(_debugLog(
+                      'fallback write failed for list file: ${f.path}'));
+                }
+                try {
+                  final names = (await (f.parent).list().toList())
+                      .whereType<File>()
+                      .map((e) => p.basename(p.normalize(e.path)))
+                      .join(',');
+                  unawaited(_debugLog(
+                      'dir-snapshot after list write: ${f.parent.path} -> $names'));
+                } catch (_) {}
+              }
+            } catch (_) {}
+          } catch (_) {
+            // Best-effort fallback: attempt to copy contents and remove temp.
+            try {
+              await f.writeAsString(text);
+              if (await tmp.exists()) await tmp.delete();
+              unawaited(_debugLog('wrote list file by overwrite: ${f.path}'));
+            } catch (_) {}
+          }
         }
-      }
-      if (triggerCloudSync) {
-        unawaited(_syncPushToCloud(filename, source));
-      }
-    } catch (_) {}
+        if (triggerCloudSync) {
+          unawaited(_syncPushToCloud(filename, source));
+        }
+      } catch (_) {}
+    }));
+    await _storageWriteChain;
   }
 
   Future<void> _loadToday() async {
@@ -2775,6 +2812,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _scheduledCheckTimer?.cancel();
     _scheduledCheckTimer =
         Timer.periodic(const Duration(seconds: 30), (timer) async {
+      if (!_initializationComplete) return;
       await _promoteDueBacklogToToday(showToast: false);
       final now = DateTime.now();
       for (final t in _today) {
