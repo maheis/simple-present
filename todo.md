@@ -80,7 +80,7 @@
   - [x] keine actions
   - [x] breite soll kleiner gemacht werden können (aktuell geht nur breiter, nicht schmaler als 3 kacheln))
   - [x] oben links icon und überschrift
-  - [ ] transparentes widget, damit es sich in den hintergrund einfügt
+  - [x] transparentes widget (60% hintergrundstransparenz), damit es sich in den hintergrund einfügt
 
 ## notes
 
