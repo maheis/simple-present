@@ -173,14 +173,14 @@ private class TodayWidgetFactory(
                     null
                 }
             }
+        }
+    }
 
-            private fun fontResIdForFamily(family: String, bold: Boolean): Int {
-                return when (family) {
-                    "NotoSans" -> if (bold) R.font.noto_sans_bold else R.font.noto_sans_regular
-                    "CourierPrime" -> if (bold) R.font.courier_prime_bold else R.font.courier_prime_regular
-                    else -> if (bold) R.font.open_dyslexic_bold else R.font.open_dyslexic_regular
-                }
-            }
+    private fun fontResIdForFamily(family: String, bold: Boolean): Int {
+        return when (family) {
+            "NotoSans" -> if (bold) R.font.noto_sans_bold else R.font.noto_sans_regular
+            "CourierPrime" -> if (bold) R.font.courier_prime_bold else R.font.courier_prime_regular
+            else -> if (bold) R.font.open_dyslexic_bold else R.font.open_dyslexic_regular
         }
     }
 
