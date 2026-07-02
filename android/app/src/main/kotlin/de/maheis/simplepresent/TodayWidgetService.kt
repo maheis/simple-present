@@ -20,6 +20,10 @@ private data class WidgetTask(
     val text: String,
     val done: Boolean,
     val inProgress: Boolean,
+    val important: Boolean,
+    val scheduledAtMs: Long?,
+    val inProgressAtMs: Long?,
+    val loadIndex: Int,
 )
 
 private class TodayWidgetFactory(
@@ -98,6 +102,7 @@ private class TodayWidgetFactory(
         if (!todayDir.exists() || !todayDir.isDirectory) return
 
         val files = todayDir.listFiles()?.sortedBy { it.name } ?: return
+        var index = 0
         for (file in files) {
             if (!file.isFile || !file.name.endsWith(".json")) continue
             try {
@@ -108,10 +113,133 @@ private class TodayWidgetFactory(
                 val done = obj.optBoolean("done", false)
                 if (done) continue
                 val inProgress = obj.optBoolean("inProgress", false)
-                items.add(WidgetTask(id = id, text = text, done = done, inProgress = inProgress))
+                val important = obj.optBoolean("important", false)
+                val scheduledRaw = obj.optString("scheduled_at", obj.optString("scheduledAt", ""))
+                val inProgressAtRaw = obj.optString("in_progress_at", obj.optString("inProgressAt", ""))
+                val scheduledAtMs = parseIsoMillis(scheduledRaw)
+                val inProgressAtMs = parseIsoMillis(inProgressAtRaw)
+                items.add(
+                    WidgetTask(
+                        id = id,
+                        text = text,
+                        done = done,
+                        inProgress = inProgress,
+                        important = important,
+                        scheduledAtMs = scheduledAtMs,
+                        inProgressAtMs = inProgressAtMs,
+                        loadIndex = index,
+                    )
+                )
+                index++
             } catch (_: Exception) {
             }
-            if (items.size >= 25) break
         }
+
+        sortLikeApp(items)
+        if (items.size > 25) {
+            items.subList(25, items.size).clear()
+        }
+    }
+
+    private fun parseIsoMillis(raw: String?): Long? {
+        val text = raw?.trim().orEmpty()
+        if (text.isEmpty()) return null
+        return try {
+            java.time.Instant.parse(text).toEpochMilli()
+        } catch (_: Exception) {
+            try {
+                java.time.OffsetDateTime.parse(text).toInstant().toEpochMilli()
+            } catch (_: Exception) {
+                try {
+                    java.time.LocalDateTime.parse(text)
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .toInstant()
+                        .toEpochMilli()
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        }
+    }
+
+    private fun sortLikeApp(list: MutableList<WidgetTask>) {
+        val now = System.currentTimeMillis()
+
+        val bucketImportantInProgress = mutableListOf<WidgetTask>()
+        val bucketInProgressScheduledPast = mutableListOf<WidgetTask>()
+        val bucketInProgressNoSchedule = mutableListOf<WidgetTask>()
+        val bucketInProgressScheduledFuture = mutableListOf<WidgetTask>()
+        val bucketImportant = mutableListOf<WidgetTask>()
+        val bucketScheduledPast = mutableListOf<WidgetTask>()
+        val bucketDueIn1h = mutableListOf<WidgetTask>()
+        val bucketRest = mutableListOf<WidgetTask>()
+        val bucketScheduledFuture = mutableListOf<WidgetTask>()
+
+        for (t in list) {
+            val sched = t.scheduledAtMs
+            val hasSchedule = sched != null
+            val diff = if (sched != null) sched - now else null
+            val isOverdue = hasSchedule && diff!! < 0
+            val dueWithin1h = hasSchedule && diff!! >= 0 && diff <= 60L * 60L * 1000L
+            val isScheduledFuture = hasSchedule && !isOverdue && !dueWithin1h
+
+            if (t.inProgress) {
+                if (t.important) {
+                    bucketImportantInProgress.add(t)
+                } else if (isOverdue) {
+                    bucketInProgressScheduledPast.add(t)
+                } else if (isScheduledFuture) {
+                    bucketInProgressScheduledFuture.add(t)
+                } else {
+                    bucketInProgressNoSchedule.add(t)
+                }
+                continue
+            }
+
+            if (t.important) {
+                bucketImportant.add(t)
+                continue
+            }
+            if (isOverdue) {
+                bucketScheduledPast.add(t)
+                continue
+            }
+            if (dueWithin1h) {
+                bucketDueIn1h.add(t)
+                continue
+            }
+            if (isScheduledFuture) {
+                bucketScheduledFuture.add(t)
+                continue
+            }
+            bucketRest.add(t)
+        }
+
+        fun inProgressKey(t: WidgetTask): Long = t.inProgressAtMs ?: 0L
+        bucketImportantInProgress.sortWith(compareByDescending<WidgetTask> { inProgressKey(it) }.thenBy { it.loadIndex })
+        bucketInProgressScheduledPast.sortWith(compareByDescending<WidgetTask> { inProgressKey(it) }.thenBy { it.loadIndex })
+        bucketInProgressNoSchedule.sortWith(compareByDescending<WidgetTask> { inProgressKey(it) }.thenBy { it.loadIndex })
+        bucketInProgressScheduledFuture.sortWith(compareByDescending<WidgetTask> { inProgressKey(it) }.thenBy { it.loadIndex })
+
+        bucketScheduledPast.sortWith(compareByDescending<WidgetTask> { it.scheduledAtMs ?: 0L }.thenBy { it.loadIndex })
+        bucketDueIn1h.sortWith(compareBy<WidgetTask> { it.scheduledAtMs ?: 0L }.thenBy { it.loadIndex })
+        bucketScheduledFuture.sortWith(compareBy<WidgetTask> { it.scheduledAtMs ?: 0L }.thenBy { it.loadIndex })
+
+        val ordered = mutableListOf<WidgetTask>()
+        ordered.addAll(bucketImportantInProgress)
+        ordered.addAll(bucketInProgressScheduledPast)
+        ordered.addAll(bucketInProgressNoSchedule)
+        ordered.addAll(bucketInProgressScheduledFuture)
+        ordered.addAll(bucketImportant)
+        ordered.addAll(bucketScheduledPast)
+        ordered.addAll(bucketDueIn1h)
+        ordered.addAll(bucketRest)
+        ordered.addAll(bucketScheduledFuture)
+
+        val inProgressFirst = ordered.filter { it.inProgress && !it.done }
+        val restFinal = ordered.filter { !(it.inProgress && !it.done) }
+        list.clear()
+        list.addAll(inProgressFirst)
+        list.addAll(restFinal)
     }
 }

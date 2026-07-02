@@ -84,7 +84,7 @@
   - [x] schrift
   - [x] widget übernimmt konfigurierte app-schrift
   - [x] radio-button
-  - [ ] sortierreihenfolge wie in der app!
+  - [x] sortierreihenfolge wie in der app!
 
 ## notes
 
