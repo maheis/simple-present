@@ -5519,7 +5519,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Image.asset(
-                              'assets/icons/color_transparent_today.png',
+                              'assets/icons/color_transparent_icon.png',
                               width: 28,
                               height: 28,
                             ),

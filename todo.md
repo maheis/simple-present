@@ -29,6 +29,15 @@
 - [x] android sollte nicht immer den fokus auf neue aufgabe legen!
 - [x] aufgaben die ins backlog geschoben werden lösen ein "there" aus. d.h. irgendwie wird der status geändert. -> find ich eigentlich gut!
 - [x] repeat aufgaben die automatisch ins today geschoben weden, legen direkt eine repeat aufgabe an! damit doppeln die aufgaben sich!
+- [x] Windows Zertifikat für exe?!
+- [x] sync button muss ein vollständiges synchronisieren auslösen!
+        -> lädt jetzt alle 3 Listen hoch, zieht Remote State, reloaded UI
+- [x] aufgaben die im backlog in der vergangenheit liegen, sollen automatisch ins today verschoben werden, wenn sie noch nicht erledigt sind!
+- [x] andoid statt localhost als geräte namen!
+- [x] hübschere und fancy lade animation im loading screen
+- [x] burger menü alles klein
+- [x] termin im backlog < einer woche soll wochentag da stehen, termin > 1 woche soll datum stehen
+- [x] icon im loding screen auf icon.png umstellen
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Windows Store Veröffentlichung (.notes/WINDOWS_APP_STORE.md)
 - [ ] Worklog an Aufgaben...
@@ -53,27 +62,20 @@
 - [ ] papierkorb:
         schiebt sync in den papierkorb?
         papierkorb sichtbar machen (um wiederherstellen zu können)
-- [x] Windows Zertifikat für exe?!
 - [ ] install server soll updaten können
 - [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
       notification funktioniert mit weißen icon.[text](about:blank#blocked)
       kleines app icon in der taks auswahl und benachrichtigung klappt auch
       app icon ist 4 eckig auf weißem grund (rund)
       jetzt ist das icon wieder vermatscht, glaube muss transparentes icon mit gößerem transparenten rand sein, damit es rund passt
-- [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
+- [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
+- [ ] SimplePresent -> simple present | dateinamen: simple-present
 - [??] manchmal werden aufgaben falsch selektiert (bei kachel button move oder verschieben)
 - [??] manchmal werden andere aufgauben auch in progress gesetzt wenn ich eine auf in progress setze (performance? müsste ein delay nach der aktion sein? beobachten konnte ich es wenn der pc ausgelastet war)
 - [??] backlog wird manchmal komplett zu today
 - [??] today manchmal leer, ziemlich wired grade!
-- [x] sync button muss ein vollständiges synchronisieren auslösen!
-        -> lädt jetzt alle 3 Listen hoch, zieht Remote State, reloaded UI
-- [x] aufgaben die im backlog in der vergangenheit liegen, sollen automatisch ins today verschoben werden, wenn sie noch nicht erledigt sind!
-- [x] andoid statt localhost als geräte namen!
-- [x] hübschere und fancy lade animation im loading screen
-- [ ] SimplePresent -> simple present | dateinamen: simple-present
-- [x] burger menü alles klein
 - [?] sort bei öffnen von listen
-- [x] termin im backlog < einer woche soll wochentag da stehen, termin > 1 woche soll datum stehen
+- [ ] android: widget
 
 ## notes
 
