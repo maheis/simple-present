@@ -33,8 +33,9 @@ class MainActivity : FlutterActivity() {
 	override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
 		super.configureFlutterEngine(flutterEngine)
 
-		windowChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "simple_present/window")
-		windowChannel
+		val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "simple_present/window")
+		windowChannel = channel
+		channel
 			.setMethodCallHandler { call: MethodCall, result ->
 				when (call.method) {
 					"notify" -> {

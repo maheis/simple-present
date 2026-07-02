@@ -2,6 +2,7 @@ package be.heister.simplepresent
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
@@ -85,7 +86,11 @@ private class TodayWidgetFactory(
     private fun loadData() {
         items.clear()
         val appFlutter = File(context.filesDir.parentFile, "app_flutter")
-        val folderName = if (BuildConfig.DEBUG) "simplepresent-debug" else "simplepresent"
+        val folderName = if ((context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            "simplepresent-debug"
+        } else {
+            "simplepresent"
+        }
         val todayDir = File(File(appFlutter, folderName), "today")
         if (!todayDir.exists() || !todayDir.isDirectory) return
 
