@@ -1322,6 +1322,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
+  String _formatBacklogScheduleLabel(DateTime scheduledAt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(scheduledAt.year, scheduledAt.month, scheduledAt.day);
+    final dayDiff = day.difference(today).inDays.abs();
+
+    if (_isSameDay(day, today.subtract(const Duration(days: 1)))) {
+      return 'yesterday';
+    }
+    if (_isSameDay(day, today)) {
+      return 'today';
+    }
+    if (dayDiff < 7) {
+      return DateFormat('EEEE').format(scheduledAt);
+    }
+    return DateFormat('dd.MM.yyyy').format(scheduledAt);
+  }
+
   Future<void> _appendDone(List<TaskItem> items) async {
     if (items.isEmpty) return;
     try {
@@ -6658,7 +6676,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                                     // Show full date in Backlog, or in Today when the scheduled date is not today and is in the past
                                                                                     if (_showingBacklog || _currentFile == _storage('simplepresent_backlog.json') || (task.scheduledAt != null && !_isSameDay(task.scheduledAt!, DateTime.now()) && task.scheduledAt!.isBefore(DateTime.now())))
                                                                                       Text(
-                                                                                        (task.scheduledAt != null && _isSameDay(task.scheduledAt!, DateTime.now().subtract(Duration(days: 1)))) ? 'yesterday' : DateFormat('EEEE').format(task.scheduledAt!),
+                                                                                        (_showingBacklog || _currentFile == _storage('simplepresent_backlog.json')) ? _formatBacklogScheduleLabel(task.scheduledAt!) : (_isSameDay(task.scheduledAt!, DateTime.now().subtract(const Duration(days: 1))) ? 'yesterday' : DateFormat('EEEE').format(task.scheduledAt!)),
                                                                                         style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
                                                                                       ),
                                                                                   ],

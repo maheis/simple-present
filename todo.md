@@ -73,7 +73,7 @@
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
 - [x] burger menü alles klein
 - [?] sort bei öffnen von listen
-- [ ] termin im backlog < einer woche soll wochentag da stehen, termin > 1 woche soll datum stehen
+- [x] termin im backlog < einer woche soll wochentag da stehen, termin > 1 woche soll datum stehen
 
 ## notes
 
