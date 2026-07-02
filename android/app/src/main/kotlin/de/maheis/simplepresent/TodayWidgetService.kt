@@ -74,24 +74,12 @@ private class TodayWidgetFactory(
                 bold = false,
             )
         )
-        views.setImageViewResource(
-            R.id.widget_action_radio,
-            if (task.inProgress) R.drawable.widget_radio_in_progress else R.drawable.widget_radio_off
-        )
-
-        val nextAction = if (task.inProgress) "done" else "in_progress"
-        val radioIntent = Intent().apply {
-            action = "be.heister.simplepresent.ACTION_WIDGET_TASK_TOGGLE"
-            putExtra("task_id", task.id)
-            putExtra("task_action", nextAction)
-        }
-        views.setOnClickFillInIntent(R.id.widget_action_radio, radioIntent)
 
         val openIntent = Intent().apply {
             action = "be.heister.simplepresent.ACTION_OPEN_FROM_WIDGET"
             putExtra("task_id", task.id)
         }
-        views.setOnClickFillInIntent(R.id.widget_task_text, openIntent)
+        views.setOnClickFillInIntent(R.id.widget_item_root, openIntent)
         return views
     }
 
