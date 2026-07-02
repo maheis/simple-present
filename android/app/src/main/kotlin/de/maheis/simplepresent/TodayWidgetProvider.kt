@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.net.Uri
 import android.widget.RemoteViews
 
@@ -38,6 +39,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
     companion object {
         const val ACTION_REFRESH_WIDGET = "be.heister.simplepresent.ACTION_REFRESH_WIDGET"
         const val EXTRA_ITEM_LAYOUT = "widget_item_layout"
+        const val EXTRA_WIDGET_TEXT_WIDTH_PX = "widget_text_width_px"
+        const val EXTRA_WIDGET_FONT_FAMILY = "widget_font_family"
 
         fun updateWidget(
             context: Context,
@@ -45,6 +48,11 @@ class TodayWidgetProvider : AppWidgetProvider() {
             appWidgetId: Int,
         ) {
             val family = readConfiguredFontFamily(context)
+            val widgetOptions = appWidgetManager.getAppWidgetOptions(appWidgetId)
+            val minWidthDp = widgetOptions.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 180)
+            val metrics = context.resources.displayMetrics
+            val totalWidthPx = (minWidthDp * metrics.density).toInt().coerceAtLeast(120)
+            val textWidthPx = (totalWidthPx - (48 * metrics.density).toInt()).coerceAtLeast(96)
             val rootLayout = when (family) {
                 "NotoSans" -> R.layout.today_widget_noto_sans
                 "CourierPrime" -> R.layout.today_widget_courier_prime
@@ -57,10 +65,36 @@ class TodayWidgetProvider : AppWidgetProvider() {
             }
 
             val views = RemoteViews(context.packageName, rootLayout)
+            views.setImageViewBitmap(
+                R.id.widget_header_text,
+                WidgetTextRenderer.renderTextBitmap(
+                    context = context,
+                    text = "today",
+                    fontResId = fontResIdForFamily(family, bold = true),
+                    textSizeSp = 16f,
+                    textColor = Color.parseColor("#E6F5F0"),
+                    maxWidthPx = textWidthPx,
+                    bold = true,
+                )
+            )
+            views.setImageViewBitmap(
+                R.id.widget_empty,
+                WidgetTextRenderer.renderTextBitmap(
+                    context = context,
+                    text = "no tasks",
+                    fontResId = fontResIdForFamily(family, bold = false),
+                    textSizeSp = 12f,
+                    textColor = Color.parseColor("#A9C6BF"),
+                    maxWidthPx = textWidthPx,
+                    bold = false,
+                )
+            )
 
             val serviceIntent = Intent(context, TodayWidgetService::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 putExtra(EXTRA_ITEM_LAYOUT, itemLayout)
+                putExtra(EXTRA_WIDGET_FONT_FAMILY, family)
+                putExtra(EXTRA_WIDGET_TEXT_WIDTH_PX, textWidthPx)
                 data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
             }
             views.setRemoteAdapter(R.id.widget_list, serviceIntent)
@@ -109,6 +143,14 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 obj.optString("fontFamily", "OpenDyslexic")
             } catch (_: Exception) {
                 "OpenDyslexic"
+            }
+        }
+
+        private fun fontResIdForFamily(family: String, bold: Boolean): Int {
+            return when (family) {
+                "NotoSans" -> if (bold) R.font.noto_sans_bold else R.font.noto_sans_regular
+                "CourierPrime" -> if (bold) R.font.courier_prime_bold else R.font.courier_prime_regular
+                else -> if (bold) R.font.open_dyslexic_bold else R.font.open_dyslexic_regular
             }
         }
     }

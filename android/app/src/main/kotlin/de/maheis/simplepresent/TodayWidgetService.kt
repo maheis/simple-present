@@ -3,6 +3,7 @@ package be.heister.simplepresent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.graphics.Color
 import android.os.Build
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
@@ -33,6 +34,8 @@ private class TodayWidgetFactory(
 
     private val items = mutableListOf<WidgetTask>()
     private val itemLayoutRes = intent.getIntExtra(TodayWidgetProvider.EXTRA_ITEM_LAYOUT, R.layout.today_widget_item)
+    private val fontFamily = intent.getStringExtra(TodayWidgetProvider.EXTRA_WIDGET_FONT_FAMILY) ?: "OpenDyslexic"
+    private val textWidthPx = intent.getIntExtra(TodayWidgetProvider.EXTRA_WIDGET_TEXT_WIDTH_PX, 240)
 
     override fun onCreate() {
         loadData()
@@ -59,7 +62,18 @@ private class TodayWidgetFactory(
         } else {
             task.text
         }
-        views.setTextViewText(R.id.widget_task_text, text)
+        views.setImageViewBitmap(
+            R.id.widget_task_text,
+            WidgetTextRenderer.renderTextBitmap(
+                context = context,
+                text = text,
+                fontResId = fontResIdForFamily(fontFamily, bold = false),
+                textSizeSp = 13f,
+                textColor = Color.parseColor("#E6F5F0"),
+                maxWidthPx = textWidthPx,
+                bold = false,
+            )
+        )
         views.setImageViewResource(
             R.id.widget_action_radio,
             if (task.inProgress) R.drawable.widget_radio_in_progress else R.drawable.widget_radio_off
@@ -77,7 +91,7 @@ private class TodayWidgetFactory(
             action = "be.heister.simplepresent.ACTION_OPEN_FROM_WIDGET"
             putExtra("task_id", task.id)
         }
-        views.setOnClickFillInIntent(R.id.widget_item_root, openIntent)
+        views.setOnClickFillInIntent(R.id.widget_task_text, openIntent)
         return views
     }
 
@@ -157,6 +171,14 @@ private class TodayWidgetFactory(
                         .toEpochMilli()
                 } catch (_: Exception) {
                     null
+                }
+            }
+
+            private fun fontResIdForFamily(family: String, bold: Boolean): Int {
+                return when (family) {
+                    "NotoSans" -> if (bold) R.font.noto_sans_bold else R.font.noto_sans_regular
+                    "CourierPrime" -> if (bold) R.font.courier_prime_bold else R.font.courier_prime_regular
+                    else -> if (bold) R.font.open_dyslexic_bold else R.font.open_dyslexic_regular
                 }
             }
         }

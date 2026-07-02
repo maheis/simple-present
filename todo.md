@@ -85,6 +85,7 @@
   - [x] widget übernimmt konfigurierte app-schrift
   - [x] radio-button
   - [x] sortierreihenfolge wie in der app!
+  - [ ] kalender einfügen?
 
 ## notes
 
