@@ -425,6 +425,33 @@ class TaskItem {
   }
 }
 
+class _LoadingGlowBlob extends StatelessWidget {
+  const _LoadingGlowBlob({required this.color, required this.size});
+
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              color.withAlpha((0.26 * 255).round()),
+              color.withAlpha((0.06 * 255).round()),
+              Colors.transparent,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final List<TaskItem> _today = [];
   final TextEditingController _controller = TextEditingController();
@@ -620,6 +647,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _collectDedupeStats = false;
   int _startupReplacedEmptyIds = 0;
   int _startupRemovedDuplicates = 0;
+
+  final Stream<int> _loadingTickStream =
+      Stream<int>.periodic(const Duration(milliseconds: 220), (x) => x);
 
   late final Future<void> _initFuture = _initializeApp();
 
@@ -5356,6 +5386,141 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (_inactivityFired.length > i) _inactivityFired[i] = true;
   }
 
+  Widget _buildFancyLoadingScreen(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Scaffold(
+      body: SafeArea(
+        child: StreamBuilder<int>(
+          stream: _loadingTickStream,
+          initialData: 0,
+          builder: (context, snap) {
+            final tick = (snap.data ?? 0).toDouble();
+            final blend = 0.5 + 0.5 * math.sin(tick * 0.12);
+            final primaryGlow =
+                Color.lerp(cs.primaryContainer, cs.tertiaryContainer, blend)!;
+            final secondaryGlow =
+                Color.lerp(cs.tertiaryContainer, cs.primaryContainer, blend)!;
+
+            double pulse(int phase) {
+              return 0.55 +
+                  0.45 * (0.5 + 0.5 * math.sin((tick + phase * 1.3) * 0.9));
+            }
+
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          cs.surface,
+                          Color.lerp(cs.surface, cs.secondaryContainer, 0.22)!,
+                          Color.lerp(cs.surface, cs.primaryContainer, 0.28)!,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 40 + 8 * math.sin(tick * 0.25),
+                  left: 20,
+                  child: _LoadingGlowBlob(color: primaryGlow, size: 160),
+                ),
+                Positioned(
+                  right: 16,
+                  bottom: 30 + 12 * math.cos(tick * 0.21),
+                  child: _LoadingGlowBlob(color: secondaryGlow, size: 140),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 140 + 10 * math.sin(tick * 0.18),
+                  child: Center(
+                    child: _LoadingGlowBlob(
+                      color: Color.lerp(primaryGlow, secondaryGlow, 0.5)!,
+                      size: 120,
+                    ),
+                  ),
+                ),
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Image.asset(
+                              'assets/icons/color_transparent_today.png',
+                              width: 28,
+                              height: 28,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              'simplepresent',
+                              style: TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: _fontFamily,
+                                color: cs.onSurface
+                                    .withAlpha((0.78 * 255).round()),
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(3, (i) {
+                            final p = pulse(i);
+                            return Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 5),
+                              width: 10 + (p * 6),
+                              height: 10 + (p * 6),
+                              decoration: BoxDecoration(
+                                color: Color.lerp(cs.primary, cs.tertiary, p),
+                                shape: BoxShape.circle,
+                              ),
+                            );
+                          }),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'loading tasks...',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontFamily: _fontFamily,
+                            color: cs.onSurface.withAlpha((0.86 * 255).round()),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'syncing, repairing and preparing your workspace',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontFamily: _fontFamily,
+                            color: cs.onSurfaceVariant
+                                .withAlpha((0.84 * 255).round()),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final baseTheme = Theme.of(context);
@@ -5373,27 +5538,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           builder: (context, snap) {
             // Show loading screen while initializing (syncing lists and migrating tasks)
             if (snap.connectionState == ConnectionState.waiting) {
-              return Scaffold(
-                body: SafeArea(
-                  child: Center(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const CircularProgressIndicator(),
-                          const SizedBox(height: 24),
-                          Text(
-                            'loading tasks...',
-                            style: TextStyle(
-                                fontSize: 16, fontFamily: _fontFamily),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
+              return _buildFancyLoadingScreen(context);
             }
 
             return Scaffold(

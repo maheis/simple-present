@@ -68,7 +68,9 @@
         -> lädt jetzt alle 3 Listen hoch, zieht Remote State, reloaded UI
 - [x] aufgaben die im backlog in der vergangenheit liegen, sollen automatisch ins today verschoben werden, wenn sie noch nicht erledigt sind!
 - [x] andoid statt localhost als geräte namen!
-- [ ] hübschere und fancy lade animation im loading screen (matrix style?)
+- [x] hübschere und fancy lade animation im loading screen
+- [ ] SimplePresent -> simple present | dateinamen: simple-present
+- [ ] burger menü alles klein
 
 ## notes
 
