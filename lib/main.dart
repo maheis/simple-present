@@ -1196,7 +1196,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (showToast && promote.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _showTopToast(
-              '${promote.length} Aufgabe(n) aus Backlog nach Heute verschoben');
+              '${promote.length} task(s) moved from backlog to today');
         });
       }
 
@@ -5685,7 +5685,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                     } catch (_) {}
                                                     try {
                                                       _showTopToast(
-                                                          'Undo applied');
+                                                          'undo applied');
                                                     } catch (_) {}
                                                   } else if (res == true) {
                                                     try {
@@ -5693,7 +5693,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                     } catch (_) {}
                                                     try {
                                                       _showTopToast(
-                                                          'Undo applied');
+                                                          'undo applied');
                                                     } catch (_) {}
                                                   }
                                                 } else if (v == 'done') {
@@ -5711,7 +5711,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                           width: 18,
                                                           height: 18),
                                                       const SizedBox(width: 8),
-                                                      const Text('Statistics')
+                                                      const Text('statistics')
                                                     ])));
                                                 items.add(PopupMenuItem(
                                                     value: 'settings',
@@ -5721,7 +5721,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                           width: 18,
                                                           height: 18),
                                                       const SizedBox(width: 8),
-                                                      const Text('Settings')
+                                                      const Text('settings')
                                                     ])));
                                                 items.add(PopupMenuItem(
                                                     value: 'notes',
@@ -5731,7 +5731,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                           width: 18,
                                                           height: 18),
                                                       const SizedBox(width: 8),
-                                                      const Text('Notes')
+                                                      const Text('notes')
                                                     ])));
                                                 items.add(PopupMenuItem(
                                                     value: 'redo',
@@ -5741,7 +5741,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                           width: 18,
                                                           height: 18),
                                                       const SizedBox(width: 8),
-                                                      const Text('Redo log')
+                                                      const Text('redo log')
                                                     ])));
                                                 items.add(PopupMenuItem(
                                                     value: 'done',
@@ -5751,7 +5751,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                           width: 18,
                                                           height: 18),
                                                       const SizedBox(width: 8),
-                                                      const Text('Done')
+                                                      const Text('done')
                                                     ])));
                                                 // 'Next' removed by request
                                                 return items;
@@ -5771,10 +5771,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                     child: _today.isEmpty
                                         ? Center(
                                             child: Text(_showingBacklog
-                                                ? 'No backlog tasks'
+                                                ? 'no backlog tasks'
                                                 : (_showingDone
-                                                    ? 'No archived tasks'
-                                                    : 'No tasks for today')))
+                                                    ? 'no archived tasks'
+                                                    : 'no tasks for today')))
                                         : Builder(builder: (ctx) {
                                             // Build grouped list preserving insertion order within groups.
                                             // Order must match _performDelayedReorder schema.
