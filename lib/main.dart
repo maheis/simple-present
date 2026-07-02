@@ -553,6 +553,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String _cloudSyncLastError = '';
   int _cloudArchiveLastWarnedDays = -1;
   Timer? _cloudPullTimer;
+  bool _autoPromoteDueBacklogBusy = false;
   bool _cloudSyncBusy = false;
   bool _applyingCloudState = false;
   bool _suppressSyncToasts = false;
@@ -916,6 +917,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // Run cleanup of old Done tasks if enabled
     unawaited(_purgeOldDoneTasksIfEnabled());
     await _syncPullFromCloud();
+    await _promoteDueBacklogToToday(showToast: true);
+    await _loadToday();
     unawaited(_fetchServerVersion());
     _startCloudPullTimer();
     // Start dynamic inactivity timers according to loaded settings
@@ -1059,32 +1062,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         await _saveList(_storage('simplepresent_today.json'), <TaskItem>[]);
       }
 
-      // Promote backlog tasks scheduled for today into Today (automatic move).
-      try {
-        final List<TaskItem> backlogList2 = [];
-        await _loadList(_storage('simplepresent_backlog.json'), backlogList2);
-        final todayDate = DateTime.now();
-        final promote = backlogList2
-            .where((t) =>
-                t.scheduledAt != null && _isSameDay(t.scheduledAt!, todayDate))
-            .toList();
-        if (promote.isNotEmpty) {
-          // remove promoted items from backlog
-          backlogList2.removeWhere((t) =>
-              t.scheduledAt != null && _isSameDay(t.scheduledAt!, todayDate));
-          // new today list consists of promoted items (at top)
-          final List<TaskItem> newToday = [];
-          newToday.addAll(promote);
-          // save updated lists
-          await _saveList(_storage('simplepresent_backlog.json'), backlogList2);
-          await _saveList(_storage('simplepresent_today.json'), newToday);
-          // notify user
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _showTopToast(
-                '${promote.length} Aufgabe(n) aus Backlog nach Heute verschoben');
-          });
-        }
-      } catch (_) {}
+      // Promote backlog tasks that are due (today or overdue) into Today.
+      await _promoteDueBacklogToToday(showToast: true);
 
       settings['lastRunDate'] = todayKey;
       final enc = const JsonEncoder.withIndent('  ');
@@ -1112,6 +1091,73 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
       });
     } catch (_) {}
+  }
+
+  Future<int> _promoteDueBacklogToToday({bool showToast = false}) async {
+    if (_autoPromoteDueBacklogBusy) return 0;
+    _autoPromoteDueBacklogBusy = true;
+    try {
+      final backlogFile = _storage('simplepresent_backlog.json');
+      final todayFile = _storage('simplepresent_today.json');
+      final backlogList = <TaskItem>[];
+      final todayList = <TaskItem>[];
+      await Future.wait([
+        _loadList(backlogFile, backlogList),
+        _loadList(todayFile, todayList),
+      ]);
+
+      final now = DateTime.now();
+      final todayIds = todayList.map((t) => t.id).toSet();
+      final promote = <TaskItem>[];
+      var changed = false;
+
+      backlogList.removeWhere((t) {
+        final due =
+            t.scheduledAt != null && !t.done && !t.scheduledAt!.isAfter(now);
+        if (!due) return false;
+
+        changed = true;
+        if (!todayIds.contains(t.id)) {
+          promote.add(t.copyWith(done: false, inProgress: false));
+          todayIds.add(t.id);
+        }
+        return true;
+      });
+
+      if (!changed) return 0;
+
+      if (promote.isNotEmpty) {
+        todayList.insertAll(0, promote);
+      }
+
+      await Future.wait([
+        _saveList(backlogFile, backlogList, triggerCloudSync: false),
+        _saveList(todayFile, todayList, triggerCloudSync: false),
+      ]);
+
+      try {
+        unawaited(_syncPushToCloud(backlogFile, backlogList));
+        unawaited(_syncPushToCloud(todayFile, todayList));
+      } catch (_) {}
+
+      if (mounted) {
+        await _loadToday();
+      }
+      unawaited(_updateListCounts());
+
+      if (showToast && promote.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showTopToast(
+              '${promote.length} Aufgabe(n) aus Backlog nach Heute verschoben');
+        });
+      }
+
+      return promote.length;
+    } catch (_) {
+      return 0;
+    } finally {
+      _autoPromoteDueBacklogBusy = false;
+    }
   }
 
   void _scheduleDailyMigrationTimer() {
@@ -2681,6 +2727,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _scheduledCheckTimer?.cancel();
     _scheduledCheckTimer =
         Timer.periodic(const Duration(seconds: 30), (timer) async {
+      await _promoteDueBacklogToToday(showToast: false);
       final now = DateTime.now();
       for (final t in _today) {
         // Do not remind for tasks without schedule or already completed
