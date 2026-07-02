@@ -3943,7 +3943,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final task = _today[taskIndex];
     final list = List<TaskStep>.from(task.subtasks);
     final beforeOrder = list.map((s) => s.id).toList();
-    if (newIndex > oldIndex) newIndex -= 1;
     final item = list.removeAt(oldIndex);
     list.insert(newIndex, item);
     final afterOrder = list.map((s) => s.id).toList();
@@ -5946,10 +5945,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                               buildDefaultDragHandles: false,
                                               onReorderItem:
                                                   (oldIndex, newIndex) {
+                                                if (oldIndex < 0 ||
+                                                    oldIndex >= sorted.length) {
+                                                  return;
+                                                }
                                                 final srcEntry =
                                                     sorted[oldIndex];
-                                                final dstEntry =
-                                                    sorted[newIndex];
                                                 // Determine bucket membership for src and dst
                                                 int bucketOf(
                                                     MapEntry<int, TaskItem> e) {
@@ -5976,8 +5977,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
                                                 final srcBucket =
                                                     bucketOf(srcEntry);
-                                                final dstBucket =
-                                                    bucketOf(dstEntry);
+                                                final safeNewIndex = newIndex
+                                                    .clamp(0, sorted.length);
+                                                final probeIndex =
+                                                    safeNewIndex >=
+                                                            sorted.length
+                                                        ? sorted.length - 1
+                                                        : safeNewIndex;
+                                                final dstBucket = bucketOf(
+                                                    sorted[probeIndex]);
                                                 if (srcBucket != dstBucket) {
                                                   _showTopToast(
                                                       'Reorder allowed only within the same group');
@@ -6027,35 +6035,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                     targetBucket = bucketDone;
                                                 }
 
-                                                final srcPos = targetBucket
-                                                    .indexWhere((e) =>
-                                                        e.key == srcEntry.key &&
-                                                        e.value.text ==
-                                                            srcEntry
-                                                                .value.text);
-                                                if (srcPos == -1) return;
-
-                                                // Compute destination position within the bucket by counting how many entries from start of sorted up to newIndex belong to this bucket
-                                                int dstPos = 0;
-                                                for (int i = 0;
-                                                    i < newIndex;
-                                                    i++) {
-                                                  if (bucketOf(sorted[i]) ==
-                                                      srcBucket) dstPos++;
+                                                // onReorderItem already gives
+                                                // a post-removal newIndex.
+                                                final adjustedNewIndex =
+                                                    safeNewIndex;
+                                                if (adjustedNewIndex ==
+                                                    oldIndex) {
+                                                  return;
                                                 }
 
-                                                // Adjust if moving forward within bucket
-                                                if (dstPos > srcPos)
-                                                  dstPos -= 1;
+                                                final reordered = List<
+                                                    MapEntry<int,
+                                                        TaskItem>>.from(sorted);
+                                                final moved = reordered
+                                                    .removeAt(oldIndex);
+                                                reordered.insert(
+                                                    adjustedNewIndex, moved);
+
+                                                final reorderedBucket =
+                                                    reordered
+                                                        .where((e) =>
+                                                            bucketOf(e) ==
+                                                            srcBucket)
+                                                        .toList();
 
                                                 setState(() {
-                                                  // reorder within the targetBucket
-                                                  final moved = targetBucket
-                                                      .removeAt(srcPos);
-                                                  targetBucket.insert(
-                                                      dstPos.clamp(0,
-                                                          targetBucket.length),
-                                                      moved);
+                                                  targetBucket
+                                                    ..clear()
+                                                    ..addAll(reorderedBucket);
 
                                                   // rebuild _today preserving bucket concatenation order
                                                   final newOrder = <TaskItem>[];
