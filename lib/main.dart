@@ -23,6 +23,24 @@ const _noChange = Object();
 
 const String kClientVersion = '0.1.0';
 
+String _suggestedCloudDeviceName() {
+  if (Platform.isAndroid) return 'android';
+  final host = Platform.localHostname.trim();
+  if (host.isEmpty || host.toLowerCase() == 'localhost') {
+    return 'desktop';
+  }
+  return host;
+}
+
+String _normalizeCloudDeviceName(String? raw) {
+  final value = (raw ?? '').trim();
+  if (value.isEmpty) return _suggestedCloudDeviceName();
+  if (Platform.isAndroid && value.toLowerCase() == 'localhost') {
+    return 'android';
+  }
+  return value;
+}
+
 // Global mouse entropy buffer used across pages for phrase suggestion.
 final List<int> _mouseEntropy = <int>[];
 
@@ -537,7 +555,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String _cloudDeviceId = '';
   String _cloudToken = '';
   String _cloudWordPhrase = '';
-  String _cloudDeviceName = Platform.localHostname;
+  String _cloudDeviceName = _suggestedCloudDeviceName();
   String _cloudPIN = '';
   bool _cloudAllowInsecureTls = false;
   // Auto-clean settings for Done list
@@ -2455,8 +2473,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _cloudWordPhrase = phrase;
         }
         final deviceName = data['cloudDeviceName'];
-        if (deviceName is String && deviceName.isNotEmpty) {
-          _cloudDeviceName = deviceName;
+        if (deviceName is String) {
+          _cloudDeviceName = _normalizeCloudDeviceName(deviceName);
         }
         final cloudPin = data['cloudPIN'];
         if (cloudPin is String) {
@@ -7564,8 +7582,9 @@ class _SettingsPageState extends State<SettingsPage> {
     cloudDeviceId = readString('cloudDeviceId', '');
     cloudToken = readString('cloudToken', '');
     cloudWordPhrase = readString('cloudWordPhrase', '');
-    cloudDeviceName = readString('cloudDeviceName',
-        Platform.isAndroid ? 'android' : Platform.localHostname);
+    cloudDeviceName = _normalizeCloudDeviceName(
+      readString('cloudDeviceName', _suggestedCloudDeviceName()),
+    );
     cloudPIN = readString('cloudPIN', '');
     cloudAllowInsecureTls = readBool('cloudAllowInsecureTls', false);
     autoPurgeDoneEnabled = readBool('autoPurgeDoneEnabled', false);
@@ -8032,9 +8051,7 @@ class _SettingsPageState extends State<SettingsPage> {
         allowInsecureCertificates: cloudAllowInsecureTls,
       );
       final result = await client.registerFirstClient(
-        deviceName: cloudDeviceName.trim().isEmpty
-            ? (Platform.isAndroid ? 'android' : Platform.localHostname)
-            : cloudDeviceName.trim(),
+        deviceName: _normalizeCloudDeviceName(cloudDeviceName),
         phrase: cloudWordPhrase,
         pin: cloudPIN,
       );
@@ -8110,9 +8127,7 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       final result = await client.pairClient(
         accountId: cloudAccountId.trim(),
-        deviceName: cloudDeviceName.trim().isEmpty
-            ? (Platform.isAndroid ? 'android' : Platform.localHostname)
-            : cloudDeviceName.trim(),
+        deviceName: _normalizeCloudDeviceName(cloudDeviceName),
         phrase: cloudWordPhrase,
         pin: cloudPIN,
       );
@@ -8168,8 +8183,7 @@ class _SettingsPageState extends State<SettingsPage> {
       'cloudDeviceId': '',
       'cloudToken': '',
       'cloudWordPhrase': '',
-      'cloudDeviceName':
-          (Platform.isAndroid ? 'android' : Platform.localHostname),
+      'cloudDeviceName': _suggestedCloudDeviceName(),
       'cloudPIN': '',
       'cloudAllowInsecureTls': false,
     };

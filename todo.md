@@ -67,7 +67,7 @@
 - [x] sync button muss ein vollständiges synchronisieren auslösen!
         -> lädt jetzt alle 3 Listen hoch, zieht Remote State, reloaded UI
 - [x] aufgaben die im backlog in der vergangenheit liegen, sollen automatisch ins today verschoben werden, wenn sie noch nicht erledigt sind!
-- [ ] android statt localhost als geräte namen!
+- [x] andoid statt localhost als geräte namen!
 - [ ] hübschere und fancy lade animation im loading screen (matrix style?)
 
 ## notes
