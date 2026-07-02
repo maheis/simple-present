@@ -11,7 +11,7 @@ import java.io.File
 
 class TodayWidgetService : RemoteViewsService() {
     override fun onGetViewFactory(intent: Intent): RemoteViewsFactory {
-        return TodayWidgetFactory(applicationContext)
+        return TodayWidgetFactory(applicationContext, intent)
     }
 }
 
@@ -24,9 +24,11 @@ private data class WidgetTask(
 
 private class TodayWidgetFactory(
     private val context: Context,
+    intent: Intent,
 ) : RemoteViewsService.RemoteViewsFactory {
 
     private val items = mutableListOf<WidgetTask>()
+    private val itemLayoutRes = intent.getIntExtra(TodayWidgetProvider.EXTRA_ITEM_LAYOUT, R.layout.today_widget_item)
 
     override fun onCreate() {
         loadData()
@@ -44,10 +46,10 @@ private class TodayWidgetFactory(
 
     override fun getViewAt(position: Int): RemoteViews {
         if (position < 0 || position >= items.size) {
-            return RemoteViews(context.packageName, R.layout.today_widget_item)
+            return RemoteViews(context.packageName, itemLayoutRes)
         }
         val task = items[position]
-        val views = RemoteViews(context.packageName, R.layout.today_widget_item)
+        val views = RemoteViews(context.packageName, itemLayoutRes)
         val text = if (task.inProgress) {
             "▶ ${task.text}"
         } else {

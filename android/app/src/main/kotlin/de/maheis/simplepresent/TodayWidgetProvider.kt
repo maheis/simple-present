@@ -37,16 +37,30 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
     companion object {
         const val ACTION_REFRESH_WIDGET = "be.heister.simplepresent.ACTION_REFRESH_WIDGET"
+        const val EXTRA_ITEM_LAYOUT = "widget_item_layout"
 
         fun updateWidget(
             context: Context,
             appWidgetManager: AppWidgetManager,
             appWidgetId: Int,
         ) {
-            val views = RemoteViews(context.packageName, R.layout.today_widget)
+            val family = readConfiguredFontFamily(context)
+            val rootLayout = when (family) {
+                "NotoSans" -> R.layout.today_widget_noto_sans
+                "CourierPrime" -> R.layout.today_widget_courier_prime
+                else -> R.layout.today_widget
+            }
+            val itemLayout = when (family) {
+                "NotoSans" -> R.layout.today_widget_item_noto_sans
+                "CourierPrime" -> R.layout.today_widget_item_courier_prime
+                else -> R.layout.today_widget_item
+            }
+
+            val views = RemoteViews(context.packageName, rootLayout)
 
             val serviceIntent = Intent(context, TodayWidgetService::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(EXTRA_ITEM_LAYOUT, itemLayout)
                 data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
             }
             views.setRemoteAdapter(R.id.widget_list, serviceIntent)
@@ -77,6 +91,25 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
             appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.widget_list)
+        }
+
+        private fun readConfiguredFontFamily(context: Context): String {
+            return try {
+                val appFlutter = java.io.File(context.filesDir.parentFile, "app_flutter")
+                val debugMode = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+                val folderName = if (debugMode) "simplepresent-debug" else "simplepresent"
+                val prefix = if (debugMode) "debug_" else ""
+                val settingsFile = java.io.File(
+                    java.io.File(appFlutter, folderName),
+                    "${prefix}simplepresent_settings.json"
+                )
+                if (!settingsFile.exists()) return "OpenDyslexic"
+                val text = settingsFile.readText()
+                val obj = org.json.JSONObject(text)
+                obj.optString("fontFamily", "OpenDyslexic")
+            } catch (_: Exception) {
+                "OpenDyslexic"
+            }
         }
     }
 }

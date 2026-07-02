@@ -38,6 +38,8 @@
 - [x] burger menü alles klein
 - [x] termin im backlog < einer woche soll wochentag da stehen, termin > 1 woche soll datum stehen
 - [x] icon im loding screen auf icon.png umstellen
+- [x] runter sortieren, sortiert "drüber"
+- [x] android: aktionen in der notification (erledigt, in arbeit)
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Windows Store Veröffentlichung (.notes/WINDOWS_APP_STORE.md)
 - [ ] Worklog an Aufgaben...
@@ -55,9 +57,7 @@
   - [ ] Aufräumen (ois)
 - [ ] sync: erster sync muss schneller, es muss beim öffnen geprüft werden bevor der client selbst aktionen ausführt. sonst kann es zu chaos kommen! (aufgaben die anm handy in heute lagen nd schon erledigt waren, wurden beim anderen in backlog verschoben und da liegengelassen...) 
 - [ ] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
-- [x] runter sortieren, sortiert "drüber"
 - [ ] sync: self signed certs prüfen (ca-chain)
-- [?] android: aktionen in der notification (erledigt, in arbeit)
 - [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben! (primärgerät-definieren?)
 - [ ] papierkorb:
         schiebt sync in den papierkorb?
@@ -81,6 +81,10 @@
   - [x] breite soll kleiner gemacht werden können (aktuell geht nur breiter, nicht schmaler als 3 kacheln))
   - [x] oben links icon und überschrift
   - [x] transparentes widget (60% hintergrundstransparenz), damit es sich in den hintergrund einfügt
+  - [x] schrift
+  - [x] widget übernimmt konfigurierte app-schrift
+  - [ ] radio-button
+  - [ ] 
 
 ## notes
 

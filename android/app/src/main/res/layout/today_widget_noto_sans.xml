@@ -5,11 +5,11 @@
 
         <ImageView android:layout_width="20dp" android:layout_height="20dp" android:src="@mipmap/ic_launcher" android:contentDescription="icon" android:layout_marginEnd="8dp" />
 
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="today" android:textSize="16sp" android:textColor="#E6F5F0" android:fontFamily="@font/open_dyslexic_bold" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="today" android:textSize="16sp" android:textColor="#E6F5F0" android:fontFamily="@font/noto_sans_bold" />
 
     </LinearLayout>
 
     <ListView android:id="@+id/widget_list" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:divider="#2B4A45" android:dividerHeight="1dp" android:cacheColorHint="@android:color/transparent" android:transcriptMode="disabled" />
 
-    <TextView android:id="@+id/widget_empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="no tasks" android:textSize="12sp" android:textColor="#A9C6BF" android:gravity="center" android:paddingTop="8dp" android:visibility="gone" android:fontFamily="@font/open_dyslexic_regular" />
+    <TextView android:id="@+id/widget_empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="no tasks" android:textSize="12sp" android:textColor="#A9C6BF" android:gravity="center" android:paddingTop="8dp" android:visibility="gone" android:fontFamily="@font/noto_sans_regular" />
 </LinearLayout>

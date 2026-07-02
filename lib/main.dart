@@ -2873,6 +2873,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       } else {
         await f.writeAsString(encoded);
       }
+      await _refreshAndroidTodayWidget();
     } catch (_) {}
   }
 
