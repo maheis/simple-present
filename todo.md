@@ -86,6 +86,7 @@
   - [x] radio-button
   - [x] sortierreihenfolge wie in der app!
   - [ ] kalender einfügen?
+- [ ] subtasks müssen in folgeaufgaben wieder nicht bearbeitet sein!
 
 ## notes
 

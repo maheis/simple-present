@@ -76,7 +76,6 @@ private class TodayWidgetFactory(
         )
 
         val openIntent = Intent().apply {
-            action = "be.heister.simplepresent.ACTION_OPEN_FROM_WIDGET"
             putExtra("task_id", task.id)
         }
         views.setOnClickFillInIntent(R.id.widget_item_root, openIntent)

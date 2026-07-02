@@ -112,13 +112,14 @@ class TodayWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_header, openAppPending)
 
             val templateIntent = Intent(context, MainActivity::class.java).apply {
+                action = "be.heister.simplepresent.ACTION_OPEN_FROM_WIDGET"
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             val templatePendingIntent = PendingIntent.getActivity(
                 context,
                 appWidgetId + 10000,
                 templateIntent,
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
             views.setPendingIntentTemplate(R.id.widget_list, templatePendingIntent)
             views.setOnClickPendingIntent(R.id.widget_header, openAppPending)
