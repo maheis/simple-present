@@ -55,21 +55,10 @@ private class TodayWidgetFactory(
         }
         views.setTextViewText(R.id.widget_task_text, text)
 
-        val doneIntent = Intent().apply {
-            action = "be.heister.simplepresent.ACTION_TASK_DONE"
-            putExtra("task_id", task.id)
-        }
-        val progressIntent = Intent().apply {
-            action = "be.heister.simplepresent.ACTION_TASK_IN_PROGRESS"
-            putExtra("task_id", task.id)
-        }
         val openIntent = Intent().apply {
             action = "be.heister.simplepresent.ACTION_OPEN_FROM_WIDGET"
             putExtra("task_id", task.id)
         }
-
-        views.setOnClickFillInIntent(R.id.widget_btn_done, doneIntent)
-        views.setOnClickFillInIntent(R.id.widget_btn_progress, progressIntent)
         views.setOnClickFillInIntent(R.id.widget_item_root, openIntent)
         return views
     }

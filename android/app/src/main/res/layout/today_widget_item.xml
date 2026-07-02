@@ -3,8 +3,4 @@
 
     <TextView android:id="@+id/widget_task_text" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:maxLines="2" android:ellipsize="end" android:textColor="#E6F5F0" android:textSize="13sp" />
 
-    <ImageView android:id="@+id/widget_btn_progress" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:contentDescription="in arbeit" android:src="@android:drawable/ic_media_play" android:tint="#7BDCB5" />
-
-    <ImageView android:id="@+id/widget_btn_done" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:contentDescription="erledigt" android:src="@android:drawable/checkbox_on_background" android:tint="#7BDCB5" />
-
 </LinearLayout>

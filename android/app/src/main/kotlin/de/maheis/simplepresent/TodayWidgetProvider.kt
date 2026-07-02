@@ -73,6 +73,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
             views.setPendingIntentTemplate(R.id.widget_list, templatePendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_header, openAppPending)
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
             appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.widget_list)

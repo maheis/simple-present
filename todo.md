@@ -75,7 +75,12 @@
 - [??] backlog wird manchmal komplett zu today
 - [??] today manchmal leer, ziemlich wired grade!
 - [?] sort bei öffnen von listen
-- [?] android: today widget, absprung in die app! actions für in arbeit + erledigt (statt swipe)
+- [x] android widget
+  - [x] today widget, absprung in die app!
+  - [x] keine actions
+  - [ ] breite soll variable sein (und kleiner)
+  - [ ] oben links icon und überschrift
+  - [ ] transparentes widget, damit es sich in den hintergrund einfügt
 
 ## notes
 
