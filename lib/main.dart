@@ -646,6 +646,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String? _storagePathOverride;
   // Enable debug write logging
   bool _debugWriteLog = false;
+  final List<Map<String, String>> _pendingNotificationTaskActions =
+      <Map<String, String>>[];
 
   final Stream<int> _loadingTickStream =
       Stream<int>.periodic(const Duration(milliseconds: 220), (x) => x);
@@ -663,6 +665,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    _nativeWindowChannel.setMethodCallHandler(_handleNativeWindowMethodCall);
     WidgetsBinding.instance.addObserver(this);
     // Do not watch or persist window geometry; OS chooses position.
     _startIdleTimer();
@@ -954,6 +957,99 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await Future.delayed(minLoadingDuration - elapsed);
     }
     _initializationComplete = true;
+    await _processPendingNotificationTaskActions();
+  }
+
+  Future<void> _handleNativeWindowMethodCall(MethodCall call) async {
+    if (call.method != 'notificationTaskAction') return;
+    final args = call.arguments;
+    if (args is! Map) return;
+    final taskId = (args['taskId'] ?? '').toString().trim();
+    final action = (args['action'] ?? '').toString().trim();
+    if (taskId.isEmpty || action.isEmpty) return;
+
+    final payload = <String, String>{'taskId': taskId, 'action': action};
+    if (!_initializationComplete) {
+      _pendingNotificationTaskActions.add(payload);
+      return;
+    }
+    await _applyNotificationTaskAction(taskId: taskId, action: action);
+  }
+
+  Future<void> _processPendingNotificationTaskActions() async {
+    if (_pendingNotificationTaskActions.isEmpty) return;
+    final pending =
+        List<Map<String, String>>.from(_pendingNotificationTaskActions);
+    _pendingNotificationTaskActions.clear();
+    for (final entry in pending) {
+      final taskId = (entry['taskId'] ?? '').trim();
+      final action = (entry['action'] ?? '').trim();
+      if (taskId.isEmpty || action.isEmpty) continue;
+      await _applyNotificationTaskAction(taskId: taskId, action: action);
+    }
+  }
+
+  Future<void> _applyNotificationTaskAction({
+    required String taskId,
+    required String action,
+  }) async {
+    try {
+      final todayFile = _storage('simplepresent_today.json');
+      final todayList = <TaskItem>[];
+      await _loadList(todayFile, todayList);
+      final idx = todayList.indexWhere((t) => t.id == taskId);
+      if (idx == -1) {
+        unawaited(_debugLog(
+            'notification action ignored: task not found in today ($taskId, $action)'));
+        return;
+      }
+
+      final now = DateTime.now();
+      final current = todayList[idx];
+      if (action == 'done') {
+        todayList[idx] = current.copyWith(
+          done: true,
+          inProgress: false,
+          completedAt: now,
+          inProgressAt: null,
+          stopwatchRunning: false,
+          stopwatchStartedAt: null,
+        );
+      } else if (action == 'in_progress') {
+        todayList[idx] = current.copyWith(
+          done: false,
+          inProgress: true,
+          inProgressAt: current.inProgressAt ?? now,
+          stopwatchRunning: true,
+          stopwatchStartedAt: current.stopwatchStartedAt ?? now,
+        );
+      } else {
+        return;
+      }
+
+      await _saveList(todayFile, todayList);
+      final idPrefix = '$taskId|';
+      _notified15.removeWhere((k) => k.startsWith(idPrefix));
+      _notifiedDue.removeWhere((k) => k.startsWith(idPrefix));
+      try {
+        await _saveSettings();
+      } catch (_) {}
+
+      if (_currentFile == todayFile) {
+        await _loadToday();
+      } else {
+        unawaited(_updateListCounts());
+      }
+
+      if (!mounted) return;
+      if (action == 'done') {
+        _showTopToast('task marked done (notification)');
+      } else {
+        _showTopToast('task marked in progress (notification)');
+      }
+    } catch (e) {
+      unawaited(_debugLog('notification action failed: $taskId, $action, $e'));
+    }
   }
 
   Future<void> _requestAndroidNotificationPermission() async {
@@ -2867,6 +2963,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               'title': '',
               'body': '${t.text}',
               'icon': 'assets/icons/color_transparent_icon.png',
+              'taskId': t.id,
             });
           } catch (_) {}
           try {

@@ -57,7 +57,7 @@
 - [ ] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
 - [x] runter sortieren, sortiert "drüber"
 - [ ] sync: self signed certs prüfen (ca-chain)
-- [ ] android: aktionen in der notification (erledigt, in arbeit)
+- [?] android: aktionen in der notification (erledigt, in arbeit)
 - [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben! (primärgerät-definieren?)
 - [ ] papierkorb:
         schiebt sync in den papierkorb?

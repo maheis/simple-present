@@ -18,22 +18,31 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
 	private val CHANNEL_ID = "simple_present_channel"
+	private val ACTION_TASK_DONE = "be.heister.simplepresent.ACTION_TASK_DONE"
+	private val ACTION_TASK_IN_PROGRESS = "be.heister.simplepresent.ACTION_TASK_IN_PROGRESS"
+	private val EXTRA_TASK_ID = "task_id"
+	private val EXTRA_NOTIFICATION_ID = "notification_id"
 	private val PERMISSION_REQUEST_CODE = 1001
 	private var pendingTitle: String? = null
 	private var pendingBody: String? = null
+	private var pendingTaskId: String? = null
 	private var pendingPermissionResult: MethodChannel.Result? = null
+	private var windowChannel: MethodChannel? = null
+	private val pendingTaskActions = mutableListOf<Pair<String, String>>()
 
 	override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
 		super.configureFlutterEngine(flutterEngine)
 
-		MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "simple_present/window")
+		windowChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "simple_present/window")
+		windowChannel
 			.setMethodCallHandler { call: MethodCall, result ->
 				when (call.method) {
 					"notify" -> {
 						val args = call.arguments as? Map<*, *>
 						val title = args?.get("title") as? String ?: "SimplePresent"
 						val body = args?.get("body") as? String ?: ""
-						showNotification(title, body)
+						val taskId = args?.get("taskId") as? String
+						showNotification(title, body, taskId)
 						result.success(null)
 					}
 					"bringToFront" -> {
@@ -55,6 +64,8 @@ class MainActivity : FlutterActivity() {
 			}
 
 		// Cloud Sync HTTP client channel removed - not needed with proper Apache config
+		flushPendingTaskActions()
+		handleIntent(intent)
 	}
 
 	private fun ensureChannel() {
@@ -83,7 +94,7 @@ class MainActivity : FlutterActivity() {
 		}
 	}
 
-	private fun showNotification(title: String, body: String) {
+	private fun showNotification(title: String, body: String, taskId: String? = null) {
 		// On Android 13+ we need runtime permission to post notifications
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 			val granted = ContextCompat.checkSelfPermission(
@@ -94,6 +105,7 @@ class MainActivity : FlutterActivity() {
 				// store pending payload so we can show it after permission granted
 				pendingTitle = title
 				pendingBody = body
+				pendingTaskId = taskId
 				ActivityCompat.requestPermissions(
 					this,
 					arrayOf(Manifest.permission.POST_NOTIFICATIONS),
@@ -109,7 +121,7 @@ class MainActivity : FlutterActivity() {
 			flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
 		}
 
-
+		val notificationId = System.currentTimeMillis().toInt()
 		val pendingIntent: PendingIntent = PendingIntent.getActivity(
 			this,
 			0,
@@ -126,8 +138,98 @@ class MainActivity : FlutterActivity() {
 			.setContentIntent(pendingIntent)
 			.setAutoCancel(true)
 
+		val useTaskId = taskId?.trim().orEmpty()
+		if (useTaskId.isNotEmpty()) {
+			val doneIntent = Intent(this, MainActivity::class.java).apply {
+				action = ACTION_TASK_DONE
+				flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+				putExtra(EXTRA_TASK_ID, useTaskId)
+				putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+			}
+			val donePendingIntent = PendingIntent.getActivity(
+				this,
+				notificationId + 1,
+				doneIntent,
+				PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+			)
+
+			val inProgressIntent = Intent(this, MainActivity::class.java).apply {
+				action = ACTION_TASK_IN_PROGRESS
+				flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+				putExtra(EXTRA_TASK_ID, useTaskId)
+				putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+			}
+			val inProgressPendingIntent = PendingIntent.getActivity(
+				this,
+				notificationId + 2,
+				inProgressIntent,
+				PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+			)
+
+			builder
+				.addAction(0, "erledigt", donePendingIntent)
+				.addAction(0, "in arbeit", inProgressPendingIntent)
+		}
+
 		with(NotificationManagerCompat.from(this)) {
-			notify(System.currentTimeMillis().toInt(), builder.build())
+			notify(notificationId, builder.build())
+		}
+	}
+
+	override fun onNewIntent(intent: Intent) {
+		super.onNewIntent(intent)
+		setIntent(intent)
+		handleIntent(intent)
+	}
+
+	private fun handleIntent(intent: Intent?) {
+		val action = intent?.action ?: return
+		if (action != ACTION_TASK_DONE && action != ACTION_TASK_IN_PROGRESS) return
+
+		val taskId = intent.getStringExtra(EXTRA_TASK_ID)?.trim().orEmpty()
+		if (taskId.isEmpty()) return
+
+		val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, -1)
+		if (notificationId > 0) {
+			try {
+				NotificationManagerCompat.from(this).cancel(notificationId)
+			} catch (_: Exception) {}
+		}
+
+		val flutterAction = if (action == ACTION_TASK_DONE) "done" else "in_progress"
+		dispatchTaskAction(taskId, flutterAction)
+	}
+
+	private fun dispatchTaskAction(taskId: String, action: String) {
+		val channel = windowChannel
+		if (channel == null) {
+			pendingTaskActions.add(Pair(taskId, action))
+			return
+		}
+		try {
+			channel.invokeMethod(
+				"notificationTaskAction",
+				mapOf("taskId" to taskId, "action" to action)
+			)
+		} catch (_: Exception) {
+			pendingTaskActions.add(Pair(taskId, action))
+		}
+	}
+
+	private fun flushPendingTaskActions() {
+		if (pendingTaskActions.isEmpty()) return
+		val channel = windowChannel ?: return
+		val queued = pendingTaskActions.toList()
+		pendingTaskActions.clear()
+		for (item in queued) {
+			try {
+				channel.invokeMethod(
+					"notificationTaskAction",
+					mapOf("taskId" to item.first, "action" to item.second)
+				)
+			} catch (_: Exception) {
+				pendingTaskActions.add(item)
+			}
 		}
 	}
 
@@ -173,11 +275,12 @@ class MainActivity : FlutterActivity() {
 				val t = pendingTitle
 				val b = pendingBody
 				if (t != null || b != null) {
-					showNotification(t ?: "SimplePresent", b ?: "")
+					showNotification(t ?: "SimplePresent", b ?: "", pendingTaskId)
 				}
 			}
 			pendingTitle = null
 			pendingBody = null
+			pendingTaskId = null
 		}
 	}
 }
