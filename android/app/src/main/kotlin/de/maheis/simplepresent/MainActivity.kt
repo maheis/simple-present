@@ -49,6 +49,10 @@ class MainActivity : FlutterActivity() {
 						bringAppToFront()
 						result.success(null)
 					}
+					"refreshTodayWidget" -> {
+						refreshTodayWidget()
+						result.success(null)
+					}
 					else -> result.notImplemented()
 				}
 			}
@@ -211,9 +215,19 @@ class MainActivity : FlutterActivity() {
 				"notificationTaskAction",
 				mapOf("taskId" to taskId, "action" to action)
 			)
+			refreshTodayWidget()
 		} catch (_: Exception) {
 			pendingTaskActions.add(Pair(taskId, action))
 		}
+	}
+
+	private fun refreshTodayWidget() {
+		try {
+			val intent = Intent(this, TodayWidgetProvider::class.java).apply {
+				action = TodayWidgetProvider.ACTION_REFRESH_WIDGET
+			}
+			sendBroadcast(intent)
+		} catch (_: Exception) {}
 	}
 
 	private fun flushPendingTaskActions() {

@@ -1060,6 +1060,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+  Future<void> _refreshAndroidTodayWidget() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _nativeWindowChannel.invokeMethod('refreshTodayWidget');
+    } catch (_) {}
+  }
+
   Future<void> _loadList(String filename, List<TaskItem> target) async {
     target.clear();
     try {
@@ -1712,6 +1719,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
         if (triggerCloudSync) {
           unawaited(_syncPushToCloud(filename, source));
+        }
+        if (_listDirBase(filename) == 'today') {
+          unawaited(_refreshAndroidTodayWidget());
         }
       } catch (_) {}
     }));

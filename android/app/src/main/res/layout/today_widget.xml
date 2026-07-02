@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="8dp" android:background="#10201D">
+
+    <TextView android:id="@+id/widget_header" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="today" android:textStyle="bold" android:textSize="16sp" android:textColor="#E6F5F0" android:paddingBottom="6dp" />
+
+    <ListView android:id="@+id/widget_list" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:divider="#2B4A45" android:dividerHeight="1dp" android:cacheColorHint="@android:color/transparent" android:transcriptMode="disabled" />
+
+    <TextView android:id="@+id/widget_empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="no tasks" android:textSize="12sp" android:textColor="#A9C6BF" android:gravity="center" android:paddingTop="8dp" android:visibility="gone" />
+</LinearLayout>
