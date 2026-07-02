@@ -30,6 +30,7 @@
 - [x] aufgaben die ins backlog geschoben werden lösen ein "there" aus. d.h. irgendwie wird der status geändert. -> find ich eigentlich gut!
 - [x] repeat aufgaben die automatisch ins today geschoben weden, legen direkt eine repeat aufgabe an! damit doppeln die aufgaben sich!
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
+- [ ] Windows Store Veröffentlichung (.notes/WINDOWS_APP_STORE.md)
 - [ ] Worklog an Aufgaben...
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
 - [ ] Web Applikation
@@ -52,7 +53,7 @@
 - [ ] papierkorb:
         schiebt sync in den papierkorb?
         papierkorb sichtbar machen (um wiederherstellen zu können)
-- [ ] Windows Zertifikat für exe?!
+- [x] Windows Zertifikat für exe?!
 - [ ] install server soll updaten können
 - [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
       notification funktioniert mit weißen icon.[text](about:blank#blocked)
@@ -60,10 +61,14 @@
       app icon ist 4 eckig auf weißem grund (rund)
       jetzt ist das icon wieder vermatscht, glaube muss transparentes icon mit gößerem transparenten rand sein, damit es rund passt
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [ ] manchmal werden aufgaben falsch selektiert (bei kachel button move oder verschieben)
-- [ ] manchmal werden andere aufgauben auch in progress gesetzt wenn ich eine auf in progress setze (performance? müsste ein delay nach der aktion sein? beobachten konnte ich es wenn der pc ausgelastet war)
+- [?] manchmal werden aufgaben falsch selektiert (bei kachel button move oder verschieben)
+- [?] manchmal werden andere aufgauben auch in progress gesetzt wenn ich eine auf in progress setze (performance? müsste ein delay nach der aktion sein? beobachten konnte ich es wenn der pc ausgelastet war)
+- [?] backlog wird manchmal komplett zu today
 - [x] sync button muss ein vollständiges synchronisieren auslösen!
         -> lädt jetzt alle 3 Listen hoch, zieht Remote State, reloaded UI
+- [ ] aufgaben die im backlog in der vergangenheit liegen, sollen automatisch ins today verschoben werden, wenn sie noch nicht erledigt sind!
+- [ ] andoid statt localhost als geräte namen!
+- [ ] hübschere und fancy lade animation im loading screen (matrix style?)
 
 ## notes
 

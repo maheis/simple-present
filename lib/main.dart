@@ -597,6 +597,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // Enable debug write logging
   bool _debugWriteLog = false;
 
+  // Startup self-heal stats for duplicate/invalid task IDs.
+  bool _collectDedupeStats = false;
+  int _startupReplacedEmptyIds = 0;
+  int _startupRemovedDuplicates = 0;
+
   late final Future<void> _initFuture = _initializeApp();
 
   // Snapshot of last persisted `_today` list used to detect local changes
@@ -818,6 +823,38 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _loadSettings();
     await _ensureInitialFiles();
 
+    // Self-heal list files once at startup by deduplicating task IDs.
+    // `_loadList` already dedupes in memory; we persist that normalized state.
+    try {
+      final todayFile = _storage('simplepresent_today.json');
+      final backlogFile = _storage('simplepresent_backlog.json');
+      final doneFile = _storage('simplepresent_done.json');
+      final today = <TaskItem>[];
+      final backlog = <TaskItem>[];
+      final done = <TaskItem>[];
+      _collectDedupeStats = true;
+      _startupReplacedEmptyIds = 0;
+      _startupRemovedDuplicates = 0;
+      await _loadList(todayFile, today);
+      await _loadList(backlogFile, backlog);
+      await _loadList(doneFile, done);
+      _collectDedupeStats = false;
+      await Future.wait([
+        _saveList(todayFile, today, triggerCloudSync: false),
+        _saveList(backlogFile, backlog, triggerCloudSync: false),
+        _saveList(doneFile, done, triggerCloudSync: false),
+      ]);
+      final repairedTotal =
+          _startupReplacedEmptyIds + _startupRemovedDuplicates;
+      if (repairedTotal > 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _showTopToast(
+              'list repair: $repairedTotal entries fixed (${_startupRemovedDuplicates} duplicates, ${_startupReplacedEmptyIds} empty IDs)');
+        });
+      }
+    } catch (_) {}
+
     // Set a sensible default size on startup (width x height).
     // On Windows place the window at the top-right edge of the primary screen.
     try {
@@ -899,6 +936,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (_useSqlite) {
         final rows = _sqliteStorage.readTaskList(filename);
         target.addAll(rows.map(TaskItem.fromJson));
+        _dedupeTaskIdsInPlace(target, filename);
         return;
       }
       if (_isListDir(filename)) {
@@ -915,6 +953,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             } catch (_) {}
           }
         }
+        _dedupeTaskIdsInPlace(target, filename);
         return;
       }
       final f = await _fileFor(filename);
@@ -922,6 +961,43 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final text = await f.readAsString();
         final data = jsonDecode(text) as List<dynamic>;
         target.addAll(data.map(TaskItem.fromJson));
+      }
+      _dedupeTaskIdsInPlace(target, filename);
+    } catch (_) {}
+  }
+
+  void _dedupeTaskIdsInPlace(List<TaskItem> list, String sourceName) {
+    try {
+      final seen = <String>{};
+      int replacedIds = 0;
+      int removedDuplicates = 0;
+      final normalized = <TaskItem>[];
+
+      for (final t in list) {
+        var id = t.id.trim();
+        if (id.isEmpty) {
+          id =
+              '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+          replacedIds++;
+        }
+        if (seen.contains(id)) {
+          removedDuplicates++;
+          continue;
+        }
+        seen.add(id);
+        normalized.add(id == t.id ? t : t.copyWith(id: id));
+      }
+
+      if (replacedIds > 0 || removedDuplicates > 0) {
+        list
+          ..clear()
+          ..addAll(normalized);
+        if (_collectDedupeStats) {
+          _startupReplacedEmptyIds += replacedIds;
+          _startupRemovedDuplicates += removedDuplicates;
+        }
+        unawaited(_debugLog(
+            'dedupe on load for $sourceName: replaced_empty_ids=$replacedIds, removed_duplicates=$removedDuplicates'));
       }
     } catch (_) {}
   }
