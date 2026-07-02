@@ -70,7 +70,7 @@
 - [x] andoid statt localhost als geräte namen!
 - [x] hübschere und fancy lade animation im loading screen
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
-- [ ] burger menü alles klein
+- [x] burger menü alles klein
 
 ## notes
 

@@ -34,6 +34,10 @@ The app also includes a stopwatch, manual time tracking, reminders, swipe action
 
 Linux Server: The app can sync with a self-hosted server. The repository contains the tools and instructions needed to set up your own sync server.
 
+## Technical Documentation
+
+For internal settings, runtime parameters, and debugging options (including debugWriteLog), see TECHNICAL_README.md.
+
 ## footnote
 
 Developed with the kind support of Copilot
