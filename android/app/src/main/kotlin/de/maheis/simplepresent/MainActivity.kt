@@ -20,8 +20,10 @@ class MainActivity : FlutterActivity() {
 	private val CHANNEL_ID = "simple_present_channel"
 	private val ACTION_TASK_DONE = "be.heister.simplepresent.ACTION_TASK_DONE"
 	private val ACTION_TASK_IN_PROGRESS = "be.heister.simplepresent.ACTION_TASK_IN_PROGRESS"
+	private val ACTION_WIDGET_TASK_TOGGLE = "be.heister.simplepresent.ACTION_WIDGET_TASK_TOGGLE"
 	private val EXTRA_TASK_ID = "task_id"
 	private val EXTRA_NOTIFICATION_ID = "notification_id"
+	private val EXTRA_TASK_ACTION = "task_action"
 	private val PERMISSION_REQUEST_CODE = 1001
 	private var pendingTitle: String? = null
 	private var pendingBody: String? = null
@@ -189,10 +191,21 @@ class MainActivity : FlutterActivity() {
 
 	private fun handleIntent(intent: Intent?) {
 		val action = intent?.action ?: return
-		if (action != ACTION_TASK_DONE && action != ACTION_TASK_IN_PROGRESS) return
+		if (
+			action != ACTION_TASK_DONE &&
+			action != ACTION_TASK_IN_PROGRESS &&
+			action != ACTION_WIDGET_TASK_TOGGLE
+		) return
 
 		val taskId = intent.getStringExtra(EXTRA_TASK_ID)?.trim().orEmpty()
 		if (taskId.isEmpty()) return
+
+		if (action == ACTION_WIDGET_TASK_TOGGLE) {
+			val widgetAction = intent.getStringExtra(EXTRA_TASK_ACTION)?.trim().orEmpty()
+			if (widgetAction != "in_progress" && widgetAction != "done") return
+			dispatchTaskAction(taskId, widgetAction)
+			return
+		}
 
 		val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, -1)
 		if (notificationId > 0) {

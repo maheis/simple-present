@@ -83,8 +83,8 @@
   - [x] transparentes widget (60% hintergrundstransparenz), damit es sich in den hintergrund einfügt
   - [x] schrift
   - [x] widget übernimmt konfigurierte app-schrift
-  - [ ] radio-button
-  - [ ] 
+  - [x] radio-button
+  - [ ] sortierreihenfolge wie in der app!
 
 ## notes
 
