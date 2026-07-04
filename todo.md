@@ -1,5 +1,10 @@
 # ToDo
 
+- [-] animation:
+  - [ ] aufklappen/zuklappen
+  - [ ] positionsveränderungen
+  - [ ] verschieben in andere listen
+  - [ ] wackeln als animation
 - [x] keine toasts by sync
 - [x] icons für...
   - [x] notes
@@ -40,16 +45,29 @@
 - [x] icon im loding screen auf icon.png umstellen
 - [x] runter sortieren, sortiert "drüber"
 - [x] android: aktionen in der notification (erledigt, in arbeit)
+- [x] sort bei öffnen von listen
+- [x] android widget
+  - [x] today widget, absprung in die app!
+  - [x] keine actions
+  - [x] breite soll kleiner gemacht werden können (aktuell geht nur breiter, nicht schmaler als 3 kacheln))
+  - [x] oben links icon und überschrift
+  - [x] transparentes widget (60% hintergrundstransparenz), damit es sich in den hintergrund einfügt
+  - [x] schrift
+  - [x] widget übernimmt konfigurierte app-schrift
+  - [x] radio-button
+  - [x] sortierreihenfolge wie in der app!
+- [x] subtasks müssen in folgeaufgaben wieder nicht bearbeitet sein!
+- [x] today wurde nicht nach heute geschoben
+- [x] loading auf dem task wenn man z.b. verschiben drückt
+- [-] widget: kalender einfügen? -> aktuell mit dem widget karussell gelöst!
+- [x] in progress swipen -> switcht den text sofort auf done...
+- [x] action que
+- [x] nur ein pair button (wenn erstes gerät, soll es halt registriert werden, sonst hinzugefügt werden)
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Windows Store Veröffentlichung (.notes/WINDOWS_APP_STORE.md)
 - [ ] Worklog an Aufgaben...
 - [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
 - [ ] Web Applikation
-- [ ] animation:
-  - [ ] aufklappen/zuklappen
-  - [ ] positionsveränderungen
-  - [ ] verschieben in andere listen
-  - [ ] wackeln als animation
 - [ ] Reihenfolge auch über andere Gruppen hinaus und dann optisch einsortieren
 - [ ] Abhängigkeiten Reduzieren
   - [x] sqlite3.dll
@@ -74,30 +92,11 @@
 - [??] manchmal werden andere aufgauben auch in progress gesetzt wenn ich eine auf in progress setze (performance? müsste ein delay nach der aktion sein? beobachten konnte ich es wenn der pc ausgelastet war)
 - [??] backlog wird manchmal komplett zu today
 - [??] today manchmal leer, ziemlich wired grade!
-- [x] sort bei öffnen von listen
-- [x] android widget
-  - [x] today widget, absprung in die app!
-  - [x] keine actions
-  - [x] breite soll kleiner gemacht werden können (aktuell geht nur breiter, nicht schmaler als 3 kacheln))
-  - [x] oben links icon und überschrift
-  - [x] transparentes widget (60% hintergrundstransparenz), damit es sich in den hintergrund einfügt
-  - [x] schrift
-  - [x] widget übernimmt konfigurierte app-schrift
-  - [x] radio-button
-  - [x] sortierreihenfolge wie in der app!
-- [x] subtasks müssen in folgeaufgaben wieder nicht bearbeitet sein!
-- [x] today wurde nicht nach heute geschoben
-- [x] loading auf dem task wenn man z.b. verschiben drückt
-- [-] widget: kalender einfügen? -> aktuell mit dem widget karussell gelöst!
-- [x] in progress swipen -> switcht den text sofort auf done...
-- [x] action que
 - [ ] reopen in der done liste führt zu gecken effekten
-- [x] nur ein pair button (wenn erstes gerät, soll es halt registriert werden, sonst hinzugefügt werden)
-- [x] ausführliches sync testen! kommt ständig zu fehlern, die nicht reproduzierbar sind! 
+- [?] ausführliches sync testen! kommt ständig zu fehlern, die nicht reproduzierbar sind! 
       z.b. move von backlog zu today wird nicht synchronisiert, sachen die ins backlog gehen, bleiben in today...
       dopplung von aufgaben...
-- [x] sync button macht immer noch nicht 100%
-- [ ] 
+- [?] sync button macht immer noch nicht 100%
 
 ## notes
 
@@ -108,3 +107,14 @@
 - [ ] Export/Import: Möglichkeit, Aufgabenlisten zu exportieren und zu importieren, z.B. als JSON oder CSV, um Backups zu erstellen oder Daten zwischen verschiedenen Apps zu übertragen.
 - [ ] Widgets: Unterstützung für Widgets auf dem Startbildschirm (Mobile) oder Desktop, um schnellen Zugriff auf die wichtigsten Aufgaben zu ermöglichen.
 - [ ] Integration mit Kalendern: Möglichkeit, Aufgaben mit Kalenderereignissen zu verknüpfen, um eine bessere Übersicht über Termine und Aufgaben zu erhalten.
+
+## Cloud Sync Improvements (Recent Fixes)
+
+- [x] Swipe snap-back immediately, execute action in background
+- [x] Loading spinner on ALL task modifications
+- [x] Action queue to prevent concurrent operations on same task
+- [x] Single adaptive pair/register button
+- [x] Push queue to prevent drops on concurrent list changes
+- [x] Fix sync duplications (move tombstone detection)
+- [x] Notes synchronization via manual sync button
+- [x] Time entry synchronization via manual sync button

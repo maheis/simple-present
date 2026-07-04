@@ -2351,10 +2351,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       _showTopToast('synchronizing...');
 
-      // Step 1: Load all local lists from disk.
+      // Step 1: Load all local lists and notes from disk.
       final todayFile = _storage('simplepresent_today.json');
       final backlogFile = _storage('simplepresent_backlog.json');
       final doneFile = _storage('simplepresent_done.json');
+      final notesFile = await _fileFor(_storage('simplepresent_notes.txt'));
 
       final todayList = <TaskItem>[];
       final backlogList = <TaskItem>[];
@@ -2366,21 +2367,46 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _loadList(doneFile, doneList),
       ]);
 
+      String notesText = '';
+      try {
+        if (await notesFile.exists()) {
+          notesText = await notesFile.readAsString();
+        }
+      } catch (_) {}
+
       // Step 2: Push all 3 lists SEQUENTIALLY.
       // Parallel pushes are broken because _cloudSyncBusy blocks the 2nd + 3rd.
       await _syncPushToCloud(todayFile, todayList);
       await _syncPushToCloud(backlogFile, backlogList);
       await _syncPushToCloud(doneFile, doneList);
 
-      // Step 3: Pull full remote state (since=0 ensures we never miss changes
+      // Step 3: Push notes if non-empty.
+      if (notesText.isNotEmpty) {
+        await _syncPushNotes(notesText);
+      }
+
+      // Step 4: Push all pending time-entries (drain the queue completely).
+      while (_cloudPendingTimeEntrySync.isNotEmpty) {
+        final entry = _cloudPendingTimeEntrySync.entries.first;
+        _cloudPendingTimeEntrySync.remove(entry.key);
+        try {
+          await _syncPushTimeEntryToCloud(entry.value);
+        } catch (_) {
+          // Re-enqueue on failure, will retry on next manual sync.
+          _cloudPendingTimeEntrySync[entry.key] = entry.value;
+          break;
+        }
+      }
+
+      // Step 5: Pull full remote state (since=0 ensures we never miss changes
       // from other devices that were pushed before our push timestamp).
       _cloudLastSyncModifiedAt = 0;
       await _syncPullFromCloud();
 
-      // Step 4: Fetch server version
+      // Step 6: Fetch server version
       await _fetchServerVersion();
 
-      // Step 5: Reload current view
+      // Step 7: Reload current view
       await _loadToday();
 
       _showTopToast('synchronization completed');
