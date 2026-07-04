@@ -1,7 +1,7 @@
 name: simple_present
 description: A minimal Flutter starter for the SimplePresent project.
 publish_to: "none"
-version: 0.7.1+34
+version: 0.7.2+35
 environment:
   sdk: ">=3.0.0 <4.0.0"
 
