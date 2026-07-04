@@ -612,6 +612,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _suppressCloudPushes = false;
   int _cloudStateVersion = 1;
   int _cloudLastSyncModifiedAt = 0;
+  // Push queue: pending pushes are keyed by filename. Latest snapshot wins.
+  // A dedicated drain loop processes them sequentially to prevent drops when
+  // multiple lists change in the same operation (e.g. move today→backlog).
+  final Map<String, List<TaskItem>> _pendingCloudPushes = {};
+  bool _cloudPushDrainRunning = false;
   final Map<String, TaskItem> _cloudPendingTimeEntrySync = <String, TaskItem>{};
   Set<String> _cloudKnownTodayIds = <String>{};
   Set<String> _cloudKnownBacklogIds = <String>{};
@@ -1814,7 +1819,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           }
         }
         if (triggerCloudSync) {
-          unawaited(_syncPushToCloud(filename, source));
+          // Use push queue to ensure sequential delivery.
+          // This prevents the second push being silently dropped during move
+          // operations (today + backlog both change in the same action).
+          _enqueuePush(filename, source);
         }
         if (_listDirBase(filename) == 'today') {
           unawaited(_refreshAndroidTodayWidget());
@@ -2008,7 +2016,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ],
       );
 
-      _cloudLastSyncModifiedAt = modifiedAt;
+      // Note: do NOT update _cloudLastSyncModifiedAt here (see _syncPushToCloud).
       await _saveSettings();
       _onCloudSyncSuccess();
       return true;
@@ -2020,6 +2028,56 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _flushPendingCloudTimeEntrySync();
     }
   }
+
+  // --- Push queue --------------------------------------------------------
+  // Enqueues a cloud push for [filename] with [source] as the payload.
+  // The latest snapshot for a given filename replaces any pending one
+  // (last-write-wins per list), so rapid successive saves are collapsed.
+  // A sequential drain loop then sends each pending list to the server
+  // one at a time to avoid races.
+  void _enqueuePush(String filename, List<TaskItem> source) {
+    if (!_cloudSyncConfigured || _applyingCloudState || _suppressCloudPushes)
+      return;
+    if (_cloudListNameForFilename(filename) == null) return;
+    _pendingCloudPushes[filename] = List<TaskItem>.from(source);
+    if (!_cloudPushDrainRunning) {
+      unawaited(_drainPushQueue());
+    }
+  }
+
+  Future<void> _drainPushQueue() async {
+    if (_cloudPushDrainRunning) return;
+    _cloudPushDrainRunning = true;
+    try {
+      while (_pendingCloudPushes.isNotEmpty) {
+        if (!mounted || !_cloudSyncConfigured) break;
+
+        // Wait if a pull (or another sync) is in progress (max ~15 s).
+        int waited = 0;
+        while ((_cloudSyncBusy || _applyingCloudState) && waited < 15000) {
+          await Future.delayed(const Duration(milliseconds: 400));
+          waited += 400;
+        }
+        if (_cloudSyncBusy || _applyingCloudState) {
+          // Still busy after timeout — give up for now, will retry next save.
+          break;
+        }
+
+        final entry = _pendingCloudPushes.entries.first;
+        _pendingCloudPushes.remove(entry.key);
+        await _syncPushToCloud(entry.key, entry.value);
+      }
+    } catch (e) {
+      await _debugLog('_drainPushQueue error: $e');
+    } finally {
+      _cloudPushDrainRunning = false;
+      // Restart drain if new items arrived while we were finishing.
+      if (_pendingCloudPushes.isNotEmpty && mounted && _cloudSyncConfigured) {
+        unawaited(_drainPushQueue());
+      }
+    }
+  }
+  // -----------------------------------------------------------------------
 
   Future<void> _syncPushToCloud(String filename, List<TaskItem> source) async {
     if (!_cloudSyncConfigured ||
@@ -2065,6 +2123,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
 
       for (final removed in removedIds) {
+        // Only send a tombstone if the task does NOT exist in any other list.
+        //
+        // Without this check, a move operation (e.g. backlog → today) would:
+        //   1. Push today  → server stores task:X with list=today
+        //   2. Push backlog → sees X missing from backlog, sends tombstone for
+        //      task:X, which OVERWRITES the today entry → X appears deleted!
+        //
+        // We detect "moved, not deleted" by checking:
+        //   a) _cloudKnownXxxIds for the other lists (already updated by
+        //      earlier pushes in the same drain pass), and
+        //   b) any pending push snapshots (for lists not yet pushed in this pass).
+        final existsInOtherList = _allListNamesExcept(listName).any((other) {
+          // Already-pushed list: check its known ID set.
+          if (_knownIdSetForList(other).contains(removed)) return true;
+          // Not yet pushed: check the pending snapshot if available.
+          for (final pendingEntry in _pendingCloudPushes.entries) {
+            if (_cloudListNameForFilename(pendingEntry.key) == other) {
+              if (pendingEntry.value.any((t) => t.id == removed)) return true;
+            }
+          }
+          return false;
+        });
+        if (existsInOtherList) continue; // Task was moved, not deleted.
+
         items.add(<String, dynamic>{
           'id': 'task:$removed',
           'payload': <String, dynamic>{'reason': 'removed'},
@@ -2084,7 +2166,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       knownIds
         ..clear()
         ..addAll(currentIds);
-      _cloudLastSyncModifiedAt = modifiedAt;
+      // Note: do NOT update _cloudLastSyncModifiedAt here.
+      // Only _syncPullFromCloud advances this cursor so we never accidentally
+      // skip changes from other devices that happened before our push.
       await _saveSettings();
       _onCloudSyncSuccess();
     } catch (e) {
@@ -2118,6 +2202,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       default:
         return <String>{};
     }
+  }
+
+  /// Returns all known list names except [listName].
+  List<String> _allListNamesExcept(String listName) {
+    return ['today', 'backlog', 'done'].where((n) => n != listName).toList();
   }
 
   // Cloud syncing of redo-log entries has been removed.
@@ -2160,7 +2249,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ],
       );
 
-      _cloudLastSyncModifiedAt = modifiedAt;
+      // Note: do NOT update _cloudLastSyncModifiedAt here (see _syncPushToCloud).
       await _saveSettings();
       _onCloudSyncSuccess();
       return true;
@@ -2250,19 +2339,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
 
+    // Cancel any pending debounced auto-pushes – we're doing a full sync now.
+    _pendingCloudPushes.clear();
+
     // Finalize any open edits so they get logged as a single entry.
     try {
       await _finalizeAllEdits();
     } catch (_) {}
 
-    // Suppress toasts during manual sync request (user requested sync but
-    // prefers not to see transient sync toasts).
     _suppressSyncToasts = true;
     try {
-      // Full sync: Push ALL local lists to cloud first, then pull remote state
       _showTopToast('synchronizing...');
 
-      // Step 1: Upload all local lists (today, backlog, done)
+      // Step 1: Load all local lists from disk.
       final todayFile = _storage('simplepresent_today.json');
       final backlogFile = _storage('simplepresent_backlog.json');
       final doneFile = _storage('simplepresent_done.json');
@@ -2277,20 +2366,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _loadList(doneFile, doneList),
       ]);
 
-      // Upload all lists in parallel
-      await Future.wait([
-        _syncPushToCloud(todayFile, todayList),
-        _syncPushToCloud(backlogFile, backlogList),
-        _syncPushToCloud(doneFile, doneList),
-      ]);
+      // Step 2: Push all 3 lists SEQUENTIALLY.
+      // Parallel pushes are broken because _cloudSyncBusy blocks the 2nd + 3rd.
+      await _syncPushToCloud(todayFile, todayList);
+      await _syncPushToCloud(backlogFile, backlogList);
+      await _syncPushToCloud(doneFile, doneList);
 
-      // Step 2: Pull remote state from cloud
+      // Step 3: Pull full remote state (since=0 ensures we never miss changes
+      // from other devices that were pushed before our push timestamp).
+      _cloudLastSyncModifiedAt = 0;
       await _syncPullFromCloud();
 
-      // Step 3: Fetch server version
+      // Step 4: Fetch server version
       await _fetchServerVersion();
 
-      // Step 4: Reload current view to reflect all changes
+      // Step 5: Reload current view
       await _loadToday();
 
       _showTopToast('synchronization completed');
@@ -2370,7 +2460,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         idPrefix: '',
       );
       await _refreshCloudAccountStatus(showToastIfWarning: true);
-      if (pulledItems.isEmpty) return;
+      if (pulledItems.isEmpty) {
+        // Nothing new from server — still counts as a successful contact.
+        _onCloudSyncSuccess();
+        return;
+      }
 
       final today = <TaskItem>[];
       final backlog = <TaskItem>[];
@@ -2539,6 +2633,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _cloudSyncBusy = false;
       _suppressSyncToasts = false;
       _flushPendingCloudTimeEntrySync();
+      // Restart drain queue for any pushes that were waiting for the pull.
+      if (_pendingCloudPushes.isNotEmpty &&
+          !_cloudPushDrainRunning &&
+          mounted) {
+        unawaited(_drainPushQueue());
+      }
     }
   }
 

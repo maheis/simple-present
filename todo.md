@@ -56,7 +56,7 @@
   - [ ] mehr?
   - [ ] Aufräumen (ois)
 - [ ] sync: erster sync muss schneller, es muss beim öffnen geprüft werden bevor der client selbst aktionen ausführt. sonst kann es zu chaos kommen! (aufgaben die anm handy in heute lagen nd schon erledigt waren, wurden beim anderen in backlog verschoben und da liegengelassen...) 
-- [ ] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
+- [x] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
 - [ ] sync: self signed certs prüfen (ca-chain)
 - [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben! (primärgerät-definieren?)
 - [ ] papierkorb:
@@ -93,7 +93,11 @@
 - [x] action que
 - [ ] reopen in der done liste führt zu gecken effekten
 - [x] nur ein pair button (wenn erstes gerät, soll es halt registriert werden, sonst hinzugefügt werden)
-- [ ] test ausführliches sync!
+- [x] ausführliches sync testen! kommt ständig zu fehlern, die nicht reproduzierbar sind! 
+      z.b. move von backlog zu today wird nicht synchronisiert, sachen die ins backlog gehen, bleiben in today...
+      dopplung von aufgaben...
+- [x] sync button macht immer noch nicht 100%
+- [ ] 
 
 ## notes
 
