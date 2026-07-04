@@ -89,7 +89,7 @@
 - [x] today wurde nicht nach heute geschoben
 - [x] loading auf dem task wenn man z.b. verschiben drückt
 - [-] widget: kalender einfügen? -> aktuell mit dem widget karussell gelöst!
-- [ ] in progress swipen -> switcht den text sofort auf done...
+- [x] in progress swipen -> switcht den text sofort auf done...
 
 ## notes
 

@@ -6498,27 +6498,53 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                       // Right swipe (Today view): 1st -> set inProgress, 2nd -> set done
                                                       if (!t.inProgress &&
                                                           !t.done) {
-                                                        // Apply inProgress immediately on swipe (no delay)
-                                                        try {
-                                                          await _startStopwatch(
-                                                              i);
-                                                        } catch (_) {}
-                                                        try {
-                                                          setState(() {
-                                                            _today[i] = _today[
-                                                                    i]
-                                                                .copyWith(
-                                                                    inProgress:
-                                                                        true,
-                                                                    inProgressAt:
-                                                                        DateTime
-                                                                            .now());
-                                                          });
-                                                        } catch (_) {}
-                                                        unawaited(_saveToday());
-                                                        _registerActivity();
+                                                        // Delay the inProgress setState so the Dismissible
+                                                        // snap-back animation (~300 ms) completes first.
+                                                        // This prevents the background from flipping to
+                                                        // "done" while the card is still snapping back.
+                                                        final swipedId = t.id;
                                                         _showTopToast(
                                                             'task marked in progress');
+                                                        _registerActivity();
+                                                        Future.delayed(
+                                                            const Duration(
+                                                                milliseconds:
+                                                                    340),
+                                                            () async {
+                                                          if (!mounted) return;
+                                                          final idx = _today
+                                                              .indexWhere((x) =>
+                                                                  x.id ==
+                                                                  swipedId);
+                                                          if (idx == -1) return;
+                                                          try {
+                                                            await _startStopwatch(
+                                                                idx);
+                                                          } catch (_) {}
+                                                          try {
+                                                            setState(() {
+                                                              final cur = _today
+                                                                  .indexWhere((x) =>
+                                                                      x.id ==
+                                                                      swipedId);
+                                                              if (cur != -1) {
+                                                                _today[cur] =
+                                                                    _today[cur]
+                                                                        .copyWith(
+                                                                  inProgress:
+                                                                      true,
+                                                                  inProgressAt: _today[
+                                                                              cur]
+                                                                          .inProgressAt ??
+                                                                      DateTime
+                                                                          .now(),
+                                                                );
+                                                              }
+                                                            });
+                                                          } catch (_) {}
+                                                          unawaited(
+                                                              _saveToday());
+                                                        });
                                                       } else if (t.inProgress &&
                                                           !t.done) {
                                                         // If already in progress, mark done immediately (no delay)
