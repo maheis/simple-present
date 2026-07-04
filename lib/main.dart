@@ -5115,6 +5115,109 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  void _performSwipeAction(String taskId, String action) {
+    // Schedule the action to run after snap-back animation (~340ms).
+    // Shows loading indicator via _busyTaskIds during execution.
+    Future.delayed(const Duration(milliseconds: 340), () async {
+      if (!mounted) return;
+
+      final idx = _today.indexWhere((x) => x.id == taskId);
+      if (idx == -1) return; // Task may have moved or been deleted
+
+      setState(() => _busyTaskIds.add(taskId));
+      try {
+        switch (action) {
+          case 'moveFromBacklog':
+            await _moveFromBacklog(idx);
+            break;
+          case 'setInProgress':
+            _showTopToast('task marked in progress');
+            _registerActivity();
+            await _startStopwatch(idx);
+            final cur = _today.indexWhere((x) => x.id == taskId);
+            if (cur != -1) {
+              setState(() {
+                _today[cur] = _today[cur].copyWith(
+                  inProgress: true,
+                  inProgressAt: _today[cur].inProgressAt ?? DateTime.now(),
+                );
+              });
+            }
+            await _saveToday();
+            break;
+          case 'setDone':
+            try {
+              await _stopStopwatch(idx);
+            } catch (_) {}
+            try {
+              final now = DateTime.now();
+              final original = _today[idx];
+              setState(() {
+                _today[idx] = original.copyWith(
+                  done: true,
+                  inProgress: false,
+                  completedAt: now,
+                );
+              });
+            } catch (_) {}
+            // Log marking done
+            try {
+              final title = _today[idx].text;
+              unawaited(_appendRedoLog(
+                'done',
+                taskId: _today[idx].id,
+                details: {'text': title},
+              ));
+            } catch (_) {}
+            // Clear notification flags
+            try {
+              final idPrefix = '${_today[idx].id}|';
+              _notified15.removeWhere((k) => k.startsWith(idPrefix));
+              _notifiedDue.removeWhere((k) => k.startsWith(idPrefix));
+            } catch (_) {}
+            try {
+              _upsertTimeEntry(_today[idx]);
+            } catch (_) {}
+            try {
+              await _playDading();
+            } catch (_) {}
+            try {
+              await _saveToday();
+            } catch (_) {}
+            try {
+              await _createNextRecurrenceIfNeeded(_today[idx],
+                  appendToDone: false);
+            } catch (_) {}
+            _registerActivity();
+            _showTopToast('task marked done');
+            break;
+          case 'unsetInProgress':
+            try {
+              await _stopStopwatch(idx);
+            } catch (_) {}
+            try {
+              setState(() {
+                _today[idx] = _today[idx].copyWith(
+                  inProgress: false,
+                  inProgressAt: null,
+                );
+              });
+            } catch (_) {}
+            await _saveToday();
+            _registerActivity();
+            _showTopToast('task marked not in progress');
+            break;
+        }
+      } catch (e) {
+        await _debugLog('_performSwipeAction error ($action): $e');
+      } finally {
+        if (mounted) {
+          setState(() => _busyTaskIds.remove(taskId));
+        }
+      }
+    });
+  }
+
   Future<void> _removeFromToday(int index) async {
     final removed = _today[index];
     setState(() {
@@ -6483,196 +6586,92 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                   confirmDismiss:
                                                       (direction) async {
                                                     final t = _today[i];
+                                                    final taskId = t.id;
+
                                                     if (direction ==
                                                         DismissDirection
                                                             .startToEnd) {
-                                                      // In Backlog view: Right swipe -> move to Today
+                                                      // Right swipe: queue action, return immediately to snap back
                                                       if (_currentFile ==
                                                               _storage(
                                                                   'simplepresent_backlog.json') ||
                                                           _showingBacklog) {
-                                                        await _moveFromBacklog(
-                                                            i);
+                                                        // Backlog view: move to Today
+                                                        _performSwipeAction(
+                                                            taskId,
+                                                            'moveFromBacklog');
                                                         return false;
                                                       }
-                                                      // Right swipe (Today view): 1st -> set inProgress, 2nd -> set done
                                                       if (!t.inProgress &&
                                                           !t.done) {
-                                                        // Delay the inProgress setState so the Dismissible
-                                                        // snap-back animation (~300 ms) completes first.
-                                                        // This prevents the background from flipping to
-                                                        // "done" while the card is still snapping back.
-                                                        final swipedId = t.id;
-                                                        _showTopToast(
-                                                            'task marked in progress');
-                                                        _registerActivity();
-                                                        Future.delayed(
-                                                            const Duration(
-                                                                milliseconds:
-                                                                    340),
-                                                            () async {
-                                                          if (!mounted) return;
-                                                          final idx = _today
-                                                              .indexWhere((x) =>
-                                                                  x.id ==
-                                                                  swipedId);
-                                                          if (idx == -1) return;
-                                                          try {
-                                                            await _startStopwatch(
-                                                                idx);
-                                                          } catch (_) {}
-                                                          try {
-                                                            setState(() {
-                                                              final cur = _today
-                                                                  .indexWhere((x) =>
-                                                                      x.id ==
-                                                                      swipedId);
-                                                              if (cur != -1) {
-                                                                _today[cur] =
-                                                                    _today[cur]
-                                                                        .copyWith(
-                                                                  inProgress:
-                                                                      true,
-                                                                  inProgressAt: _today[
-                                                                              cur]
-                                                                          .inProgressAt ??
-                                                                      DateTime
-                                                                          .now(),
-                                                                );
-                                                              }
-                                                            });
-                                                          } catch (_) {}
-                                                          unawaited(
-                                                              _saveToday());
-                                                        });
-                                                      } else if (t.inProgress &&
+                                                        // Today view: set in progress
+                                                        _performSwipeAction(
+                                                            taskId,
+                                                            'setInProgress');
+                                                        return false;
+                                                      }
+                                                      if (t.inProgress &&
                                                           !t.done) {
-                                                        // If already in progress, mark done immediately (no delay)
-                                                        try {
-                                                          await _stopStopwatch(
-                                                              i);
-                                                        } catch (_) {}
-                                                        try {
-                                                          final now =
-                                                              DateTime.now();
-                                                          final original =
-                                                              _today[i];
-                                                          setState(() {
-                                                            _today[i] =
-                                                                original.copyWith(
-                                                                    done: true,
-                                                                    inProgress:
-                                                                        false,
-                                                                    completedAt:
-                                                                        now);
-                                                          });
-                                                        } catch (_) {}
-                                                        // Log marking done (include task title)
-                                                        try {
-                                                          final title = t.text;
-                                                          unawaited(
-                                                              _appendRedoLog(
-                                                                  'done',
-                                                                  taskId:
-                                                                      _today[i]
-                                                                          .id,
-                                                                  details: {
-                                                                'text': title
-                                                              }));
-                                                        } catch (_) {}
-                                                        // Clear notification flags for this task
-                                                        try {
-                                                          final idPrefix =
-                                                              '${_today[i].id}|';
-                                                          _notified15
-                                                              .removeWhere((k) =>
-                                                                  k.startsWith(
-                                                                      idPrefix));
-                                                          _notifiedDue
-                                                              .removeWhere((k) =>
-                                                                  k.startsWith(
-                                                                      idPrefix));
-                                                        } catch (_) {}
-                                                        try {
-                                                          _upsertTimeEntry(
-                                                              _today[i]);
-                                                        } catch (_) {}
-                                                        try {
-                                                          unawaited(
-                                                              _playDading());
-                                                        } catch (_) {}
-                                                        try {
-                                                          await _saveToday();
-                                                        } catch (_) {}
-                                                        // Create recurrence even if the task remains in Today
-                                                        try {
-                                                          await _createNextRecurrenceIfNeeded(
-                                                              _today[i],
-                                                              appendToDone:
-                                                                  false);
-                                                        } catch (_) {}
-                                                        _registerActivity();
-                                                        _showTopToast(
-                                                            'task marked done');
+                                                        // Today view: set done
+                                                        _performSwipeAction(
+                                                            taskId, 'setDone');
+                                                        return false;
                                                       }
                                                       return false;
                                                     }
-                                                    // Left swipe: if task is inProgress -> unset inProgress, do not delete
-                                                    if (t.inProgress &&
-                                                        !t.done) {
-                                                      // Unset inProgress immediately on left-swipe
-                                                      try {
-                                                        await _stopStopwatch(i);
-                                                      } catch (_) {}
-                                                      try {
-                                                        setState(() {
-                                                          _today[i] = _today[i]
-                                                              .copyWith(
-                                                                  inProgress:
-                                                                      false,
-                                                                  inProgressAt:
-                                                                      null);
-                                                        });
-                                                      } catch (_) {}
-                                                      unawaited(_saveToday());
-                                                      _registerActivity();
-                                                      _showTopToast(
-                                                          'task marked not in progress');
-                                                      return false;
+
+                                                    if (direction ==
+                                                        DismissDirection
+                                                            .endToStart) {
+                                                      // Left swipe: if inProgress, unset it; otherwise delete
+                                                      if (t.inProgress &&
+                                                          !t.done) {
+                                                        _performSwipeAction(
+                                                            taskId,
+                                                            'unsetInProgress');
+                                                        return false;
+                                                      }
+
+                                                      // Otherwise ask for delete confirmation
+                                                      final shouldDelete =
+                                                          await showDialog<
+                                                              bool>(
+                                                        context: context,
+                                                        builder:
+                                                            (dialogContext) =>
+                                                                AlertDialog(
+                                                          title: const Text(
+                                                              'delete task?'),
+                                                          content: Text(
+                                                              'delete "${_today[i].text}"?'),
+                                                          actions: [
+                                                            TextButton(
+                                                              onPressed: () =>
+                                                                  Navigator.of(
+                                                                          dialogContext)
+                                                                      .pop(
+                                                                          false),
+                                                              child: const Text(
+                                                                  'cancel'),
+                                                            ),
+                                                            FilledButton(
+                                                              autofocus: true,
+                                                              onPressed: () =>
+                                                                  Navigator.of(
+                                                                          dialogContext)
+                                                                      .pop(
+                                                                          true),
+                                                              child: const Text(
+                                                                  'delete'),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      );
+                                                      return shouldDelete ==
+                                                          true;
                                                     }
-                                                    // Otherwise ask for delete confirmation
-                                                    final shouldDelete =
-                                                        await showDialog<bool>(
-                                                      context: context,
-                                                      builder:
-                                                          (dialogContext) =>
-                                                              AlertDialog(
-                                                        title: const Text(
-                                                            'delete task?'),
-                                                        content: Text(
-                                                            'delete "${_today[i].text}"?'),
-                                                        actions: [
-                                                          TextButton(
-                                                            onPressed: () =>
-                                                                Navigator.of(
-                                                                        dialogContext)
-                                                                    .pop(false),
-                                                            child: const Text(
-                                                                'cancel'),
-                                                          ),
-                                                          FilledButton(
-                                                            autofocus: true,
-                                                            onPressed: () =>
-                                                                Navigator.of(
-                                                                        dialogContext)
-                                                                    .pop(true),
-                                                            child: const Text(
-                                                                'delete'),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    );
-                                                    return shouldDelete == true;
+
+                                                    return false;
                                                   },
                                                   direction: _swipeEnabled
                                                       ? (!task.done
