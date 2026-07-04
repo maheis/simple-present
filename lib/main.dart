@@ -1380,13 +1380,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ]);
 
       final now = DateTime.now();
+      final todayDateStr = DateFormat('yyyy-MM-dd').format(now);
       final todayIds = todayList.map((t) => t.id).toSet();
       final promote = <TaskItem>[];
       var changed = false;
 
       backlogList.removeWhere((t) {
-        final due =
-            t.scheduledAt != null && !t.done && !t.scheduledAt!.isAfter(now);
+        if (t.scheduledAt == null || t.done) return false;
+        // Promote if scheduled for today (any time) or earlier — compare date-only
+        // so tasks set to "today at 23:59" are moved immediately, not after that time.
+        final schedDateStr =
+            DateFormat('yyyy-MM-dd').format(t.scheduledAt!.toLocal());
+        final due = schedDateStr.compareTo(todayDateStr) <= 0;
         if (!due) return false;
 
         changed = true;
@@ -3908,6 +3913,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
     // Apply staged scheduled changes
     final idsToMoveToBacklog = <String>[];
+    final hadBacklogScheduleChange =
+        _showingBacklog && _stagedScheduled.isNotEmpty;
     if (_stagedScheduled.isNotEmpty) {
       for (final entry in _stagedScheduled.entries) {
         final id = entry.key;
@@ -4073,6 +4080,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ..addAll(finalOrder);
     });
     _saveToday();
+
+    // If a backlog task's date was changed to today or earlier, promote it now.
+    if (hadBacklogScheduleChange) {
+      unawaited(_promoteDueBacklogToToday(showToast: true));
+    }
 
     // After reordering, move any tasks with scheduled dates strictly in the future
     // into backlog. Double-check the item's scheduled date at move-time to
