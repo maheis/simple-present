@@ -92,6 +92,8 @@
 - [x] in progress swipen -> switcht den text sofort auf done...
 - [x] action que
 - [ ] reopen in der done liste führt zu gecken effekten
+- [x] nur ein pair button (wenn erstes gerät, soll es halt registriert werden, sonst hinzugefügt werden)
+- [ ] test ausführliches sync!
 
 ## notes
 

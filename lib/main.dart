@@ -9180,16 +9180,14 @@ class _SettingsPageState extends State<SettingsPage> {
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: _cloudBusy ? null : _registerFirstDevice,
-                        icon: const Icon(Icons.person_add_alt_1),
-                        label: const Text('register first device'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _cloudBusy ? null : _pairDevice,
-                        icon: const Icon(Icons.link),
+                        onPressed: _cloudBusy
+                            ? null
+                            : (cloudAccountId.trim().isEmpty
+                                ? _registerFirstDevice
+                                : _pairDevice),
+                        icon: Icon(cloudAccountId.trim().isEmpty
+                            ? Icons.person_add_alt_1
+                            : Icons.link),
                         label: const Text('pair device'),
                       ),
                     ),
