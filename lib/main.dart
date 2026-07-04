@@ -8340,12 +8340,12 @@ class _SettingsPageState extends State<SettingsPage> {
         _cloudArchiveLastWarnedDays = days;
         setState(() {
           _cloudStatus =
-              'Cloud-Hinweis: Archivierung in $days Tagen ohne Aktivitaet.';
+              'cloud notice: archive in $days days without activity.';
         });
       }
       if (showToastIfWarning && status.archived) {
         setState(() {
-          _cloudStatus = 'Cloud-Account ist archiviert.';
+          _cloudStatus = 'cloud account is archived.';
         });
       }
     } catch (_) {
