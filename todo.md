@@ -90,6 +90,8 @@
 - [x] loading auf dem task wenn man z.b. verschiben drückt
 - [-] widget: kalender einfügen? -> aktuell mit dem widget karussell gelöst!
 - [x] in progress swipen -> switcht den text sofort auf done...
+- [ ] action que
+- [ ] reopen in der done liste führt zu gecken effekten
 
 ## notes
 

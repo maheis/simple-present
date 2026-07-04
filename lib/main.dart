@@ -462,6 +462,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   DateTime? _lastToastAt;
   final Set<String> _expanded = <String>{};
   final Set<String> _busyTaskIds = <String>{};
+  // Action queue to prevent concurrent edits to the same task
+  final Map<String, List<Future<void> Function()>> _taskActionQueues = {};
+  // Track which task is currently being processed
+  final Set<String> _taskActionProcessing = <String>{};
   final Map<String, TextEditingController> _editControllers = {};
   final Map<String, TextEditingController> _notesControllers = {};
   final Map<String, FocusNode> _editFocusNodes = {};
@@ -5117,20 +5121,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   void _performSwipeAction(String taskId, String action) {
     // Schedule the action to run after snap-back animation (~340ms).
-    // Shows loading indicator via _busyTaskIds during execution.
+    // The actual execution will be queued and show loading indicator.
     Future.delayed(const Duration(milliseconds: 340), () async {
       if (!mounted) return;
 
-      final idx = _today.indexWhere((x) => x.id == taskId);
-      if (idx == -1) return; // Task may have moved or been deleted
-
-      setState(() => _busyTaskIds.add(taskId));
-      try {
-        switch (action) {
-          case 'moveFromBacklog':
-            await _moveFromBacklog(idx);
-            break;
-          case 'setInProgress':
+      switch (action) {
+        case 'moveFromBacklog':
+          await _queueMoveFromBacklogByTaskId(taskId);
+          break;
+        case 'setInProgress':
+          await _queueTaskAction(taskId, () async {
+            final idx = _today.indexWhere((x) => x.id == taskId);
+            if (idx == -1) return;
             _showTopToast('task marked in progress');
             _registerActivity();
             await _startStopwatch(idx);
@@ -5144,8 +5146,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               });
             }
             await _saveToday();
-            break;
-          case 'setDone':
+          });
+          break;
+        case 'setDone':
+          await _queueTaskAction(taskId, () async {
+            final idx = _today.indexWhere((x) => x.id == taskId);
+            if (idx == -1) return;
             try {
               await _stopStopwatch(idx);
             } catch (_) {}
@@ -5190,8 +5196,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             } catch (_) {}
             _registerActivity();
             _showTopToast('task marked done');
-            break;
-          case 'unsetInProgress':
+          });
+          break;
+        case 'unsetInProgress':
+          await _queueTaskAction(taskId, () async {
+            final idx = _today.indexWhere((x) => x.id == taskId);
+            if (idx == -1) return;
             try {
               await _stopStopwatch(idx);
             } catch (_) {}
@@ -5206,16 +5216,68 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             await _saveToday();
             _registerActivity();
             _showTopToast('task marked not in progress');
-            break;
-        }
-      } catch (e) {
-        await _debugLog('_performSwipeAction error ($action): $e');
-      } finally {
-        if (mounted) {
-          setState(() => _busyTaskIds.remove(taskId));
-        }
+          });
+          break;
       }
     });
+  }
+
+  Future<void> _queueTaskAction(
+      String taskId, Future<void> Function() action) async {
+    // Add action to the queue for this task
+    _taskActionQueues.putIfAbsent(taskId, () => []).add(action);
+
+    // Show loading spinner
+    if (!_busyTaskIds.contains(taskId) && mounted) {
+      setState(() => _busyTaskIds.add(taskId));
+    }
+
+    // Start processing if not already processing
+    if (_taskActionProcessing.contains(taskId)) {
+      return; // Already processing, will be handled by the queue
+    }
+
+    _taskActionProcessing.add(taskId);
+
+    while (_taskActionQueues[taskId]?.isNotEmpty ?? false) {
+      if (!mounted) break;
+
+      try {
+        final nextAction = _taskActionQueues[taskId]!.removeAt(0);
+        await nextAction();
+      } catch (e) {
+        await _debugLog('_queueTaskAction error: $e');
+      }
+    }
+
+    _taskActionProcessing.remove(taskId);
+    _taskActionQueues.remove(taskId);
+
+    // Hide loading spinner
+    if (mounted) {
+      setState(() => _busyTaskIds.remove(taskId));
+    }
+  }
+
+  // Wrapper to queue _setDone by task ID instead of index
+  Future<void> _queueSetDoneByTaskId(String taskId, bool value) async {
+    final idx = _today.indexWhere((t) => t.id == taskId);
+    if (idx == -1) return;
+    await _queueTaskAction(taskId, () => _setDone(idx, value));
+  }
+
+  // Wrapper to queue _moveToBacklog by task ID instead of index
+  Future<void> _queueMoveToBacklogByTaskId(String taskId) async {
+    final idx = _today.indexWhere((t) => t.id == taskId);
+    if (idx == -1) return;
+    await _queueTaskAction(taskId, () => _moveToBacklog(idx));
+  }
+
+  // Wrapper to queue _moveFromBacklog by task ID instead of index
+  Future<void> _queueMoveFromBacklogByTaskId(String taskId) async {
+    final idx = _today.indexWhere((t) => t.id == taskId);
+    if (idx == -1) return;
+    await _queueTaskAction(taskId, () => _moveFromBacklog(idx));
   }
 
   Future<void> _removeFromToday(int index) async {
@@ -6752,8 +6814,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                         _currentFile ==
                                                                             _storage('simplepresent_done.json') &&
                                                                         task.done) {
-                                                                      await _setDone(
-                                                                          i,
+                                                                      await _queueSetDoneByTaskId(
+                                                                          task.id,
                                                                           newVal);
                                                                       return;
                                                                     }
@@ -6771,13 +6833,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                                 true);
                                                                         // perform done immediately
                                                                         try {
-                                                                          final idx = _today.indexWhere((t) =>
-                                                                              t.id ==
-                                                                              task.id);
-                                                                          if (idx !=
-                                                                              -1)
-                                                                            await _setDone(idx,
-                                                                                true);
+                                                                          await _queueSetDoneByTaskId(
+                                                                              task.id,
+                                                                              true);
                                                                         } catch (_) {}
                                                                         return;
                                                                       } else {
@@ -6959,14 +7017,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                               color: _iconColor),
                                                                           onPressed:
                                                                               () async {
-                                                                            setState(() =>
-                                                                                _busyTaskIds.add(task.id));
-                                                                            try {
-                                                                              await _moveFromBacklog(i);
-                                                                            } finally {
-                                                                              if (mounted)
-                                                                                setState(() => _busyTaskIds.remove(task.id));
-                                                                            }
+                                                                            await _queueMoveFromBacklogByTaskId(task.id);
                                                                           },
                                                                         ),
                                                                       ),
@@ -7407,16 +7458,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                               .arrow_circle_right),
                                                                       onPressed:
                                                                           () async {
-                                                                        setState(() =>
-                                                                            _busyTaskIds.add(task.id));
-                                                                        try {
-                                                                          await _moveToBacklog(
-                                                                              i);
-                                                                        } finally {
-                                                                          if (mounted)
-                                                                            setState(() =>
-                                                                                _busyTaskIds.remove(task.id));
-                                                                        }
+                                                                        await _queueMoveToBacklogByTaskId(
+                                                                            task.id);
                                                                       },
                                                                     ),
                                                                 ],
