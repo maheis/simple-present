@@ -86,7 +86,7 @@
   - [x] radio-button
   - [x] sortierreihenfolge wie in der app!
   - [ ] kalender einfügen?
-- [ ] subtasks müssen in folgeaufgaben wieder nicht bearbeitet sein!
+- [x] subtasks müssen in folgeaufgaben wieder nicht bearbeitet sein!
 - [x] today wurde nicht nach heute geschoben
 - [ ] loading auf ddem task wenn man z.b. verschiben drückt
 

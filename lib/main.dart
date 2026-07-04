@@ -1613,6 +1613,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             stopwatchRunning: false,
             stopwatchStartedAt: null,
             scheduledAt: chosen,
+            subtasks:
+                task.subtasks.map((s) => s.copyWith(done: false)).toList(),
           );
           if (_isSameDay(chosen, DateTime.now())) {
             final filename = _storage('simplepresent_today.json');
