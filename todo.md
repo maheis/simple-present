@@ -74,7 +74,7 @@
 - [??] manchmal werden andere aufgauben auch in progress gesetzt wenn ich eine auf in progress setze (performance? müsste ein delay nach der aktion sein? beobachten konnte ich es wenn der pc ausgelastet war)
 - [??] backlog wird manchmal komplett zu today
 - [??] today manchmal leer, ziemlich wired grade!
-- [?] sort bei öffnen von listen
+- [x] sort bei öffnen von listen
 - [x] android widget
   - [x] today widget, absprung in die app!
   - [x] keine actions
@@ -85,10 +85,11 @@
   - [x] widget übernimmt konfigurierte app-schrift
   - [x] radio-button
   - [x] sortierreihenfolge wie in der app!
-  - [ ] kalender einfügen?
 - [x] subtasks müssen in folgeaufgaben wieder nicht bearbeitet sein!
 - [x] today wurde nicht nach heute geschoben
-- [ ] loading auf ddem task wenn man z.b. verschiben drückt
+- [x] loading auf dem task wenn man z.b. verschiben drückt
+- [-] widget: kalender einfügen? -> aktuell mit dem widget karussell gelöst!
+- [ ] in progress swipen -> switcht den text sofort auf done...
 
 ## notes
 

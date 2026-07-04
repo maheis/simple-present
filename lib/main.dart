@@ -461,6 +461,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String? _lastToastMessage;
   DateTime? _lastToastAt;
   final Set<String> _expanded = <String>{};
+  final Set<String> _busyTaskIds = <String>{};
   final Map<String, TextEditingController> _editControllers = {};
   final Map<String, TextEditingController> _notesControllers = {};
   final Map<String, FocusNode> _editFocusNodes = {};
@@ -6680,85 +6681,94 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                           onTap: () =>
                                                               _toggleExpanded(
                                                                   i),
-                                                          leading: IconButton(
-                                                            tooltip: 'done',
-                                                            icon: Icon(
-                                                                (_stagedDone[task
-                                                                            .id] ??
-                                                                        task
-                                                                            .done)
-                                                                    ? Icons
-                                                                        .radio_button_checked
-                                                                    : Icons
-                                                                        .radio_button_unchecked,
-                                                                color: ((task
-                                                                            .important &&
-                                                                        !task
-                                                                            .done)
-                                                                    ? Colors
-                                                                        .amber
-                                                                    : _iconColor),
-                                                                size: 18),
-                                                            onPressed:
-                                                                () async {
-                                                              final current =
-                                                                  _stagedDone[task
-                                                                          .id] ??
-                                                                      task.done;
-                                                              final newVal =
-                                                                  !current;
-                                                              // If we're in Done view and unchecking, perform immediate move back to Today
-                                                              if (!newVal &&
-                                                                  _currentFile ==
-                                                                      _storage(
-                                                                          'simplepresent_done.json') &&
-                                                                  task.done) {
-                                                                await _setDone(
-                                                                    i, newVal);
-                                                                return;
-                                                              }
-                                                              // If we're in Backlog view and marking done, mirror Today behavior:
-                                                              // set the radio button immediately (via _stagedDone) and start a short timer
-                                                              if (_currentFile ==
-                                                                      _storage(
-                                                                          'simplepresent_backlog.json') &&
-                                                                  !task.done) {
-                                                                if (newVal) {
-                                                                  // set visual state immediately
-                                                                  setState(() =>
-                                                                      _stagedDone[
-                                                                              task.id] =
-                                                                          true);
-                                                                  // perform done immediately
-                                                                  try {
-                                                                    final idx =
-                                                                        _today.indexWhere((t) =>
-                                                                            t.id ==
-                                                                            task.id);
-                                                                    if (idx !=
-                                                                        -1)
+                                                          leading: _busyTaskIds
+                                                                  .contains(
+                                                                      task.id)
+                                                              ? const SizedBox(
+                                                                  width: 48,
+                                                                  height: 48,
+                                                                  child: Center(
+                                                                    child:
+                                                                        SizedBox(
+                                                                      width: 20,
+                                                                      height:
+                                                                          20,
+                                                                      child: CircularProgressIndicator(
+                                                                          strokeWidth:
+                                                                              2),
+                                                                    ),
+                                                                  ),
+                                                                )
+                                                              : IconButton(
+                                                                  tooltip:
+                                                                      'done',
+                                                                  icon: Icon(
+                                                                      (_stagedDone[task.id] ??
+                                                                              task
+                                                                                  .done)
+                                                                          ? Icons
+                                                                              .radio_button_checked
+                                                                          : Icons
+                                                                              .radio_button_unchecked,
+                                                                      color: ((task.important &&
+                                                                              !task.done)
+                                                                          ? Colors.amber
+                                                                          : _iconColor),
+                                                                      size: 18),
+                                                                  onPressed:
+                                                                      () async {
+                                                                    final current =
+                                                                        _stagedDone[task.id] ??
+                                                                            task.done;
+                                                                    final newVal =
+                                                                        !current;
+                                                                    // If we're in Done view and unchecking, perform immediate move back to Today
+                                                                    if (!newVal &&
+                                                                        _currentFile ==
+                                                                            _storage('simplepresent_done.json') &&
+                                                                        task.done) {
                                                                       await _setDone(
-                                                                          idx,
-                                                                          true);
-                                                                  } catch (_) {}
-                                                                  return;
-                                                                } else {
-                                                                  // user unchecked before timer fired: cancel timer and clear staged state
-                                                                  setState(() =>
-                                                                      _stagedDone
-                                                                          .remove(
-                                                                              task.id));
-                                                                  return;
-                                                                }
-                                                              }
-                                                              // Stage the change and schedule delayed reorder
-                                                              setState(() =>
-                                                                  _stagedDone[task
-                                                                          .id] =
-                                                                      newVal);
-                                                              _scheduleDelayedReorder();
-                                                            },
-                                                          ),
+                                                                          i,
+                                                                          newVal);
+                                                                      return;
+                                                                    }
+                                                                    // If we're in Backlog view and marking done, mirror Today behavior:
+                                                                    // set the radio button immediately (via _stagedDone) and start a short timer
+                                                                    if (_currentFile ==
+                                                                            _storage(
+                                                                                'simplepresent_backlog.json') &&
+                                                                        !task
+                                                                            .done) {
+                                                                      if (newVal) {
+                                                                        // set visual state immediately
+                                                                        setState(() =>
+                                                                            _stagedDone[task.id] =
+                                                                                true);
+                                                                        // perform done immediately
+                                                                        try {
+                                                                          final idx = _today.indexWhere((t) =>
+                                                                              t.id ==
+                                                                              task.id);
+                                                                          if (idx !=
+                                                                              -1)
+                                                                            await _setDone(idx,
+                                                                                true);
+                                                                        } catch (_) {}
+                                                                        return;
+                                                                      } else {
+                                                                        // user unchecked before timer fired: cancel timer and clear staged state
+                                                                        setState(() =>
+                                                                            _stagedDone.remove(task.id));
+                                                                        return;
+                                                                      }
+                                                                    }
+                                                                    // Stage the change and schedule delayed reorder
+                                                                    setState(() =>
+                                                                        _stagedDone[task.id] =
+                                                                            newVal);
+                                                                    _scheduleDelayedReorder();
+                                                                  },
+                                                                ),
                                                           title: Row(
                                                             children: [
                                                               Expanded(
@@ -6924,7 +6934,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                               color: _iconColor),
                                                                           onPressed:
                                                                               () async {
-                                                                            await _moveFromBacklog(i);
+                                                                            setState(() =>
+                                                                                _busyTaskIds.add(task.id));
+                                                                            try {
+                                                                              await _moveFromBacklog(i);
+                                                                            } finally {
+                                                                              if (mounted)
+                                                                                setState(() => _busyTaskIds.remove(task.id));
+                                                                            }
                                                                           },
                                                                         ),
                                                                       ),
@@ -7365,8 +7382,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                               .arrow_circle_right),
                                                                       onPressed:
                                                                           () async {
-                                                                        await _moveToBacklog(
-                                                                            i);
+                                                                        setState(() =>
+                                                                            _busyTaskIds.add(task.id));
+                                                                        try {
+                                                                          await _moveToBacklog(
+                                                                              i);
+                                                                        } finally {
+                                                                          if (mounted)
+                                                                            setState(() =>
+                                                                                _busyTaskIds.remove(task.id));
+                                                                        }
                                                                       },
                                                                     ),
                                                                 ],
