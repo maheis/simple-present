@@ -3991,7 +3991,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _performDelayedReorder() async {
     // Apply any staged important flag changes before computing new order.
     if (_stagedImportant.isNotEmpty) {
-      for (final entry in _stagedImportant.entries) {
+      final stagedImportant = Map<String, bool>.from(_stagedImportant);
+      _stagedImportant.clear();
+      for (final entry in stagedImportant.entries) {
         final id = entry.key;
         final val = entry.value;
         final now = val ? DateTime.now() : null;
@@ -4005,11 +4007,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           }));
         } catch (_) {}
       }
-      _stagedImportant.clear();
     }
     // Apply staged inProgress changes and automatically start/stop stopwatch
     if (_stagedInProgress.isNotEmpty) {
-      for (final entry in _stagedInProgress.entries) {
+      final stagedInProgress = Map<String, bool>.from(_stagedInProgress);
+      _stagedInProgress.clear();
+      for (final entry in stagedInProgress.entries) {
         final id = entry.key;
         final val = entry.value;
         final idx = _today.indexWhere((t) => t.id == id);
@@ -4036,11 +4039,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           }
         }
       }
-      _stagedInProgress.clear();
     }
     // Apply staged done changes
     if (_stagedDone.isNotEmpty) {
-      for (final entry in _stagedDone.entries) {
+      final stagedDone = Map<String, bool>.from(_stagedDone);
+      _stagedDone.clear();
+      for (final entry in stagedDone.entries) {
         final id = entry.key;
         final val = entry.value;
         final idx = _today.indexWhere((t) => t.id == id);
@@ -5435,11 +5439,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final finalTask = _today[index];
         final moved =
             finalTask.copyWith(done: true, completedAt: DateTime.now());
-        setState(() {
-          _today.removeAt(index);
-          _expanded.clear();
+        // Remove via per-task queue so spinner appears on the task while removing
+        await _queueTaskAction(moved.id, () async {
+          if (!mounted) return;
+          setState(() {
+            _today.removeAt(index);
+            _expanded.clear();
+          });
+          await _saveToday(); // persist removal from backlog
         });
-        await _saveToday(); // persist removal from backlog
         try {
           unawaited(_appendRedoLog('done',
               taskId: moved.id, details: {'text': finalTask.text}));
@@ -5618,6 +5626,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     // Show loading spinner
     if (!_busyTaskIds.contains(taskId) && mounted) {
+      try {
+        unawaited(_debugLog('queue show: $taskId'));
+      } catch (_) {}
       setState(() => _busyTaskIds.add(taskId));
     }
 
@@ -5644,6 +5655,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     // Hide loading spinner
     if (mounted) {
+      try {
+        unawaited(_debugLog('queue hide: $taskId'));
+      } catch (_) {}
       setState(() => _busyTaskIds.remove(taskId));
     }
   }

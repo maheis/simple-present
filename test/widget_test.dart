@@ -17,7 +17,7 @@ void main() {
     await tester.pumpWidget(const SimplePresentApp());
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), 'Milch kaufen');
+    await tester.enterText(find.byType(TextField).first, 'Milch kaufen');
     await tester.tap(find.byIcon(Icons.add));
     await tester.pumpAndSettle();
 
