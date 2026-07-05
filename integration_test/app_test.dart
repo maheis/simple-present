@@ -6,7 +6,8 @@ import 'package:simple_present/main.dart' as app;
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('basic task flow: create, stopwatch placeholders', (WidgetTester tester) async {
+  testWidgets('basic task flow: create, stopwatch placeholders',
+      (WidgetTester tester) async {
     // Start the app
     app.main();
     await tester.pumpAndSettle(const Duration(seconds: 2));
