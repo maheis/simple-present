@@ -1305,13 +1305,100 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           }
         }
 
-        await _saveList(_storage('simplepresent_backlog.json'), backlogList);
-        if (movedToDone.isNotEmpty) {
-          doneList.addAll(movedToDone.reversed);
-          await _saveList(_storage('simplepresent_done.json'), doneList);
-          // Note: Do NOT create recurrence entries here - only when user explicitly marks done via _setDone()
+        // create a backup of today's list before making any writes so we can
+        // restore if subsequent saves fail.
+        File? backupFile;
+        try {
+          backupFile = await _fileFor('simplepresent_today.backup.json');
+          final encoder = const JsonEncoder.withIndent('  ');
+          try {
+            await backupFile.writeAsString(
+                encoder.convert(todayList.map((e) => e.toJson()).toList()));
+            unawaited(_debugLog('wrote today backup: ${backupFile.path}'));
+          } catch (e) {
+            unawaited(_debugLog('failed to write today backup: $e'));
+            backupFile = null;
+          }
+        } catch (e) {
+          unawaited(_debugLog('failed to prepare today backup: $e'));
+          backupFile = null;
         }
-        await _saveList(_storage('simplepresent_today.json'), <TaskItem>[]);
+
+        // Now save backlog and done lists, but verify that persisted state
+        // actually contains the expected tasks before clearing today.
+        bool persistOk = true;
+        final backlogFile = _storage('simplepresent_backlog.json');
+        try {
+          await _saveList(backlogFile, backlogList);
+          final verifyBacklog = <TaskItem>[];
+          await _loadList(backlogFile, verifyBacklog);
+          final missing = backlogList
+              .where((t) => !verifyBacklog.any((v) => v.id == t.id))
+              .toList();
+          if (missing.isNotEmpty) {
+            persistOk = false;
+            unawaited(_debugLog(
+                'daily migration verify failed: backlog missing ${missing.map((m) => m.id).join(',')}'));
+          }
+        } catch (e, st) {
+          persistOk = false;
+          unawaited(_debugLog('daily migration save backlog failed: $e\n$st'));
+        }
+
+        if (persistOk && movedToDone.isNotEmpty) {
+          final doneFile = _storage('simplepresent_done.json');
+          try {
+            doneList.addAll(movedToDone.reversed);
+            await _saveList(doneFile, doneList);
+            final verifyDone = <TaskItem>[];
+            await _loadList(doneFile, verifyDone);
+            final missingDone = movedToDone
+                .where((t) => !verifyDone.any((v) => v.id == t.id))
+                .toList();
+            if (missingDone.isNotEmpty) {
+              persistOk = false;
+              unawaited(_debugLog(
+                  'daily migration verify failed: done missing ${missingDone.map((m) => m.id).join(',')}'));
+            }
+          } catch (e, st) {
+            persistOk = false;
+            unawaited(_debugLog('daily migration save done failed: $e\n$st'));
+          }
+        }
+
+        if (persistOk) {
+          // All persisted correctly — clear today and remove backup.
+          await _saveList(_storage('simplepresent_today.json'), <TaskItem>[]);
+          try {
+            if (backupFile != null && await backupFile.exists()) {
+              await backupFile.delete();
+              unawaited(_debugLog('removed today backup after clear'));
+            }
+          } catch (e) {
+            unawaited(_debugLog('failed to remove today backup: $e'));
+          }
+        } else {
+          // Persistence failed — restore from backup (if available) and record event.
+          unawaited(_debugLog(
+              'daily migration aborted: persistence verification failed; restoring today from backup if present'));
+          try {
+            if (backupFile != null && await backupFile.exists()) {
+              final txt = await backupFile.readAsString();
+              final data = jsonDecode(txt) as List<dynamic>;
+              final restored = data.map(TaskItem.fromJson).toList();
+              if (restored.isNotEmpty) {
+                await _saveList(_storage('simplepresent_today.json'), restored);
+                await _recordRestoreEvent(
+                    'migration_verify_failed', restored.length);
+                unawaited(_debugLog(
+                    'restored today from backup after failed migration'));
+              }
+            }
+          } catch (e, st) {
+            unawaited(
+                _debugLog('failed to restore today from backup: $e\n$st'));
+          }
+        }
       }
 
       // Move tasks that are already marked done from Backlog to Done.
@@ -1684,6 +1771,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await (_storageWriteChain =
         _storageWriteChain.catchError((_) {}).then((_) async {
       try {
+        unawaited(_debugLog(
+            'saveList start: $filename count=${source.length} sqlite=$_useSqlite listdir=${_isListDir(filename)}'));
         final encoder = const JsonEncoder.withIndent('  ');
         if (_useSqlite) {
           _sqliteStorage.writeTaskList(
@@ -1824,16 +1913,50 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           // operations (today + backlog both change in the same action).
           _enqueuePush(filename, source);
         }
+        unawaited(_debugLog('saveList completed: $filename'));
         if (_listDirBase(filename) == 'today') {
           unawaited(_refreshAndroidTodayWidget());
         }
-      } catch (_) {}
+      } catch (e, st) {
+        unawaited(_debugLog('saveList failed: $filename error=$e\n$st'));
+      }
     }));
     await _storageWriteChain;
   }
 
+  Future<void> _recordRestoreEvent(String reason, int restoredCount) async {
+    try {
+      final f = await _fileFor('simplepresent_restore_events.log');
+      final now = DateTime.now().toIso8601String();
+      final entry = '$now | restored=$restoredCount | reason=$reason\n';
+      await f.writeAsString(entry, mode: FileMode.append);
+      unawaited(_debugLog('restore event logged: $entry'));
+    } catch (_) {}
+  }
+
   Future<void> _loadToday() async {
     await _loadList(_currentFile, _today);
+    // If today is unexpectedly empty but a backup exists, restore it.
+    try {
+      if ((_today.isEmpty)) {
+        final backupFile = await _fileFor('simplepresent_today.backup.json');
+        if (await backupFile.exists()) {
+          try {
+            final text = await backupFile.readAsString();
+            final data = jsonDecode(text) as List<dynamic>;
+            if (data.isNotEmpty) {
+              _today.clear();
+              _today.addAll(data.map(TaskItem.fromJson));
+              unawaited(_debugLog('restored today list from backup'));
+              // Persist restored state to main today file.
+              await _saveList(_storage('simplepresent_today.json'), _today);
+              // Remove backup after successful restore.
+              await backupFile.delete();
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
     // Apply list-specific ordering only for display when opening a list.
     try {
       if (_currentFile == _storage('simplepresent_backlog.json')) {
