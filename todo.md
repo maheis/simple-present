@@ -97,6 +97,7 @@
       z.b. move von backlog zu today wird nicht synchronisiert, sachen die ins backlog gehen, bleiben in today...
       dopplung von aufgaben...
 - [?] sync button macht immer noch nicht 100%
+- [ ] alle aktionen sollen task loading auslösen
 
 ## notes
 

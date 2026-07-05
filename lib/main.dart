@@ -1727,10 +1727,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             // If the UI currently shows Today, update the in-memory view immediately
             try {
               if (_currentFile == filename && mounted) {
-                setState(() {
-                  _today.insert(0, newTask);
-                });
-                unawaited(_updateListCounts());
+                // Show spinner on the newly created task while we update UI
+                unawaited(_queueTaskAction(newTask.id, () async {
+                  if (!mounted) return;
+                  setState(() {
+                    _today.insert(0, newTask);
+                  });
+                  await _saveToday();
+                  unawaited(_updateListCounts());
+                }));
               }
             } catch (_) {}
             try {
@@ -1751,10 +1756,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             // Only update _today if we're actually showing the backlog file
             try {
               if (_showingBacklog && _currentFile == filename && mounted) {
-                setState(() {
-                  _today.insert(0, newTask);
-                });
-                unawaited(_updateListCounts());
+                unawaited(_queueTaskAction(newTask.id, () async {
+                  if (!mounted) return;
+                  setState(() {
+                    _today.insert(0, newTask);
+                  });
+                  await _saveToday();
+                  unawaited(_updateListCounts());
+                }));
               }
             } catch (_) {}
             try {
@@ -3394,68 +3403,83 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _startStopwatch(int index) async {
-    final t = _today[index];
-    if (t.stopwatchRunning) return;
-    final now = DateTime.now();
-    // Enforce `inProgress` flag when stopwatch is running or inProgressAt exists.
-    for (var i = 0; i < _today.length; i++) {
-      final t = _today[i];
-      if ((t.stopwatchRunning || t.inProgressAt != null) &&
-          !t.inProgress &&
-          !t.done) {
-        final inferredAt = t.inProgressAt ?? t.stopwatchStartedAt ?? now;
-        _today[i] = t.copyWith(inProgress: true, inProgressAt: inferredAt);
+    final id = _today[index].id;
+    return _queueTaskAction(id, () async {
+      final idx = _today.indexWhere((t) => t.id == id);
+      if (idx == -1) return;
+      final t = _today[idx];
+      if (t.stopwatchRunning) return;
+      final now = DateTime.now();
+      // Enforce `inProgress` flag when stopwatch is running or inProgressAt exists.
+      for (var i = 0; i < _today.length; i++) {
+        final tt = _today[i];
+        if ((tt.stopwatchRunning || tt.inProgressAt != null) &&
+            !tt.inProgress &&
+            !tt.done) {
+          final inferredAt = tt.inProgressAt ?? tt.stopwatchStartedAt ?? now;
+          _today[i] = tt.copyWith(inProgress: true, inProgressAt: inferredAt);
+        }
       }
-    }
-    final before = _today[index];
-    final after = before.copyWith(
-        stopwatchRunning: true,
-        stopwatchStartedAt: now,
-        inProgress: true,
-        inProgressAt: now);
-    setState(() => _today[index] = after);
-    unawaited(_appendRedoLog('stopwatch_start',
-        taskId: before.id,
-        details: {'before': before.toJson(), 'after': after.toJson()}));
-    // Clear any staged toggle for this task since we applied it directly
-    _stagedInProgress.remove(t.id);
-    await _saveToday();
-    _scheduleDelayedReorder();
-    _registerActivity();
+      final before = _today[idx];
+      final after = before.copyWith(
+          stopwatchRunning: true,
+          stopwatchStartedAt: now,
+          inProgress: true,
+          inProgressAt: now);
+      setState(() => _today[idx] = after);
+      unawaited(_appendRedoLog('stopwatch_start',
+          taskId: before.id,
+          details: {'before': before.toJson(), 'after': after.toJson()}));
+      // Clear any staged toggle for this task since we applied it directly
+      _stagedInProgress.remove(t.id);
+      await _saveToday();
+      _scheduleDelayedReorder();
+      _registerActivity();
+    });
   }
 
   Future<void> _stopStopwatch(int index) async {
-    final t = _today[index];
-    if (!t.stopwatchRunning) return;
-    final started = t.stopwatchStartedAt ?? DateTime.now();
-    final added = DateTime.now().difference(started).inSeconds;
-    final newAccum = t.stopwatchAccumulatedSeconds + added;
-    final before = _today[index];
-    final after = before.copyWith(
-        stopwatchRunning: false,
-        stopwatchStartedAt: null,
-        stopwatchAccumulatedSeconds: newAccum);
-    setState(() => _today[index] = after);
-    unawaited(_appendRedoLog('stopwatch_stop',
-        taskId: before.id,
-        details: {'before': before.toJson(), 'after': after.toJson()}));
-    await _saveToday();
-    _scheduleDelayedReorder();
-    _upsertTimeEntry(_today[index]);
+    final id = _today[index].id;
+    return _queueTaskAction(id, () async {
+      final idx = _today.indexWhere((t) => t.id == id);
+      if (idx == -1) return;
+      final t = _today[idx];
+      if (!t.stopwatchRunning) return;
+      final started = t.stopwatchStartedAt ?? DateTime.now();
+      final added = DateTime.now().difference(started).inSeconds;
+      final newAccum = t.stopwatchAccumulatedSeconds + added;
+      final before = _today[idx];
+      final after = before.copyWith(
+          stopwatchRunning: false,
+          stopwatchStartedAt: null,
+          stopwatchAccumulatedSeconds: newAccum);
+      setState(() => _today[idx] = after);
+      unawaited(_appendRedoLog('stopwatch_stop',
+          taskId: before.id,
+          details: {'before': before.toJson(), 'after': after.toJson()}));
+      await _saveToday();
+      _scheduleDelayedReorder();
+      _upsertTimeEntry(_today[idx]);
+    });
   }
 
   Future<void> _resetStopwatch(int index) async {
-    final t = _today[index];
-    final before = t;
-    final after = t.copyWith(
-        stopwatchRunning: false,
-        stopwatchStartedAt: null,
-        stopwatchAccumulatedSeconds: 0);
-    setState(() => _today[index] = after);
-    unawaited(_appendRedoLog('stopwatch_reset',
-        taskId: before.id,
-        details: {'before': before.toJson(), 'after': after.toJson()}));
-    await _saveToday();
+    final id = _today[index].id;
+    return _queueTaskAction(id, () async {
+      final idx = _today.indexWhere((t) => t.id == id);
+      if (idx == -1) return;
+      final t = _today[idx];
+      final before = t;
+      final after = t.copyWith(
+          stopwatchRunning: false,
+          stopwatchStartedAt: null,
+          stopwatchAccumulatedSeconds: 0);
+      setState(() => _today[idx] = after);
+      unawaited(_appendRedoLog('stopwatch_reset',
+          taskId: before.id,
+          details: {'before': before.toJson(), 'after': after.toJson()}));
+      await _saveToday();
+    });
   }
 
   // Window watcher and magnet/snapping behavior removed.
@@ -3793,39 +3817,42 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {
       beforeSnapshot = _lastPersistedToday[taskId];
     }
-
-    setState(() {
-      var updated = _today[index].copyWith(text: newText, notes: newNotes);
-      final workCtrl = _workControllers[updated.id];
-      if (workCtrl != null) {
-        final parsed = int.tryParse(workCtrl.text.trim());
-        if (parsed != null) {
-          updated = updated.copyWith(workMinutes: parsed);
+    await _queueTaskAction(taskId, () async {
+      final idx = _today.indexWhere((t) => t.id == taskId);
+      if (idx == -1) return;
+      setState(() {
+        var updated = _today[idx].copyWith(text: newText, notes: newNotes);
+        final workCtrl = _workControllers[updated.id];
+        if (workCtrl != null) {
+          final parsed = int.tryParse(workCtrl.text.trim());
+          if (parsed != null) {
+            updated = updated.copyWith(workMinutes: parsed);
+          }
         }
-      }
-      _today[index] = updated;
+        _today[idx] = updated;
+      });
+
+      // Persist changes first (so _saveList writes the full state)
+      await _saveToday();
+      _scheduleDelayedReorder();
+      _upsertTimeEntry(_today[idx]);
+
+      // Now append a single log entry for this consolidated change if something changed
+      try {
+        final afterSnapshot = _today[idx].toJson();
+        if (beforeSnapshot == null) {
+          // treat as create if no prior snapshot known
+          unawaited(_appendRedoLog('create',
+              taskId: taskId, details: {'after': afterSnapshot}));
+        } else if (jsonEncode(beforeSnapshot) != jsonEncode(afterSnapshot)) {
+          unawaited(_appendRedoLog('edit',
+              taskId: taskId,
+              details: {'before': beforeSnapshot, 'after': afterSnapshot}));
+        }
+        // update last persisted snapshot for this task
+        _lastPersistedToday[taskId] = afterSnapshot;
+      } catch (_) {}
     });
-
-    // Persist changes first (so _saveList writes the full state)
-    await _saveToday();
-    _scheduleDelayedReorder();
-    _upsertTimeEntry(_today[index]);
-
-    // Now append a single log entry for this consolidated change if something changed
-    try {
-      final afterSnapshot = _today[index].toJson();
-      if (beforeSnapshot == null) {
-        // treat as create if no prior snapshot known
-        unawaited(_appendRedoLog('create',
-            taskId: taskId, details: {'after': afterSnapshot}));
-      } else if (jsonEncode(beforeSnapshot) != jsonEncode(afterSnapshot)) {
-        unawaited(_appendRedoLog('edit',
-            taskId: taskId,
-            details: {'before': beforeSnapshot, 'after': afterSnapshot}));
-      }
-      // update last persisted snapshot for this task
-      _lastPersistedToday[taskId] = afterSnapshot;
-    } catch (_) {}
 
     final scheduled = _today[index].scheduledAt;
     if (scheduled != null) {
@@ -3874,62 +3901,76 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // If the task has a scheduled date and it's not today, move it to backlog.
   // (handled inside _saveEditedTitle below)
 
-  void _addSubtask(int taskIndex, TextEditingController controller) {
+  Future<void> _addSubtask(
+      int taskIndex, TextEditingController controller) async {
     final text = controller.text.trim();
     if (text.isEmpty) return;
-    final task = _today[taskIndex];
+    if (taskIndex < 0 || taskIndex >= _today.length) return;
+    final taskId = _today[taskIndex].id;
     final step = TaskStep(
       id: '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}',
       text: text,
     );
-    setState(() {
-      _today[taskIndex] = task.copyWith(subtasks: [...task.subtasks, step]);
+
+    await _queueTaskAction(taskId, () async {
+      final idx = _today.indexWhere((t) => t.id == taskId);
+      if (idx == -1) return;
+      final task = _today[idx];
+      setState(() {
+        _today[idx] = task.copyWith(subtasks: [...task.subtasks, step]);
+      });
+      controller.clear();
+      // Return focus to the subtask input so the user can add another subtask quickly
+      try {
+        _subtaskFocusNodes[task.id]?.requestFocus();
+      } catch (_) {}
+      await _saveToday();
+      try {
+        if (!_stagedEditBefore.containsKey(task.id))
+          unawaited(_appendRedoLog('subtask_add',
+              taskId: task.id, details: {'subtask': step.toJson()}));
+      } catch (_) {}
+      _scheduleDelayedReorder();
+      _registerActivity();
     });
-    controller.clear();
-    // Return focus to the subtask input so the user can add another subtask quickly
-    try {
-      _subtaskFocusNodes[task.id]?.requestFocus();
-    } catch (_) {}
-    _saveToday();
-    try {
-      if (!_stagedEditBefore.containsKey(task.id))
-        unawaited(_appendRedoLog('subtask_add',
-            taskId: task.id, details: {'subtask': step.toJson()}));
-    } catch (_) {}
-    _scheduleDelayedReorder();
-    _registerActivity();
   }
 
-  void _updateSubtask(
+  Future<void> _updateSubtask(
     int taskIndex,
     String subtaskId, {
     String? text,
     bool? done,
   }) {
-    final task = _today[taskIndex];
-    TaskStep? beforeStep;
-    final updated = task.subtasks.map((step) {
-      if (step.id != subtaskId) return step;
-      beforeStep = step;
-      return step.copyWith(
-        text: text,
-        done: done,
-      );
-    }).toList();
-    setState(() {
-      _today[taskIndex] = task.copyWith(subtasks: updated);
+    if (taskIndex < 0 || taskIndex >= _today.length) return Future.value();
+    final taskId = _today[taskIndex].id;
+    return _queueTaskAction(taskId, () async {
+      final idx = _today.indexWhere((t) => t.id == taskId);
+      if (idx == -1) return;
+      final task = _today[idx];
+      TaskStep? beforeStep;
+      final updated = task.subtasks.map((step) {
+        if (step.id != subtaskId) return step;
+        beforeStep = step;
+        return step.copyWith(
+          text: text,
+          done: done,
+        );
+      }).toList();
+      setState(() {
+        _today[idx] = task.copyWith(subtasks: updated);
+      });
+      await _saveToday();
+      try {
+        if (beforeStep != null && !_stagedEditBefore.containsKey(task.id))
+          unawaited(_appendRedoLog('subtask_edit', taskId: task.id, details: {
+            'subtaskId': subtaskId,
+            'before': beforeStep!.toJson(),
+            'after': updated.firstWhere((s) => s.id == subtaskId).toJson()
+          }));
+      } catch (_) {}
+      _scheduleDelayedReorder();
+      _registerActivity();
     });
-    _saveToday();
-    try {
-      if (beforeStep != null && !_stagedEditBefore.containsKey(task.id))
-        unawaited(_appendRedoLog('subtask_edit', taskId: task.id, details: {
-          'subtaskId': subtaskId,
-          'before': beforeStep!.toJson(),
-          'after': updated.firstWhere((s) => s.id == subtaskId).toJson()
-        }));
-    } catch (_) {}
-    _scheduleDelayedReorder();
-    _registerActivity();
   }
 
   void _scheduleDelayedReorder() {
@@ -3968,10 +4009,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             try {
               await _stopStopwatch(idx);
             } catch (_) {}
-            // ensure inProgress flag is cleared
-            final t = _today[idx];
-            setState(() => _today[idx] =
-                t.copyWith(inProgress: false, inProgressAt: null));
+            // ensure inProgress flag is cleared via per-task queue
+            try {
+              final taskId = _today[idx].id;
+              unawaited(_queueTaskAction(taskId, () async {
+                final j = _today.indexWhere((t) => t.id == taskId);
+                if (j == -1) return;
+                setState(() => _today[j] =
+                    _today[j].copyWith(inProgress: false, inProgressAt: null));
+                await _saveToday();
+              }));
+            } catch (_) {}
           }
         }
       }
@@ -4001,17 +4049,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             try {
               await _stopStopwatch(idx);
             } catch (_) {}
-            // ensure inProgress is cleared when marking done
-            setState(() => _today[idx] = t.copyWith(
-                done: true,
-                completedAt: now,
-                inProgress: false,
-                inProgressAt: null,
-                stopwatchRunning: false,
-                stopwatchStartedAt: null));
+            // ensure inProgress is cleared when marking done — perform via queue so spinner shows
+            unawaited(_queueTaskAction(taskId, () async {
+              final idx2 = _today.indexWhere((t) => t.id == taskId);
+              if (idx2 == -1) return;
+              setState(() => _today[idx2] = _today[idx2].copyWith(
+                  done: true,
+                  completedAt: now,
+                  inProgress: false,
+                  inProgressAt: null,
+                  stopwatchRunning: false,
+                  stopwatchStartedAt: null));
+              await _saveToday();
+            }));
           } else {
-            setState(
-                () => _today[idx] = t.copyWith(done: false, completedAt: null));
+            unawaited(_queueTaskAction(taskId, () async {
+              final idx2 = _today.indexWhere((t) => t.id == taskId);
+              if (idx2 == -1) return;
+              setState(() => _today[idx2] =
+                  _today[idx2].copyWith(done: false, completedAt: null));
+              await _saveToday();
+            }));
           }
           final afterSnapshot = _today[idx].toJson();
           // Handle subtask-level diffs separately so the consolidated `edit` entry
@@ -4126,12 +4184,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   _currentFile == _storage('simplepresent_backlog.json')) {
                 // movedTask is current _today[idx] (we set done above)
                 final movedTask = _today[idx];
-                // remove from current in-memory list and persist
-                setState(() {
-                  _today.removeAt(idx);
-                  _expanded.clear();
-                });
-                await _saveToday();
+                // remove from current in-memory list and persist via per-task queue
+                unawaited(_queueTaskAction(movedTask.id, () async {
+                  if (!mounted) return;
+                  setState(() {
+                    _today.removeAt(idx);
+                    _expanded.clear();
+                  });
+                  await _saveToday();
+                }));
                 await _createNextRecurrenceIfNeeded(movedTask,
                     appendToDone: true);
               } else {
@@ -4794,15 +4855,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       // Update visible list without reloading from disk.
       // In backlog view, remove the moved item from the currently shown backlog list.
-      setState(() {
-        if (_showingBacklog || _currentFile == backlogFile) {
-          if (index >= 0 && index < _today.length) {
-            _today.removeAt(index);
+      unawaited(_queueTaskAction(movedItem.id, () async {
+        if (!mounted) return;
+        setState(() {
+          if (_showingBacklog || _currentFile == backlogFile) {
+            if (index >= 0 && index < _today.length) {
+              _today.removeAt(index);
+            }
+          } else {
+            _today.insert(0, movedItem);
           }
-        } else {
-          _today.insert(0, movedItem);
-        }
-      });
+        });
+        await _saveToday();
+      }));
 
       _showTopToast('task moved to today');
 
@@ -4838,11 +4903,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     try {
       final item = _today[index];
-      setState(() {
-        _today.removeAt(index);
-        _expanded.clear();
+      // Remove via per-task queue so spinner appears on the task while removing
+      await _queueTaskAction(item.id, () async {
+        if (!mounted) return;
+        setState(() {
+          _today.removeAt(index);
+          _expanded.clear();
+        });
+        await _saveToday(); // persist removal from today
       });
-      await _saveToday(); // persist removal from today
       // If stopwatch was running, stop it and record the accumulated seconds
       TaskItem toStore = item;
       if (item.stopwatchRunning) {
@@ -4900,11 +4969,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     try {
       final item = _today[index];
-      setState(() {
-        _today.removeAt(index);
-        _expanded.clear();
+      // Remove via per-task queue so spinner appears on the task while removing
+      await _queueTaskAction(item.id, () async {
+        if (!mounted) return;
+        setState(() {
+          _today.removeAt(index);
+          _expanded.clear();
+        });
+        await _saveToday(); // persist removal from today
       });
-      await _saveToday(); // persist removal from today
       // Stop running stopwatch and persist time if necessary
       TaskItem toStore = item;
       if (item.stopwatchRunning) {
@@ -5043,22 +5116,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _clearSchedule(int index) async {
-    // capture id before mutating list item
+    if (index < 0 || index >= _today.length) return;
     final id = _today[index].id;
-    final beforeSched = _today[index].scheduledAt;
-    // clear in-memory and save current view
-    setState(() => _today[index] = _today[index].copyWith(scheduledAt: null));
-    await _saveToday();
-    try {
-      if (!_stagedEditBefore.containsKey(id))
-        unawaited(_appendRedoLog('schedule_clear',
-            taskId: id, details: {'before': beforeSched?.toIso8601String()}));
-    } catch (_) {}
-    _showTopToast('schedule cleared');
-    final idPrefix2 = '$id|';
-    _notified15.removeWhere((k) => k.startsWith(idPrefix2));
-    _notifiedDue.removeWhere((k) => k.startsWith(idPrefix2));
-    _registerActivity();
+    await _queueTaskAction(id, () async {
+      final idx = _today.indexWhere((t) => t.id == id);
+      if (idx == -1) return;
+      final beforeSched = _today[idx].scheduledAt;
+      // clear in-memory and save current view
+      setState(() => _today[idx] = _today[idx].copyWith(scheduledAt: null));
+      await _saveToday();
+      try {
+        if (!_stagedEditBefore.containsKey(id))
+          unawaited(_appendRedoLog('schedule_clear',
+              taskId: id, details: {'before': beforeSched?.toIso8601String()}));
+      } catch (_) {}
+      _showTopToast('schedule cleared');
+      final idPrefix2 = '$id|';
+      _notified15.removeWhere((k) => k.startsWith(idPrefix2));
+      _notifiedDue.removeWhere((k) => k.startsWith(idPrefix2));
+      _registerActivity();
+    });
 
     // Ensure persisted lists also have the schedule cleared for this task id
     try {
@@ -5246,16 +5323,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         done: false,
         createdAt: DateTime.now(),
         notes: '');
-    setState(() {
-      _today.insert(0, newItem);
-      _controller.clear();
-    });
-    _saveToday();
-    // Log creation for redo/undo purposes
-    unawaited(
-        _appendRedoLog('create', taskId: newId, details: {'text': input}));
-    if (!Platform.isAndroid) _inputFocus.requestFocus();
-    _registerActivity();
+
+    // Run creation through the per-task queue so the spinner appears on the new task
+    unawaited(_queueTaskAction(newId, () async {
+      setState(() {
+        _today.insert(0, newItem);
+        _controller.clear();
+      });
+      await _saveToday();
+      // Log creation for redo/undo purposes
+      try {
+        unawaited(
+            _appendRedoLog('create', taskId: newId, details: {'text': input}));
+      } catch (_) {}
+      if (!Platform.isAndroid) _inputFocus.requestFocus();
+      _registerActivity();
+    }));
   }
 
   Future<void> _setDone(int index, bool value) async {
@@ -5265,11 +5348,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         (_showingDone || _currentFile == _storage('simplepresent_done.json'))) {
       try {
         final restored = original.copyWith(done: false, completedAt: null);
-        setState(() {
-          _today.removeAt(index);
-          _expanded.clear();
+        // Remove via per-task queue so spinner appears while task is moved
+        await _queueTaskAction(restored.id, () async {
+          if (!mounted) return;
+          setState(() {
+            _today.removeAt(index);
+            _expanded.clear();
+          });
+          await _saveToday(); // persist removal from done file
         });
-        await _saveToday(); // persist removal from done file
 
         final List<TaskItem> backlogList = [];
         await _loadList(_storage('simplepresent_backlog.json'), backlogList);
@@ -5455,12 +5542,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               await _stopStopwatch(idx);
             } catch (_) {}
             try {
-              setState(() {
-                _today[idx] = _today[idx].copyWith(
-                  inProgress: false,
-                  inProgressAt: null,
-                );
-              });
+              unawaited(_queueTaskAction(_today[idx].id, () async {
+                final id2 = _today[idx].id;
+                final idx2 = _today.indexWhere((t) => t.id == id2);
+                if (idx2 == -1) return;
+                setState(() {
+                  _today[idx2] = _today[idx2].copyWith(
+                    inProgress: false,
+                    inProgressAt: null,
+                  );
+                });
+                await _saveToday();
+              }));
             } catch (_) {}
             await _saveToday();
             _registerActivity();
@@ -5531,10 +5624,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _removeFromToday(int index) async {
     final removed = _today[index];
-    setState(() {
-      _today.removeAt(index);
+    // Remove via per-task queue so spinner shows while deleting
+    await _queueTaskAction(removed.id, () async {
+      if (!mounted) return;
+      setState(() {
+        _today.removeAt(index);
+      });
+      await _saveToday();
     });
-    await _saveToday();
     // Move the removed task into the trash file instead of permanent delete
     try {
       final List<TaskItem> trash = [];
@@ -6091,6 +6188,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   0.45 * (0.5 + 0.5 * math.sin((tick + phase * 1.3) * 0.9));
             }
 
+            final mqSize = MediaQuery.of(context).size;
+            if (mqSize.width <= 24 || mqSize.height <= 24) {
+              return const SizedBox.shrink();
+            }
+
             return Stack(
               children: [
                 Positioned.fill(
@@ -6144,15 +6246,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                               height: 28,
                             ),
                             const SizedBox(width: 10),
-                            Text(
-                              'simplepresent',
-                              style: TextStyle(
-                                fontSize: 19,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: _fontFamily,
-                                color: cs.onSurface
-                                    .withAlpha((0.78 * 255).round()),
-                                letterSpacing: 0.4,
+                            Flexible(
+                              child: Text(
+                                'simplepresent',
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: _fontFamily,
+                                  color: cs.onSurface
+                                      .withAlpha((0.78 * 255).round()),
+                                  letterSpacing: 0.4,
+                                ),
                               ),
                             ),
                           ],
@@ -7782,16 +7887,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                           await _stopStopwatch(
                                                                               i);
                                                                         } catch (_) {}
-                                                                        final idx = _today.indexWhere((t) =>
-                                                                            t.id ==
-                                                                            task.id);
-                                                                        if (idx !=
-                                                                            -1) {
+                                                                        // Clear the inProgress flag via the per-task queue so the spinner shows
+                                                                        unawaited(_queueTaskAction(
+                                                                            task.id,
+                                                                            () async {
+                                                                          final idx = _today.indexWhere((t) =>
+                                                                              t.id ==
+                                                                              task.id);
+                                                                          if (idx ==
+                                                                              -1)
+                                                                            return;
                                                                           setState(() => _today[idx] = _today[idx].copyWith(
                                                                               inProgress: false,
                                                                               inProgressAt: null));
                                                                           await _saveToday();
-                                                                        }
+                                                                        }));
                                                                       }
                                                                       _registerActivity();
                                                                     },
