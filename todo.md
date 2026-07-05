@@ -98,6 +98,7 @@
       dopplung von aufgaben...
 - [?] sync button macht immer noch nicht 100%
 - [ ] alle aktionen sollen task loading auslösen
+- [ ] android hintergrund synchronisation (push) implementieren
 
 ## notes
 
