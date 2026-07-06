@@ -63,6 +63,7 @@
 - [x] in progress swipen -> switcht den text sofort auf done...
 - [x] action que
 - [x] nur ein pair button (wenn erstes gerät, soll es halt registriert werden, sonst hinzugefügt werden)
+- [x] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Windows Store Veröffentlichung (.notes/WINDOWS_APP_STORE.md)
 - [ ] Worklog an Aufgaben...
@@ -74,7 +75,6 @@
   - [ ] mehr?
   - [ ] Aufräumen (ois)
 - [ ] sync: erster sync muss schneller, es muss beim öffnen geprüft werden bevor der client selbst aktionen ausführt. sonst kann es zu chaos kommen! (aufgaben die anm handy in heute lagen nd schon erledigt waren, wurden beim anderen in backlog verschoben und da liegengelassen...) 
-- [x] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
 - [ ] sync: self signed certs prüfen (ca-chain)
 - [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben! (primärgerät-definieren?)
 - [ ] papierkorb:
@@ -99,14 +99,14 @@
 - [?] sync button macht immer noch nicht 100%
 - [ ] alle aktionen sollen task loading auslösen
 - [ ] android hintergrund synchronisation (push) implementieren
-- [x] kein swipe bei aufgeklappen aufgaben
 - [ ] android verliert manchmal den text focus beim editieren
+- [x] kein swipe bei aufgeklappen aufgaben
 - [x] filebasiertes synchronisieren über export/import (z.b. json) implementieren
   - [x] import soll fragen ob clean
   - [x] export als automatische sicherung in den settings. zeitbasiert (intervall, uhrzeiten) oder z.b. bei start der applikation
   - [x] nur sicherung wenn sich auch was geändert hat!
   - [x] anzahl der sicherungen konfiguriertbar (count)
-- [ ] aufgaben suche im done
+- [x] aufgaben suche im done
 
 ## notes
 

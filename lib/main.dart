@@ -454,6 +454,9 @@ class _LoadingGlowBlob extends StatelessWidget {
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final List<TaskItem> _today = [];
   final TextEditingController _controller = TextEditingController();
+  // Controller and query for Done-list search
+  final TextEditingController _doneSearchController = TextEditingController();
+  String _doneSearchQuery = '';
   final FocusNode _inputFocus = FocusNode();
   OverlayEntry? _toastEntry;
   Timer? _toastTimer;
@@ -3483,6 +3486,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _windowWatcherTimer?.cancel();
     _saveSettings();
     _controller.dispose();
+    try {
+      _doneSearchController.dispose();
+    } catch (_) {}
     _inputFocus.dispose();
     _audioPlayer.dispose();
     _idleTimer?.cancel();
@@ -6877,23 +6883,66 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                               ),
                                               const SizedBox(width: 8),
                                               Expanded(
-                                                child: Text(
-                                                  _showingBacklog
-                                                      ? 'backlog'
-                                                      : (_showingDone
-                                                          ? 'done'
-                                                          : 'today'),
-                                                  style: const TextStyle(
-                                                          fontSize: 24,
-                                                          fontWeight:
-                                                              FontWeight.w700)
-                                                      .copyWith(
-                                                          fontFamily:
-                                                              _fontFamily),
-                                                  maxLines: 2,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
+                                                child: _showingDone
+                                                    ? SizedBox(
+                                                        height: 44,
+                                                        child: TextField(
+                                                          controller:
+                                                              _doneSearchController,
+                                                          onChanged: (v) =>
+                                                              setState(() {
+                                                            _doneSearchQuery =
+                                                                v.trim();
+                                                          }),
+                                                          decoration:
+                                                              InputDecoration(
+                                                            hintText:
+                                                                'Search done',
+                                                            isDense: true,
+                                                            contentPadding:
+                                                                const EdgeInsets
+                                                                    .symmetric(
+                                                                    vertical:
+                                                                        10,
+                                                                    horizontal:
+                                                                        12),
+                                                            suffixIcon:
+                                                                _doneSearchQuery
+                                                                        .isNotEmpty
+                                                                    ? IconButton(
+                                                                        icon: const Icon(
+                                                                            Icons.clear),
+                                                                        onPressed:
+                                                                            () {
+                                                                          _doneSearchController
+                                                                              .clear();
+                                                                          setState(
+                                                                              () {
+                                                                            _doneSearchQuery =
+                                                                                '';
+                                                                          });
+                                                                        },
+                                                                      )
+                                                                    : null,
+                                                          ),
+                                                        ),
+                                                      )
+                                                    : Text(
+                                                        _showingBacklog
+                                                            ? 'backlog'
+                                                            : 'today',
+                                                        style: const TextStyle(
+                                                                fontSize: 24,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w700)
+                                                            .copyWith(
+                                                                fontFamily:
+                                                                    _fontFamily),
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
                                               ),
                                               const SizedBox(width: 8.0),
                                               Text(
@@ -7081,7 +7130,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                             final now = DateTime.now();
                                             final entries =
                                                 _today.asMap().entries;
-                                            for (final e in entries) {
+                                            // If viewing Done and a search query is present,
+                                            // filter entries so only matching tasks are processed.
+                                            Iterable<MapEntry<int, TaskItem>>
+                                                entriesFiltered = entries;
+                                            if (_showingDone &&
+                                                _doneSearchQuery.isNotEmpty) {
+                                              final q = _doneSearchQuery
+                                                  .toLowerCase();
+                                              entriesFiltered =
+                                                  entries.where((e) {
+                                                final t = e.value;
+                                                final txt =
+                                                    t.text.toLowerCase();
+                                                final notes = (t.notes ?? '')
+                                                    .toLowerCase();
+                                                return txt.contains(q) ||
+                                                    notes.contains(q);
+                                              });
+                                            }
+                                            for (final e in entriesFiltered) {
                                               final t = e.value;
                                               if (t.done) {
                                                 bucketDone.add(e);
