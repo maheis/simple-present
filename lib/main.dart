@@ -17,6 +17,7 @@ import 'package:simple_present/sync/cloud_sync_client.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:simple_present/storage/json_storage.dart';
+import 'package:file_selector/file_selector.dart' as fs;
 
 // sentinel to indicate "no change" in copyWith optional parameters
 const _noChange = Object();
@@ -1941,6 +1942,207 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await f.writeAsString(entry, mode: FileMode.append);
       unawaited(_debugLog('restore event logged: $entry'));
     } catch (_) {}
+  }
+
+  /// Export all lists (today, backlog, done, trash) to a single JSON file at [path].
+  /// If the file exists it will be overwritten.
+  Future<void> exportAllListsToJsonFile(String path) async {
+    try {
+      final List<TaskItem> todayList = [];
+      final List<TaskItem> backlogList = [];
+      final List<TaskItem> doneList = [];
+      final List<TaskItem> trashList = [];
+
+      await _loadList(_storage('simplepresent_today.json'), todayList);
+      await _loadList(_storage('simplepresent_backlog.json'), backlogList);
+      await _loadList(_storage('simplepresent_done.json'), doneList);
+      await _loadList('simplepresent_trash.json', trashList);
+
+      final Map<String, dynamic> exportData = {
+        'exportedAt': DateTime.now().toIso8601String(),
+        'today': todayList.map((t) => t.toJson()).toList(),
+        'backlog': backlogList.map((t) => t.toJson()).toList(),
+        'done': doneList.map((t) => t.toJson()).toList(),
+        'trash': trashList.map((t) => t.toJson()).toList(),
+      };
+
+      final f = File(path);
+      await f.create(recursive: true);
+      await f.writeAsString(
+          const JsonEncoder.withIndent('  ').convert(exportData));
+      try {
+        _showTopToast('exported to ${p.basename(path)}');
+      } catch (_) {}
+      unawaited(_debugLog('exportAllListsToJsonFile wrote $path'));
+    } catch (e, st) {
+      unawaited(_debugLog('exportAllListsToJsonFile failed: $e\n$st'));
+      try {
+        _showTopToast('export failed');
+      } catch (_) {}
+    }
+  }
+
+  /// Import lists from a JSON file at [path]. If [merge] is true, items will be
+  /// merged by `id` into existing lists (no duplicates). If false, lists will be
+  /// replaced by the imported content.
+  Future<void> importAllListsFromJsonFile(String path,
+      {bool merge = false}) async {
+    try {
+      final f = File(path);
+      if (!await f.exists()) {
+        try {
+          _showTopToast('import file not found');
+        } catch (_) {}
+        return;
+      }
+      final text = await f.readAsString();
+      final data = jsonDecode(text) as Map<String, dynamic>;
+
+      final List<TaskItem> importedToday = (data['today'] is List)
+          ? List<Map<String, dynamic>>.from(data['today'])
+              .map(TaskItem.fromJson)
+              .toList()
+          : <TaskItem>[];
+      final List<TaskItem> importedBacklog = (data['backlog'] is List)
+          ? List<Map<String, dynamic>>.from(data['backlog'])
+              .map(TaskItem.fromJson)
+              .toList()
+          : <TaskItem>[];
+      final List<TaskItem> importedDone = (data['done'] is List)
+          ? List<Map<String, dynamic>>.from(data['done'])
+              .map(TaskItem.fromJson)
+              .toList()
+          : <TaskItem>[];
+      final List<TaskItem> importedTrash = (data['trash'] is List)
+          ? List<Map<String, dynamic>>.from(data['trash'])
+              .map(TaskItem.fromJson)
+              .toList()
+          : <TaskItem>[];
+
+      // Helper to merge or replace a target filename
+      Future<void> applyListImport(
+          String filename, List<TaskItem> imported) async {
+        if (!merge) {
+          await _saveList(filename, imported);
+          return;
+        }
+        // merge: load existing, append items with new ids
+        final List<TaskItem> existing = [];
+        await _loadList(filename, existing);
+        final existingIds = existing.map((e) => e.id).toSet();
+        final toAdd =
+            imported.where((e) => !existingIds.contains(e.id)).toList();
+        if (toAdd.isNotEmpty) {
+          existing.insertAll(0, toAdd);
+          await _saveList(filename, existing);
+        }
+      }
+
+      await applyListImport(
+          _storage('simplepresent_today.json'), importedToday);
+      await applyListImport(
+          _storage('simplepresent_backlog.json'), importedBacklog);
+      await applyListImport(_storage('simplepresent_done.json'), importedDone);
+      await applyListImport('simplepresent_trash.json', importedTrash);
+
+      // reload current view and counts
+      try {
+        await _loadToday();
+      } catch (_) {}
+      unawaited(_updateListCounts());
+      try {
+        _showTopToast('imported ${p.basename(path)}');
+      } catch (_) {}
+      unawaited(
+          _debugLog('importAllListsFromJsonFile applied $path merge=$merge'));
+    } catch (e, st) {
+      unawaited(_debugLog('importAllListsFromJsonFile failed: $e\n$st'));
+      try {
+        _showTopToast('import failed');
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _exportViaChooser() async {
+    try {
+      final now = DateTime.now();
+      final suggestedName =
+          'simplepresent-export-${DateFormat('yyyyMMdd-HHmmss').format(now)}.json';
+
+      final dir = await _appDir;
+      final home = Platform.environment['HOME'] ?? dir.path;
+      final downloads = '$home/Downloads';
+      final options = <String>[];
+      options.add(dir.path);
+      if (Directory(downloads).existsSync()) options.add(downloads);
+      if (home.isNotEmpty && home != dir.path) options.add(home);
+
+      String chosenDir = dir.path;
+      String fileName = suggestedName;
+
+      final res = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          return StatefulBuilder(builder: (ctx, setState) {
+            return AlertDialog(
+              title: const Text('Export as JSON'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    decoration: const InputDecoration(labelText: 'Filename'),
+                    controller: TextEditingController(text: fileName),
+                    onChanged: (v) => fileName = v,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButton<String>(
+                    value: chosenDir,
+                    items: options
+                        .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setState(() => chosenDir = v);
+                    },
+                  )
+                ],
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    child: const Text('Cancel')),
+                ElevatedButton(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    child: const Text('Save')),
+              ],
+            );
+          });
+        },
+      );
+
+      if (res != true) return;
+      final exportPath = p.join(chosenDir, fileName);
+      await exportAllListsToJsonFile(exportPath);
+    } catch (e, st) {
+      unawaited(_debugLog('exportViaChooser failed: $e\n$st'));
+      try {
+        _showTopToast('export failed');
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _importViaChooser({bool merge = false}) async {
+    try {
+      final typeGroup = fs.XTypeGroup(label: 'json', extensions: ['json']);
+      final xfile = await fs.openFile(acceptedTypeGroups: [typeGroup]);
+      if (xfile == null) return;
+      await importAllListsFromJsonFile(xfile.path, merge: merge);
+    } catch (e, st) {
+      unawaited(_debugLog('importViaChooser failed: $e\n$st'));
+      try {
+        _showTopToast('import failed');
+      } catch (_) {}
+    }
   }
 
   Future<void> _loadToday() async {
@@ -6521,6 +6723,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                   await _openSettings();
                                                 else if (v == 'notes')
                                                   await _openNotes();
+                                                else if (v == 'export')
+                                                  await _exportViaChooser();
+                                                else if (v == 'import')
+                                                  await _importViaChooser();
                                                 else if (v == 'redo') {
                                                   final res = await Navigator
                                                           .of(context)
@@ -6593,6 +6799,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                           height: 18),
                                                       const SizedBox(width: 8),
                                                       const Text('redo log')
+                                                    ])));
+                                                items.add(PopupMenuItem(
+                                                    value: 'export',
+                                                    child: Row(children: [
+                                                      Icon(
+                                                          Icons
+                                                              .download_rounded,
+                                                          size: 18),
+                                                      const SizedBox(width: 8),
+                                                      const Text('export')
+                                                    ])));
+                                                items.add(PopupMenuItem(
+                                                    value: 'import',
+                                                    child: Row(children: [
+                                                      Icon(Icons.upload_rounded,
+                                                          size: 18),
+                                                      const SizedBox(width: 8),
+                                                      const Text('import')
                                                     ])));
                                                 items.add(PopupMenuItem(
                                                     value: 'done',

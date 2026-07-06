@@ -101,6 +101,8 @@
 - [ ] android hintergrund synchronisation (push) implementieren
 - [x] kein swipe bei aufgeklappen aufgaben
 - [ ] android verliert manchmal den text focus beim editieren
+- [ ] filebasiertes synchronisieren über export/import (z.b. json) implementieren
+- [ ] aufgaben suche im done
 
 ## notes
 
