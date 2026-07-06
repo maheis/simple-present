@@ -105,8 +105,7 @@
   - [x] import soll fragen ob clean
   - [x] export als automatische sicherung in den settings. zeitbasiert (intervall, uhrzeiten) oder z.b. bei start der applikation
   - [x] nur sicherung wenn sich auch was geändert hat!
-  - [ ] anzahl der sicherungen konfiguriertbar (count)
-  - [ ] testen
+  - [x] anzahl der sicherungen konfiguriertbar (count)
 - [ ] aufgaben suche im done
 
 ## notes

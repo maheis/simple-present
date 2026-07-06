@@ -669,6 +669,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Timer? _autoExportIntervalTimer;
   final List<Timer> _autoExportTimeTimers = <Timer>[];
   String _lastAutoExportChecksum = '';
+  int _autoExportMaxBackups = 14;
 
   late final Future<void> _initFuture = _initializeApp();
 
@@ -3224,6 +3225,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
         final lastChk = data['lastAutoExportChecksum'];
         if (lastChk is String) _lastAutoExportChecksum = lastChk;
+        _autoExportMaxBackups =
+            readInt('autoExportMaxBackups', _autoExportMaxBackups);
         _doneRetentionDays = readInt('doneRetentionDays', _doneRetentionDays);
         // Restore persisted UI text scale factor if present
         _uiTextScaleFactor = _clampUiTextScaleFactor(
@@ -3423,6 +3426,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'autoExportOnStart': _autoExportOnStart,
         'autoExportIntervalMinutes': _autoExportIntervalMinutes,
         'autoExportTimes': _autoExportTimes,
+        'autoExportMaxBackups': _autoExportMaxBackups,
         'lastAutoExportChecksum': _lastAutoExportChecksum,
       };
 
@@ -3620,6 +3624,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _performAutoExport() async {
     try {
+      // Build export JSON and skip if unchanged
+      final exportJson = await _buildExportJsonString();
+      final chk = _computeFnv1a64(exportJson);
+      if (chk == _lastAutoExportChecksum) {
+        unawaited(_debugLog('autoExport skipped: no changes'));
+        return;
+      }
       final dir = await _appDir;
       final exportDir = Directory('${dir.path}/simplepresent-exports');
       if (!await exportDir.exists()) await exportDir.create(recursive: true);
@@ -3627,10 +3638,37 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final fileName =
           'simplepresent-backup-${DateFormat('yyyyMMdd-HHmmss').format(now)}.json';
       final path = p.join(exportDir.path, fileName);
-      await exportAllListsToJsonFile(path);
+      final f = File(path);
+      await f.create(recursive: true);
+      await f.writeAsString(exportJson);
+      // enforce max backups retention
+      try {
+        if (_autoExportMaxBackups > 0) {
+          final files = await exportDir
+              .list()
+              .where((e) =>
+                  e is File &&
+                  p.basename(e.path).startsWith('simplepresent-backup-') &&
+                  e.path.endsWith('.json'))
+              .cast<File>()
+              .toList();
+          files.sort((a, b) => a.path.compareTo(b.path));
+          final excess = files.length - _autoExportMaxBackups;
+          if (excess > 0) {
+            for (var i = 0; i < excess; i++) {
+              try {
+                await files[i].delete();
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
       try {
         _showTopToast('backup saved: $fileName');
       } catch (_) {}
+      // update stored checksum
+      _lastAutoExportChecksum = chk;
+      unawaited(_saveSettings());
     } catch (e, st) {
       unawaited(_debugLog('autoExport failed: $e\n$st'));
     }
@@ -4078,6 +4116,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               .map((e) => e.trim())
               .where((e) => e.isNotEmpty)
               .toList();
+        }
+        if (result['autoExportMaxBackups'] is int ||
+            result['autoExportMaxBackups'] is String) {
+          try {
+            final v = (result['autoExportMaxBackups'] is int)
+                ? result['autoExportMaxBackups'] as int
+                : int.tryParse(result['autoExportMaxBackups'].toString()) ??
+                    _autoExportMaxBackups;
+            _autoExportMaxBackups = v.clamp(0, 9999);
+          } catch (_) {}
         }
       }
     });
@@ -8636,6 +8684,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool autoExportOnStart;
   late int autoExportIntervalMinutes;
   late String autoExportTimesCsv;
+  late int autoExportMaxBackups;
   // local toast state for SettingsPage
   OverlayEntry? _toastEntryLocal;
   Timer? _toastTimerLocal;
@@ -8844,6 +8893,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool _initialAutoExportOnStart;
   late int _initialAutoExportIntervalMinutes;
   late String _initialAutoExportTimesCsv;
+  late int _initialAutoExportMaxBackups;
   late List<Map<String, dynamic>> _inactivityRemindersLocal;
 
   @override
@@ -8926,6 +8976,7 @@ class _SettingsPageState extends State<SettingsPage> {
     } else {
       autoExportTimesCsv = readString('autoExportTimesCsv', '');
     }
+    autoExportMaxBackups = readInt('autoExportMaxBackups', 14);
     doneRetentionDays = readInt('doneRetentionDays', 30).clamp(1, 365);
     maxTasksToday = readInt('maxTasksToday', 25).clamp(1, 9999);
     maxTasksBacklog = readInt('maxTasksBacklog', 50).clamp(1, 9999);
@@ -8974,6 +9025,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialAutoExportOnStart = autoExportOnStart;
     _initialAutoExportIntervalMinutes = autoExportIntervalMinutes;
     _initialAutoExportTimesCsv = autoExportTimesCsv;
+    _initialAutoExportMaxBackups = autoExportMaxBackups;
     _fetchServerVersionInSettings();
     unawaited(_refreshCloudAccountStatus());
     // Initialize local inactivity reminders from parent-provided initial map
@@ -9121,6 +9173,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     .map((s) => s.trim())
                     .where((s) => s.isNotEmpty)
                     .toList(),
+                'autoExportMaxBackups': autoExportMaxBackups,
               });
             },
             child: const Text('save'),
@@ -10196,6 +10249,9 @@ class _SettingsPageState extends State<SettingsPage> {
                               onChanged: (v) =>
                                   setState(() => autoExportOnStart = v))
                         ]),
+                        const SizedBox(height: 4),
+                        const Text('0 = unlimited',
+                            style: TextStyle(fontSize: 11, color: Colors.grey)),
                         const SizedBox(height: 8),
                         Row(children: [
                           const Text('interval (min, 0=off):'),
@@ -10226,6 +10282,25 @@ class _SettingsPageState extends State<SettingsPage> {
                           onChanged: (v) =>
                               setState(() => autoExportTimesCsv = v),
                         ),
+                        const SizedBox(height: 8),
+                        Row(children: [
+                          const Text('max backups:'),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 120,
+                            child: TextFormField(
+                              initialValue: autoExportMaxBackups.toString(),
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                  isDense: true, border: OutlineInputBorder()),
+                              onChanged: (v) {
+                                final parsed = int.tryParse(v) ?? 0;
+                                setState(() => autoExportMaxBackups =
+                                    parsed.clamp(0, 9999));
+                              },
+                            ),
+                          )
+                        ]),
                       ],
                     ),
                   ),
