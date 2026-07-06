@@ -2,18 +2,16 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
-
+import 'package:simple_present/sync/cloud_sync_client.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:flutter/foundation.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:path/path.dart' as p;
-// Pointer scroll events (task zoom via Ctrl+wheel) disabled — no import needed
 import 'package:path_provider/path_provider.dart';
-import 'package:simple_present/sync/cloud_sync_client.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:simple_present/storage/json_storage.dart';
@@ -670,6 +668,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<String> _autoExportTimes = <String>[]; // list of 'HH:MM' strings
   Timer? _autoExportIntervalTimer;
   final List<Timer> _autoExportTimeTimers = <Timer>[];
+  String _lastAutoExportChecksum = '';
 
   late final Future<void> _initFuture = _initializeApp();
 
@@ -3223,6 +3222,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (aet is List) {
           _autoExportTimes = aet.map((e) => e.toString()).toList();
         }
+        final lastChk = data['lastAutoExportChecksum'];
+        if (lastChk is String) _lastAutoExportChecksum = lastChk;
         _doneRetentionDays = readInt('doneRetentionDays', _doneRetentionDays);
         // Restore persisted UI text scale factor if present
         _uiTextScaleFactor = _clampUiTextScaleFactor(
@@ -3422,6 +3423,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'autoExportOnStart': _autoExportOnStart,
         'autoExportIntervalMinutes': _autoExportIntervalMinutes,
         'autoExportTimes': _autoExportTimes,
+        'lastAutoExportChecksum': _lastAutoExportChecksum,
       };
 
       // Preserve lastRunDate if present in existing settings so daily-reset runs only once per day
@@ -3683,6 +3685,39 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _autoExportTimeTimers.add(timer);
       } catch (_) {}
     }
+  }
+
+  Future<String> _buildExportJsonString() async {
+    final List<TaskItem> todayList = [];
+    final List<TaskItem> backlogList = [];
+    final List<TaskItem> doneList = [];
+    final List<TaskItem> trashList = [];
+    await _loadList(_storage('simplepresent_today.json'), todayList);
+    await _loadList(_storage('simplepresent_backlog.json'), backlogList);
+    await _loadList(_storage('simplepresent_done.json'), doneList);
+    await _loadList('simplepresent_trash.json', trashList);
+    final Map<String, dynamic> exportData = {
+      'exportedAt': DateTime.now().toIso8601String(),
+      'today': todayList.map((t) => t.toJson()).toList(),
+      'backlog': backlogList.map((t) => t.toJson()).toList(),
+      'done': doneList.map((t) => t.toJson()).toList(),
+      'trash': trashList.map((t) => t.toJson()).toList(),
+    };
+    return const JsonEncoder.withIndent('  ').convert(exportData);
+  }
+
+  String _computeFnv1a64(String s) {
+    // simple FNV-1a 64-bit implementation returning hex string.
+    final bytes = utf8.encode(s);
+    const int fnvOffset = 0xcbf29ce484222325;
+    const int fnvPrime = 0x100000001b3;
+    var hash = fnvOffset;
+    for (final b in bytes) {
+      hash ^= b;
+      // Dart int is arbitrary precision; mask to 64-bit
+      hash = (hash * fnvPrime) & 0xffffffffffffffff;
+    }
+    return hash.toRadixString(16).padLeft(16, '0');
   }
 
   void _startAutoSwitchTimer() {
