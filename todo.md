@@ -101,7 +101,12 @@
 - [ ] android hintergrund synchronisation (push) implementieren
 - [x] kein swipe bei aufgeklappen aufgaben
 - [ ] android verliert manchmal den text focus beim editieren
-- [ ] filebasiertes synchronisieren über export/import (z.b. json) implementieren
+- [x] filebasiertes synchronisieren über export/import (z.b. json) implementieren
+  - [x] import soll fragen ob clean
+  - [ ] export als automatische sicherung in den settings. zeitbasiert (intervall, uhrzeiten) oder z.b. bei start der applikation
+  - [ ] nur sicherung wenn sich auch was geändert hat!
+  - [ ] anzahl der sicherungen konfiguriertbar (count)
+  - [ ] testen
 - [ ] aufgaben suche im done
 
 ## notes

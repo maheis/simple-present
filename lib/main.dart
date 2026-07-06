@@ -664,6 +664,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Stream<int> _loadingTickStream =
       Stream<int>.periodic(const Duration(milliseconds: 220), (x) => x);
 
+  // Automatic export (backup) settings
+  bool _autoExportOnStart = false;
+  int _autoExportIntervalMinutes = 0; // 0 = disabled
+  List<String> _autoExportTimes = <String>[]; // list of 'HH:MM' strings
+  Timer? _autoExportIntervalTimer;
+  final List<Timer> _autoExportTimeTimers = <Timer>[];
+
   late final Future<void> _initFuture = _initializeApp();
 
   // Snapshot of last persisted `_today` list used to detect local changes
@@ -888,6 +895,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // migration is performed.
     await _loadSettings();
     await _ensureInitialFiles();
+
+    // Start auto-export timers and perform export on-start if configured
+    try {
+      _startAutoExportTimers();
+      if (_autoExportOnStart) {
+        unawaited(_performAutoExport());
+      }
+    } catch (_) {}
 
     // Do not rewrite all lists at startup.
     // Startup-wide resaves can cause excessive churn on list-dir storage.
@@ -3200,6 +3215,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _swipeEnabled = readBool('swipeEnabled', _swipeEnabled);
         _autoPurgeDoneEnabled =
             readBool('autoPurgeDoneEnabled', _autoPurgeDoneEnabled);
+        // Automatic export (backups)
+        _autoExportOnStart = readBool('autoExportOnStart', _autoExportOnStart);
+        _autoExportIntervalMinutes =
+            readInt('autoExportIntervalMinutes', _autoExportIntervalMinutes);
+        final aet = data['autoExportTimes'];
+        if (aet is List) {
+          _autoExportTimes = aet.map((e) => e.toString()).toList();
+        }
         _doneRetentionDays = readInt('doneRetentionDays', _doneRetentionDays);
         // Restore persisted UI text scale factor if present
         _uiTextScaleFactor = _clampUiTextScaleFactor(
@@ -3395,6 +3418,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'storagePath': _storagePathOverride ?? '',
         // Enable debug logging of write operations
         'debugWriteLog': _debugWriteLog,
+        // Automatic export (backups)
+        'autoExportOnStart': _autoExportOnStart,
+        'autoExportIntervalMinutes': _autoExportIntervalMinutes,
+        'autoExportTimes': _autoExportTimes,
       };
 
       // Preserve lastRunDate if present in existing settings so daily-reset runs only once per day
@@ -3459,6 +3486,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     for (final t in _inactivityTimers) {
       try {
         t?.cancel();
+      } catch (_) {}
+    }
+    try {
+      _autoExportIntervalTimer?.cancel();
+    } catch (_) {}
+    for (final t in _autoExportTimeTimers) {
+      try {
+        t.cancel();
       } catch (_) {}
     }
     _autoSwitchTimer?.cancel();
@@ -3578,6 +3613,75 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return next.difference(now);
     } catch (_) {
       return const Duration(minutes: 1);
+    }
+  }
+
+  Future<void> _performAutoExport() async {
+    try {
+      final dir = await _appDir;
+      final exportDir = Directory('${dir.path}/simplepresent-exports');
+      if (!await exportDir.exists()) await exportDir.create(recursive: true);
+      final now = DateTime.now();
+      final fileName =
+          'simplepresent-backup-${DateFormat('yyyyMMdd-HHmmss').format(now)}.json';
+      final path = p.join(exportDir.path, fileName);
+      await exportAllListsToJsonFile(path);
+      try {
+        _showTopToast('backup saved: $fileName');
+      } catch (_) {}
+    } catch (e, st) {
+      unawaited(_debugLog('autoExport failed: $e\n$st'));
+    }
+  }
+
+  void _startAutoExportTimers() {
+    // cancel existing
+    try {
+      _autoExportIntervalTimer?.cancel();
+    } catch (_) {}
+    for (final t in _autoExportTimeTimers) {
+      try {
+        t.cancel();
+      } catch (_) {}
+    }
+    _autoExportTimeTimers.clear();
+
+    if (_autoExportIntervalMinutes > 0) {
+      _autoExportIntervalTimer = Timer.periodic(
+          Duration(minutes: _autoExportIntervalMinutes), (_) async {
+        if (!_initializationComplete) return;
+        await _performAutoExport();
+      });
+    }
+
+    for (final hhmm in _autoExportTimes) {
+      try {
+        final parts = hhmm.split(':');
+        if (parts.length != 2) continue;
+        final h = int.tryParse(parts[0]) ?? 0;
+        final m = int.tryParse(parts[1]) ?? 0;
+        final now = DateTime.now();
+        var scheduled = DateTime(now.year, now.month, now.day, h, m);
+        if (!scheduled.isAfter(now))
+          scheduled = scheduled.add(const Duration(days: 1));
+        final delay = scheduled.difference(now);
+        final timer = Timer(delay, () async {
+          if (_initializationComplete) await _performAutoExport();
+          // reschedule for next day
+          try {
+            final next =
+                DateTime(scheduled.year, scheduled.month, scheduled.day, h, m)
+                    .add(const Duration(days: 1));
+            final nextDelay = next.difference(DateTime.now());
+            final t2 = Timer(nextDelay, () async {
+              if (_initializationComplete) await _performAutoExport();
+              _startAutoExportTimers();
+            });
+            _autoExportTimeTimers.add(t2);
+          } catch (_) {}
+        });
+        _autoExportTimeTimers.add(timer);
+      } catch (_) {}
     }
   }
 
@@ -3922,6 +4026,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _inactivityReminders = list;
         } catch (_) {
           _inactivityReminders = <Map<String, dynamic>>[];
+        }
+        // Apply automatic export settings
+        _autoExportOnStart = result['autoExportOnStart'] == true;
+        _autoExportIntervalMinutes = clampMin(
+            result['autoExportIntervalMinutes'], _autoExportIntervalMinutes);
+        if (result['autoExportTimes'] is List) {
+          try {
+            final raw = result['autoExportTimes'];
+            _autoExportTimes = (raw as List).map((e) => e.toString()).toList();
+          } catch (_) {}
+        } else if (result['autoExportTimes'] is String) {
+          final s = result['autoExportTimes'] as String;
+          _autoExportTimes = s
+              .split(',')
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
         }
       }
     });
@@ -8477,6 +8598,9 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool cloudSyncFailed;
   late String cloudSyncLastError;
   late bool autoPurgeDoneEnabled;
+  late bool autoExportOnStart;
+  late int autoExportIntervalMinutes;
+  late String autoExportTimesCsv;
   // local toast state for SettingsPage
   OverlayEntry? _toastEntryLocal;
   Timer? _toastTimerLocal;
@@ -8682,6 +8806,9 @@ class _SettingsPageState extends State<SettingsPage> {
   late int _initialDoneRetentionDays;
   late int _initialMaxTasksToday;
   late int _initialMaxTasksBacklog;
+  late bool _initialAutoExportOnStart;
+  late int _initialAutoExportIntervalMinutes;
+  late String _initialAutoExportTimesCsv;
   late List<Map<String, dynamic>> _inactivityRemindersLocal;
 
   @override
@@ -8756,6 +8883,14 @@ class _SettingsPageState extends State<SettingsPage> {
     cloudPIN = readString('cloudPIN', '');
     cloudAllowInsecureTls = readBool('cloudAllowInsecureTls', false);
     autoPurgeDoneEnabled = readBool('autoPurgeDoneEnabled', false);
+    autoExportOnStart = readBool('autoExportOnStart', false);
+    autoExportIntervalMinutes = readInt('autoExportIntervalMinutes', 0);
+    final aet = widget.initial['autoExportTimes'];
+    if (aet is List) {
+      autoExportTimesCsv = aet.map((e) => e.toString()).join(',');
+    } else {
+      autoExportTimesCsv = readString('autoExportTimesCsv', '');
+    }
     doneRetentionDays = readInt('doneRetentionDays', 30).clamp(1, 365);
     maxTasksToday = readInt('maxTasksToday', 25).clamp(1, 9999);
     maxTasksBacklog = readInt('maxTasksBacklog', 50).clamp(1, 9999);
@@ -8801,6 +8936,9 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialDoneRetentionDays = doneRetentionDays;
     _initialMaxTasksToday = maxTasksToday;
     _initialMaxTasksBacklog = maxTasksBacklog;
+    _initialAutoExportOnStart = autoExportOnStart;
+    _initialAutoExportIntervalMinutes = autoExportIntervalMinutes;
+    _initialAutoExportTimesCsv = autoExportTimesCsv;
     _fetchServerVersionInSettings();
     unawaited(_refreshCloudAccountStatus());
     // Initialize local inactivity reminders from parent-provided initial map
@@ -8940,6 +9078,14 @@ class _SettingsPageState extends State<SettingsPage> {
                 'inactivityReminders': _inactivityRemindersLocal,
                 'maxTasksToday': maxTasksToday,
                 'maxTasksBacklog': maxTasksBacklog,
+                // Automatic export settings
+                'autoExportOnStart': autoExportOnStart,
+                'autoExportIntervalMinutes': autoExportIntervalMinutes,
+                'autoExportTimes': autoExportTimesCsv
+                    .split(',')
+                    .map((s) => s.trim())
+                    .where((s) => s.isNotEmpty)
+                    .toList(),
               });
             },
             child: const Text('save'),
@@ -8993,7 +9139,10 @@ class _SettingsPageState extends State<SettingsPage> {
         maxTasksToday != _initialMaxTasksToday ||
         maxTasksBacklog != _initialMaxTasksBacklog ||
         reminderWindowFrom != _initialReminderWindowFrom ||
-        reminderWindowTo != _initialReminderWindowTo;
+        reminderWindowTo != _initialReminderWindowTo ||
+        autoExportOnStart != _initialAutoExportOnStart ||
+        autoExportIntervalMinutes != _initialAutoExportIntervalMinutes ||
+        autoExportTimesCsv != _initialAutoExportTimesCsv;
   }
 
   String _normalizedServerUrl() {
@@ -9448,6 +9597,14 @@ class _SettingsPageState extends State<SettingsPage> {
                       'doneRetentionDays': doneRetentionDays,
                       'maxTasksToday': maxTasksToday,
                       'maxTasksBacklog': maxTasksBacklog,
+                      // Automatic export settings
+                      'autoExportOnStart': autoExportOnStart,
+                      'autoExportIntervalMinutes': autoExportIntervalMinutes,
+                      'autoExportTimes': autoExportTimesCsv
+                          .split(',')
+                          .map((s) => s.trim())
+                          .where((s) => s.isNotEmpty)
+                          .toList(),
                     });
                   },
                   child: Text(
@@ -9981,6 +10138,64 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 8),
+                Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('automatic backups',
+                            style: TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 6),
+                        const Text(
+                            'Automatically export task lists as JSON backups.'),
+                        const SizedBox(height: 8),
+                        Row(children: [
+                          const Text('export on start:'),
+                          const SizedBox(width: 12),
+                          Switch(
+                              value: autoExportOnStart,
+                              onChanged: (v) =>
+                                  setState(() => autoExportOnStart = v))
+                        ]),
+                        const SizedBox(height: 8),
+                        Row(children: [
+                          const Text('interval (min, 0=off):'),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 120,
+                            child: TextFormField(
+                              initialValue:
+                                  autoExportIntervalMinutes.toString(),
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                  isDense: true, border: OutlineInputBorder()),
+                              onChanged: (v) {
+                                final parsed = int.tryParse(v) ?? 0;
+                                setState(() => autoExportIntervalMinutes =
+                                    parsed.clamp(0, 60 * 24));
+                              },
+                            ),
+                          )
+                        ]),
+                        const SizedBox(height: 8),
+                        const Text('times (HH:MM comma-separated):'),
+                        const SizedBox(height: 6),
+                        TextFormField(
+                          initialValue: autoExportTimesCsv,
+                          decoration: const InputDecoration(
+                              border: OutlineInputBorder(), isDense: true),
+                          onChanged: (v) =>
+                              setState(() => autoExportTimesCsv = v),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 const Divider(),
                 const SizedBox(height: 8),
                 const Text(
