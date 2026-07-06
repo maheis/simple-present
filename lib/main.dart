@@ -7064,6 +7064,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                       (direction) async {
                                                     final t = _today[i];
                                                     final taskId = t.id;
+                                                    // Prevent swipe actions when the task is expanded/open
+                                                    if (_expanded.contains(
+                                                        taskId)) return false;
 
                                                     if (direction ==
                                                         DismissDirection
@@ -7150,7 +7153,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
                                                     return false;
                                                   },
-                                                  direction: _swipeEnabled
+                                                  direction: (!_expanded
+                                                              .contains(
+                                                                  task.id) &&
+                                                          _swipeEnabled)
                                                       ? (!task.done
                                                           ? DismissDirection
                                                               .horizontal

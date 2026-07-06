@@ -99,6 +99,8 @@
 - [?] sync button macht immer noch nicht 100%
 - [ ] alle aktionen sollen task loading auslösen
 - [ ] android hintergrund synchronisation (push) implementieren
+- [x] kein swipe bei aufgeklappen aufgaben
+- [ ] android verliert manchmal den text focus beim editieren
 
 ## notes
 
