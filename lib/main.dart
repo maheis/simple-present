@@ -1417,7 +1417,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               final data = jsonDecode(txt) as List<dynamic>;
               final restored = data.map(TaskItem.fromJson).toList();
               if (restored.isNotEmpty) {
-                await _saveList(_storage('simplepresent_today.json'), restored);
+                await _queueReplaceList(
+                    _storage('simplepresent_today.json'), restored);
                 await _recordRestoreEvent(
                     'migration_verify_failed', restored.length);
                 unawaited(_debugLog(
@@ -1682,6 +1683,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _queueAppendToList(String filename, TaskItem item,
       {bool insertTop = true}) async {
     try {
+      unawaited(
+          _debugLog('queueAppend: scheduling append ${item.id} -> $filename'));
       await _queueTaskAction(item.id, () async {
         final List<TaskItem> list = [];
         await _loadList(filename, list);
@@ -1697,6 +1700,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _queueRemoveFromList(String filename, String taskId) async {
     try {
+      unawaited(
+          _debugLog('queueRemove: scheduling remove $taskId -> $filename'));
       await _queueTaskAction(taskId, () async {
         final List<TaskItem> list = [];
         await _loadList(filename, list);
@@ -1704,6 +1709,79 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         await _saveList(filename, list);
       });
     } catch (_) {}
+  }
+
+  // Serialized file-op chaining to avoid concurrent read/write races on the
+  // same list file. Operations for the same filename are executed sequentially.
+  final Map<String, Future<void>> _fileWriteChains = {};
+
+  Future<void> _serializedFileOp(
+      String filename, Future<void> Function() op) async {
+    final prev = _fileWriteChains[filename];
+    final completer = Completer<void>();
+    _fileWriteChains[filename] = completer.future;
+    try {
+      unawaited(_debugLog('serializedFileOp: start $filename'));
+      if (prev != null) {
+        try {
+          await prev;
+        } catch (_) {}
+      }
+      await op();
+      unawaited(_debugLog('serializedFileOp: finished $filename'));
+    } finally {
+      completer.complete();
+      if (_fileWriteChains[filename] == completer.future) {
+        _fileWriteChains.remove(filename);
+      }
+    }
+  }
+
+  /// Replace the contents of [filename] with [items] using per-task queue
+  /// operations, but serialized file operations to avoid races. This keeps
+  /// sync semantics similar to a full replace while ensuring per-task
+  /// operations are atomic and debuggable.
+  Future<void> _queueReplaceList(String filename, List<TaskItem> items) async {
+    try {
+      // First, ensure each incoming item is upserted via its task queue.
+      for (final it in items) {
+        unawaited(
+            _debugLog('queueReplace: scheduling upsert ${it.id} -> $filename'));
+        await _queueTaskAction(it.id, () async {
+          await _serializedFileOp(filename, () async {
+            final List<TaskItem> cur = [];
+            await _loadList(filename, cur);
+            // Remove any existing entry with same id
+            cur.removeWhere((t) => t.id == it.id);
+            // Insert at top
+            cur.insert(0, it);
+            await _saveList(filename, cur);
+          });
+        });
+      }
+
+      // Then, remove any tasks that are not present in the new set.
+      final newIds = items.map((e) => e.id).toSet();
+      await _serializedFileOp(filename, () async {
+        final List<TaskItem> cur = [];
+        await _loadList(filename, cur);
+        final toRemove = cur.where((t) => !newIds.contains(t.id)).toList();
+        for (final r in toRemove) {
+          unawaited(_debugLog(
+              'queueReplace: scheduling remove ${r.id} from $filename'));
+          await _queueTaskAction(r.id, () async {
+            await _serializedFileOp(filename, () async {
+              final List<TaskItem> now = [];
+              await _loadList(filename, now);
+              now.removeWhere((t) => t.id == r.id);
+              await _saveList(filename, now);
+            });
+          });
+        }
+      });
+    } catch (e, st) {
+      unawaited(_debugLog('queueReplaceList failed for $filename: $e\n$st'));
+    }
   }
 
   Future<void> _createNextRecurrenceIfNeeded(TaskItem task,
@@ -2329,12 +2407,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     _applyingCloudState = true;
     try {
-      await _saveList(_storage('simplepresent_today.json'), today,
-          triggerCloudSync: false);
-      await _saveList(_storage('simplepresent_backlog.json'), backlog,
-          triggerCloudSync: false);
-      await _saveList(_storage('simplepresent_done.json'), done,
-          triggerCloudSync: false);
+      // Apply server authoritative state via queued replace per-list so
+      // that individual task operations remain atomic and visible in logs.
+      await _queueReplaceList(_storage('simplepresent_today.json'), today);
+      await _queueReplaceList(_storage('simplepresent_backlog.json'), backlog);
+      await _queueReplaceList(_storage('simplepresent_done.json'), done);
       await _loadToday();
       await _finalizeAllEdits();
     } catch (_) {}
@@ -3022,14 +3099,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
 
         if (!appliedLegacyFullState) {
-          await _saveList(_storage('simplepresent_today.json'), today,
-              triggerCloudSync: false);
-          await _saveList(_storage('simplepresent_backlog.json'), backlog,
-              triggerCloudSync: false);
-          await _saveList(_storage('simplepresent_done.json'), done,
-              triggerCloudSync: false);
+          // Apply incremental cloud changes as queued replaces so each task
+          // operation remains atomic and appears in logs.
+          await _queueReplaceList(_storage('simplepresent_today.json'), today);
+          await _queueReplaceList(
+              _storage('simplepresent_backlog.json'), backlog);
+          await _queueReplaceList(_storage('simplepresent_done.json'), done);
           await _loadToday();
-
           // Update known ID sets to reflect server state we just applied.
           // This prevents new clients from later pushing their local ordering
           // as changes (which causes every client to 'move' items on first open).
