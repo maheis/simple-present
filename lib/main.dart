@@ -4254,6 +4254,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       // Persist changes first (so _saveList writes the full state)
       await _saveToday();
+      try {
+        if (_today[idx].done) unawaited(_cancelTaskNotification(taskId));
+      } catch (_) {}
       _scheduleDelayedReorder();
       _upsertTimeEntry(_today[idx]);
 
@@ -4490,6 +4493,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   stopwatchRunning: false,
                   stopwatchStartedAt: null));
               await _saveToday();
+              try {
+                unawaited(_cancelTaskNotification(taskId));
+              } catch (_) {}
             }));
           } else {
             unawaited(_queueTaskAction(taskId, () async {
@@ -5835,6 +5841,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         try {
           unawaited(_playThere());
         } catch (_) {}
+        try {
+          unawaited(_cancelTaskNotification(restored.id));
+        } catch (_) {}
       } catch (_) {
         _showTopToast('failed to move task');
       }
@@ -5865,6 +5874,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           unawaited(_appendRedoLog('done',
               taskId: moved.id, details: {'text': finalTask.text}));
         } catch (_) {}
+        try {
+          unawaited(_cancelTaskNotification(moved.id));
+        } catch (_) {}
         // Note: Do NOT create recurrence entries here - this is a pure list move without user "done" interaction
         _showTopToast('task moved to done');
         _playDading();
@@ -5878,6 +5890,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // Stage done change to avoid immediate reordering; persist when delayed reorder runs.
     final t = _today[index];
     setState(() => _stagedDone[t.id] = value);
+    // When the user stages a task as done, cancel any existing notification
+    // so Android notifications for this task disappear immediately.
+    if (value == true) {
+      try {
+        unawaited(_cancelTaskNotification(t.id));
+      } catch (_) {}
+    }
     // If marking done, ensure any staged inProgress is cleared
     if (value == true) {
       _stagedInProgress.remove(t.id);
@@ -5905,6 +5924,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _playDading() async {
     await _playShortSound('sounds/ding.mp3', alert: false);
+  }
+
+  Future<void> _cancelTaskNotification(String taskId) async {
+    try {
+      await _nativeWindowChannel.invokeMethod(
+          'cancelNotification', <String, String>{'taskId': taskId});
+    } catch (_) {}
+    try {
+      await _nativeWindowChannel.invokeMethod(
+          'removeNotification', <String, String>{'taskId': taskId});
+    } catch (_) {}
+    try {
+      await _nativeWindowChannel.invokeMethod(
+          'clearNotification', <String, String>{'taskId': taskId});
+    } catch (_) {}
   }
 
   Future<void> _playThere() async {
@@ -6112,6 +6146,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await _loadList('simplepresent_trash.json', trash);
       trash.add(removed);
       await _saveList('simplepresent_trash.json', trash);
+    } catch (_) {}
+    try {
+      unawaited(_cancelTaskNotification(removed.id));
     } catch (_) {}
     // Clear any pending notification flags for this task (use text match)
     final idPrefix = '${removed.id}|';
