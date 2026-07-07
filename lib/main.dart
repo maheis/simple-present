@@ -1392,8 +1392,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
 
         if (persistOk) {
-          // All persisted correctly — clear today and remove backup.
-          await _saveList(_storage('simplepresent_today.json'), <TaskItem>[]);
+          // All persisted correctly — remove each task from persisted Today
+          // so we keep per-task atomicity and avoid a full list overwrite.
+          for (final t in todayList) {
+            try {
+              await _queueRemoveFromList('simplepresent_today.json', t.id);
+            } catch (_) {}
+          }
           try {
             if (backupFile != null && await backupFile.exists()) {
               await backupFile.delete();
@@ -1533,15 +1538,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         todayList.insertAll(0, promote);
       }
 
-      await Future.wait([
-        _saveList(backlogFile, backlogList, triggerCloudSync: false),
-        _saveList(todayFile, todayList, triggerCloudSync: false),
-      ]);
-
-      try {
-        unawaited(_syncPushToCloud(backlogFile, backlogList));
-        unawaited(_syncPushToCloud(todayFile, todayList));
-      } catch (_) {}
+      // Persist per-task: remove from backlog and append to Today atomically
+      for (final t in promote) {
+        try {
+          await _queueRemoveFromList(backlogFile, t.id);
+        } catch (_) {}
+        try {
+          await _queueAppendToList(todayFile, t, insertTop: true);
+        } catch (_) {}
+      }
 
       if (mounted) {
         await _loadToday();
@@ -2094,8 +2099,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final toAdd =
             imported.where((e) => !existingIds.contains(e.id)).toList();
         if (toAdd.isNotEmpty) {
-          existing.insertAll(0, toAdd);
-          await _saveList(filename, existing);
+          for (final it in toAdd) {
+            await _queueAppendToList(filename, it, insertTop: true);
+          }
         }
       }
 
@@ -5566,25 +5572,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       String targetFile;
       if (_currentFile == _storage('simplepresent_backlog.json')) {
         targetFile = _storage('simplepresent_backlog.json');
-        final List<TaskItem> backlogList = [];
-        await _loadList(targetFile, backlogList);
-        backlogList.insert(0, newItem);
-        await _saveList(targetFile, backlogList);
+        await _queueAppendToList(targetFile, newItem, insertTop: true);
         _upsertTimeEntry(newItem);
       } else if (_currentFile == _storage('simplepresent_done.json')) {
         // when duplicating from Done, put the copy in Backlog and switch view to Backlog
         targetFile = _storage('simplepresent_backlog.json');
-        final List<TaskItem> backlogList = [];
-        await _loadList(targetFile, backlogList);
-        backlogList.insert(0, newItem);
-        await _saveList(targetFile, backlogList);
+        await _queueAppendToList(targetFile, newItem, insertTop: true);
         _upsertTimeEntry(newItem);
       } else {
         targetFile = _storage('simplepresent_today.json');
-        final List<TaskItem> todayList = [];
-        await _loadList(targetFile, todayList);
-        todayList.insert(0, newItem);
-        await _saveList(targetFile, todayList);
+        await _queueAppendToList(targetFile, newItem, insertTop: true);
         _upsertTimeEntry(newItem);
       }
 
