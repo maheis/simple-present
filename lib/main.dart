@@ -1370,8 +1370,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (persistOk && movedToDone.isNotEmpty) {
           final doneFile = _storage('simplepresent_done.json');
           try {
-            doneList.addAll(movedToDone.reversed);
-            await _saveList(doneFile, doneList);
+            // Append each moved task to Done via per-task queue to ensure atomic per-task processing
+            for (final it in movedToDone.reversed) {
+              await _queueAppendToList('simplepresent_done.json', it,
+                  insertTop: false);
+            }
             final verifyDone = <TaskItem>[];
             await _loadList(doneFile, verifyDone);
             final missingDone = movedToDone
@@ -1621,7 +1624,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }).toList();
       final removed = before - remaining.length;
       if (removed > 0) {
-        await _saveList(_storage('simplepresent_done.json'), remaining);
+        // Remove each outdated task via per-task queue to ensure atomic removal
+        final removedTasks = doneList.where((t) {
+          final c = t.completedAt;
+          if (c == null) return false; // preserved earlier
+          return c.isBefore(cutoff);
+        }).toList();
+        for (final t in removedTasks) {
+          await _queueRemoveFromList('simplepresent_done.json', t.id);
+        }
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _showTopToast('removed $removed old done task(s)');
         });
@@ -1674,6 +1685,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         } else {
           list.add(item);
         }
+        await _saveList(filename, list);
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _queueRemoveFromList(String filename, String taskId) async {
+    try {
+      await _queueTaskAction(taskId, () async {
+        final List<TaskItem> list = [];
+        await _loadList(filename, list);
+        list.removeWhere((t) => t.id == taskId);
         await _saveList(filename, list);
       });
     } catch (_) {}
