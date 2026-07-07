@@ -670,6 +670,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // Automatic export (backup) settings
   bool _autoExportOnStart = false;
   int _autoExportIntervalMinutes = 0; // 0 = disabled
+  bool _autoExportRunning = false;
   List<String> _autoExportTimes = <String>[]; // list of 'HH:MM' strings
   Timer? _autoExportIntervalTimer;
   final List<Timer> _autoExportTimeTimers = <Timer>[];
@@ -3631,10 +3632,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _performAutoExport() async {
+    if (_autoExportRunning) return;
+    _autoExportRunning = true;
     try {
-      // Build export JSON and skip if unchanged
-      final exportJson = await _buildExportJsonString();
-      final chk = _computeFnv1a64(exportJson);
+      // Build deterministic export JSON (no timestamp) and skip if unchanged
+      final exportJsonDet = await _buildExportJsonString();
+      final chk = _computeFnv1a64(exportJsonDet);
       if (chk == _lastAutoExportChecksum) {
         unawaited(_debugLog('autoExport skipped: no changes'));
         return;
@@ -3648,7 +3651,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final path = p.join(exportDir.path, fileName);
       final f = File(path);
       await f.create(recursive: true);
-      await f.writeAsString(exportJson);
+      // Add a timestamp only to the written file (do not include it in checksum)
+      try {
+        final Map<String, dynamic> out = jsonDecode(exportJsonDet);
+        out['exportedAt'] = DateTime.now().toIso8601String();
+        final finalJson = const JsonEncoder.withIndent('  ').convert(out);
+        await f.writeAsString(finalJson);
+      } catch (_) {
+        // fallback to writing the deterministic export if something goes wrong
+        await f.writeAsString(exportJsonDet);
+      }
       // enforce max backups retention
       try {
         if (_autoExportMaxBackups > 0) {
@@ -3677,6 +3689,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       unawaited(_saveSettings());
     } catch (e, st) {
       unawaited(_debugLog('autoExport failed: $e\n$st'));
+    } finally {
+      _autoExportRunning = false;
     }
   }
 
@@ -3741,7 +3755,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _loadList(_storage('simplepresent_done.json'), doneList);
     await _loadList('simplepresent_trash.json', trashList);
     final Map<String, dynamic> exportData = {
-      'exportedAt': DateTime.now().toIso8601String(),
       'today': todayList.map((t) => t.toJson()).toList(),
       'backlog': backlogList.map((t) => t.toJson()).toList(),
       'done': doneList.map((t) => t.toJson()).toList(),

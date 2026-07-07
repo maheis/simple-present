@@ -109,10 +109,10 @@
 - [ ] android verliert manchmal den text focus beim editieren
 - [ ] manueller export auch in unterordner
 - [ ] aufgaben müssen immer einzeln bearbeitet werden, keine listen im ganzen niederschreieben. verliere sonst häufiger aufgabenlisten, besonders unter android.
-- [ ] export passiert redundant.
+- [x] export passiert redundant.
 - [ ] jede aufgabe atomar für sich, nie listen#! grade unter android verkaspert sich das system oft
 - [x] keine toasts bei sicherung!
-- [ ] abgearbeitete aufgaben in der app, sollen unter android dann auch in den notification verschwinden (wenn sie da drin sind, bleiben sie stehen)
+- [x] abgearbeitete aufgaben in der app, sollen unter android dann auch in den notification verschwinden (wenn sie da drin sind, bleiben sie stehen)
 - [ ] refresh widget?
 - [ ] 
 
