@@ -64,6 +64,13 @@
 - [x] action que
 - [x] nur ein pair button (wenn erstes gerät, soll es halt registriert werden, sonst hinzugefügt werden)
 - [x] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
+- [x] kein swipe bei aufgeklappen aufgaben
+- [x] filebasiertes synchronisieren über export/import (z.b. json) implementieren
+  - [x] import soll fragen ob clean
+  - [x] export als automatische sicherung in den settings. zeitbasiert (intervall, uhrzeiten) oder z.b. bei start der applikation
+  - [x] nur sicherung wenn sich auch was geändert hat!
+  - [x] anzahl der sicherungen konfiguriertbar (count)
+- [x] aufgaben suche im done
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Windows Store Veröffentlichung (.notes/WINDOWS_APP_STORE.md)
 - [ ] Worklog an Aufgaben...
@@ -100,13 +107,14 @@
 - [ ] alle aktionen sollen task loading auslösen
 - [ ] android hintergrund synchronisation (push) implementieren
 - [ ] android verliert manchmal den text focus beim editieren
-- [x] kein swipe bei aufgeklappen aufgaben
-- [x] filebasiertes synchronisieren über export/import (z.b. json) implementieren
-  - [x] import soll fragen ob clean
-  - [x] export als automatische sicherung in den settings. zeitbasiert (intervall, uhrzeiten) oder z.b. bei start der applikation
-  - [x] nur sicherung wenn sich auch was geändert hat!
-  - [x] anzahl der sicherungen konfiguriertbar (count)
-- [x] aufgaben suche im done
+- [ ] manueller export auch in unterordner
+- [ ] aufgaben müssen immer einzeln bearbeitet werden, keine listen im ganzen niederschreieben. verliere sonst häufiger aufgabenlisten, besonders unter android.
+- [ ] export passiert redundant.
+- [ ] jede aufgabe atomar für sich, nie listen#! grade unter android verkaspert sich das system oft
+- [x] keine toasts bei sicherung!
+- [ ] abgearbeitete aufgaben in der app, sollen unter android dann auch in den notification verschwinden (wenn sie da drin sind, bleiben sie stehen)
+- [ ] refresh widget?
+- [ ] 
 
 ## notes
 
