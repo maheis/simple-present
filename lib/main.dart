@@ -1654,10 +1654,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _appendDone(List<TaskItem> items) async {
     if (items.isEmpty) return;
     try {
-      final List<TaskItem> existing = [];
-      await _loadList(_storage('simplepresent_done.json'), existing);
-      existing.addAll(items);
-      await _saveList(_storage('simplepresent_done.json'), existing);
+      // Enqueue each item append under its own task queue to ensure
+      // atomic, per-task processing across lists.
+      for (final it in items) {
+        await _queueAppendToList('simplepresent_done.json', it,
+            insertTop: false);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _queueAppendToList(String filename, TaskItem item,
+      {bool insertTop = true}) async {
+    try {
+      await _queueTaskAction(item.id, () async {
+        final List<TaskItem> list = [];
+        await _loadList(filename, list);
+        if (insertTop) {
+          list.insert(0, item);
+        } else {
+          list.add(item);
+        }
+        await _saveList(filename, list);
+      });
     } catch (_) {}
   }
 
@@ -4222,14 +4240,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// called before navigation or header actions so that edits are recorded
   /// as a single consolidated redo-log entry.
   Future<void> _finalizeAllEdits() async {
-    final open = _expanded.toList();
-    for (final id in open) {
-      final idx = _today.indexWhere((t) => t.id == id);
-      if (idx != -1) {
-        try {
-          await _saveEditedTitle(idx);
-        } catch (_) {}
+    // Only finalize the currently focused edit to avoid bulk-saving
+    // entire lists. This prevents accidental overwrites when multiple
+    // tasks are expanded but the user intended to edit a single task.
+    try {
+      String? focusedTaskId;
+      for (final e in _editFocusNodes.entries) {
+        if (e.value.hasFocus) {
+          focusedTaskId = e.key;
+          break;
+        }
       }
+      if (focusedTaskId == null) return;
+      final idx = _today.indexWhere((t) => t.id == focusedTaskId);
+      if (idx == -1) return;
+      await _saveEditedTitle(idx);
+    } catch (_) {
+      // best-effort: swallow errors to avoid throwing during dispose
     }
   }
 
@@ -5409,11 +5436,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         toStore = item.copyWith(done: false, inProgress: false);
       }
 
-      final List<TaskItem> backlogList = [];
-      await _loadList(_storage('simplepresent_backlog.json'), backlogList);
-      // insert at top so task appears first in backlog
-      backlogList.insert(0, toStore);
-      await _saveList(_storage('simplepresent_backlog.json'), backlogList);
+      // insert at top so task appears first in backlog via queued helper
+      await _queueAppendToList('simplepresent_backlog.json', toStore,
+          insertTop: true);
       // Log move to backlog
       unawaited(_appendRedoLog('move_to_backlog',
           taskId: toStore.id, details: {'from': 'today', 'to': 'backlog'}));
@@ -5475,11 +5500,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         toStore = item.copyWith(done: false, inProgress: false);
       }
 
-      // insert at top so task appears first in backlog
-      final List<TaskItem> backlogList = [];
-      await _loadList(_storage('simplepresent_backlog.json'), backlogList);
-      backlogList.insert(0, toStore);
-      await _saveList(_storage('simplepresent_backlog.json'), backlogList);
+      // insert at top so task appears first in backlog via queued helper
+      await _queueAppendToList('simplepresent_backlog.json', toStore,
+          insertTop: true);
       unawaited(_appendRedoLog('move_to_backlog',
           taskId: toStore.id, details: {'from': 'today', 'to': 'backlog'}));
       try {
@@ -5841,10 +5864,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           await _saveToday(); // persist removal from done file
         });
 
-        final List<TaskItem> backlogList = [];
-        await _loadList(_storage('simplepresent_backlog.json'), backlogList);
-        backlogList.insert(0, restored);
-        await _saveList(_storage('simplepresent_backlog.json'), backlogList);
+        // Append to backlog via per-task queue to ensure atomicity across lists
+        await _queueAppendToList('simplepresent_backlog.json', restored,
+            insertTop: true);
 
         _showTopToast('task moved to backlog');
         try {
@@ -6155,10 +6177,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
     // Move the removed task into the trash file instead of permanent delete
     try {
-      final List<TaskItem> trash = [];
-      await _loadList('simplepresent_trash.json', trash);
-      trash.add(removed);
-      await _saveList('simplepresent_trash.json', trash);
+      await _queueAppendToList('simplepresent_trash.json', removed,
+          insertTop: false);
     } catch (_) {}
     try {
       unawaited(_cancelTaskNotification(removed.id));
