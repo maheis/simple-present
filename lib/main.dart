@@ -2285,9 +2285,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final choice = await showDialog<String?>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Import mode'),
+          title: const Text('import mode'),
           content: const Text(
-              'Import as merge (keep existing) or replace (overwrite all)?'),
+              'import as merge (keep existing) or replace (overwrite all)?'),
           actions: [
             TextButton(
                 onPressed: () => Navigator.of(ctx).pop('cancel'),
@@ -2303,7 +2303,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       );
       if (choice == null || choice == 'cancel') return;
       final doMerge = choice == 'merge';
-      await importAllListsFromJsonFile(xfile.path, merge: doMerge);
+
+      // Show a blocking loading dialog during import
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => WillPopScope(
+          onWillPop: () async => false,
+          child: AlertDialog(
+            title: const Text('importing'),
+            content: Row(
+              children: [
+                SizedBox(
+                    width: 24, height: 24, child: CircularProgressIndicator()),
+                const SizedBox(width: 16),
+                const Expanded(child: Text('file...')),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      try {
+        await importAllListsFromJsonFile(xfile.path, merge: doMerge);
+      } finally {
+        try {
+          Navigator.of(context, rootNavigator: true).pop();
+        } catch (_) {}
+      }
     } catch (e, st) {
       unawaited(_debugLog('importViaChooser failed: $e\n$st'));
       try {

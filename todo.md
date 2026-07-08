@@ -114,6 +114,7 @@
 - [x] abgearbeitete aufgaben in der app, sollen unter android dann auch in den notification verschwinden (wenn sie da drin sind, bleiben sie stehen)
 - [ ] refresh widget?
 - [ ] edit cloud url springt immer ans ende des textes, sollte aber am cursor bleiben!
+- [ ] import fragt nicht mehr nach clean/merge, sondern überschreibt einfach alles. sollte aber fragen!
 
 ## notes
 
