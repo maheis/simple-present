@@ -2281,7 +2281,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final typeGroup = fs.XTypeGroup(label: 'json', extensions: ['json']);
       final xfile = await fs.openFile(acceptedTypeGroups: [typeGroup]);
       if (xfile == null) return;
-      await importAllListsFromJsonFile(xfile.path, merge: merge);
+      // Ask user whether to merge or replace imported lists
+      final choice = await showDialog<String?>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Import mode'),
+          content: const Text(
+              'Import as merge (keep existing) or replace (overwrite all)?'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop('cancel'),
+                child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop('merge'),
+                child: const Text('Merge')),
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop('replace'),
+                child: const Text('Replace')),
+          ],
+        ),
+      );
+      if (choice == null || choice == 'cancel') return;
+      final doMerge = choice == 'merge';
+      await importAllListsFromJsonFile(xfile.path, merge: doMerge);
     } catch (e, st) {
       unawaited(_debugLog('importViaChooser failed: $e\n$st'));
       try {
@@ -5049,10 +5071,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await _saveToday();
       try {
         if (removed != null &&
-            removed!.id.isNotEmpty &&
+            removed.id.isNotEmpty &&
             !_stagedEditBefore.containsKey(task.id))
           unawaited(_appendRedoLog('subtask_remove',
-              taskId: task.id, details: {'subtask': removed!.toJson()}));
+              taskId: task.id, details: {'subtask': removed.toJson()}));
       } catch (_) {}
       _registerActivity();
     });
