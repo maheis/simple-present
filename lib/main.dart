@@ -8921,6 +8921,8 @@ class _SettingsPageState extends State<SettingsPage> {
   Timer? _toastTimerLocal;
   String? _lastToastMessageLocal;
   DateTime? _lastToastAtLocal;
+  // controllers for inputs that must preserve cursor position
+  late TextEditingController _cloudServerUrlController;
   // local cache for devices shown in settings
   List<Map<String, dynamic>> _settingsCloudDevices = <Map<String, dynamic>>[];
 
@@ -9189,6 +9191,7 @@ class _SettingsPageState extends State<SettingsPage> {
     textScaleFactor = readDouble('uiTextScaleFactor', 1.0).clamp(0.5, 1.6);
     fontFamily = readString('fontFamily', 'OpenDyslexic');
     cloudServerUrl = readString('cloudServerUrl', '');
+    _cloudServerUrlController = TextEditingController(text: cloudServerUrl);
     cloudAccountId = readString('cloudAccountId', '');
     cloudDeviceId = readString('cloudDeviceId', '');
     cloudToken = readString('cloudToken', '');
@@ -9269,6 +9272,14 @@ class _SettingsPageState extends State<SettingsPage> {
     } else {
       _inactivityRemindersLocal = <Map<String, dynamic>>[];
     }
+  }
+
+  @override
+  void dispose() {
+    _toastTimerLocal?.cancel();
+    _toastEntryLocal?.remove();
+    _cloudServerUrlController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchServerVersionInSettings() async {
@@ -10226,9 +10237,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 8),
                 TextField(
-                  controller: TextEditingController(text: cloudServerUrl)
-                    ..selection =
-                        TextSelection.collapsed(offset: cloudServerUrl.length),
+                  controller: _cloudServerUrlController,
                   decoration: const InputDecoration(
                     labelText: 'server url',
                     hintText: 'https://<simplepresent-cloud-server>',
