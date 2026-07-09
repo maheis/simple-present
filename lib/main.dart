@@ -16,8 +16,6 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:simple_present/storage/json_storage.dart';
 import 'package:file_selector/file_selector.dart' as fs;
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 
 // sentinel to indicate "no change" in copyWith optional parameters
 const _noChange = Object();
@@ -121,37 +119,14 @@ bool _isClientOlderThanServer(String clientVersion, String serverVersion) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Initialize Firebase for push messaging. Native Android setup is required
-  // (google-services.json, gradle plugins, and manifest entries). See
-  // README or Firebase docs. We initialize here to ensure token acquisition
-  // and background message handler registration work.
-  try {
-    await Firebase.initializeApp();
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  } catch (_) {
-    // ignore: avoid_print
-    print('Firebase init failed or not configured');
-  }
+  // Firebase removed: push messaging handled via local mechanisms or omitted.
   await initializeDateFormatting('de_DE');
   runApp(const SimplePresentApp());
 }
 
 // Background message handler runs in its own isolate. Keep it top-level and
 // annotate as an entry point so it isn't tree-shaken.
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  try {
-    await Firebase.initializeApp();
-  } catch (_) {}
-  // Lightweight handling: log request and optionally trigger a short sync.
-  try {
-    await _debugLog('firebase BG msg: ${message.data}');
-    // Example: if server sends {action: 'sync'} we can trigger a background
-    // sync implementation here. For safety this implementation only logs.
-    // TODO: implement safe background sync using a headless API or schedule
-    // a WorkManager job that the Android native layer can run.
-  } catch (_) {}
-}
+// Firebase background handler removed.
 
 // Top-level debug logger used by multiple widgets. It writes to
 // `<Documents>/simplepresent/simplepresent_debug.log` (or the
