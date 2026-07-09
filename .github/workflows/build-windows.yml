@@ -18,6 +18,17 @@ jobs:
               uses: subosito/flutter-action@v2
               with:
                   channel: "stable"
+            - name: Ensure recent CMake is installed (Chocolatey)
+              shell: pwsh
+              run: |
+                  choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System' -y
+                  if (Test-Path "$env:ChocolateyInstall\bin\RefreshEnv.ps1") {
+                      & "$env:ChocolateyInstall\bin\RefreshEnv.ps1" -Scope Process
+                  } else {
+                      # best-effort refresh
+                      refreshenv || Write-Host 'refreshenv not available'
+                  }
+                  cmake --version
             - name: Flutter pub get
               run: flutter pub get
             - name: Build Windows release
