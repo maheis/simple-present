@@ -3,11 +3,10 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:sembast/sembast.dart';
 import 'package:sembast/sembast_io.dart';
 import 'package:path/path.dart' as p;
 
-final _listsStore = stringMapStoreFactory.store('lists');
+final _listsStore = StoreRef<String, Object?>('lists');
 
 void usage() {
   print(

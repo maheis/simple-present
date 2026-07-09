@@ -11033,6 +11033,8 @@ class RedoLogPage extends StatefulWidget {
 class _RedoLogPageState extends State<RedoLogPage> {
   List<Map<String, dynamic>> _entries = [];
   bool _loading = true;
+  bool _storageReady = false;
+  final _sqliteStorage = SqliteStorage();
   late final ScrollController _hScrollController;
   late final ScrollController _vScrollController;
   OverlayEntry? _toastEntryLocal;
@@ -11043,9 +11045,19 @@ class _RedoLogPageState extends State<RedoLogPage> {
   @override
   void initState() {
     super.initState();
-    _loadEntries();
+    unawaited(_initStorageAndLoad());
     _hScrollController = ScrollController();
     _vScrollController = ScrollController();
+  }
+
+  Future<void> _initStorageAndLoad() async {
+    try {
+      await _sqliteStorage.init(debugMode: kDebugMode);
+      _storageReady = true;
+    } catch (_) {
+      _storageReady = false;
+    }
+    await _loadEntries();
   }
 
   @override
@@ -11056,7 +11068,22 @@ class _RedoLogPageState extends State<RedoLogPage> {
     try {
       _vScrollController.dispose();
     } catch (_) {}
+    try {
+      _sqliteStorage.dispose();
+    } catch (_) {}
     super.dispose();
+  }
+
+  Future<void> _appendRawLogEntry(String name, String entry) async {
+    try {
+      if (_storageReady) {
+        final existing = _sqliteStorage.read(name) ?? '';
+        _sqliteStorage.write(name, existing + entry);
+      } else {
+        final f = await _fileForName(name);
+        await f.writeAsString(entry, mode: FileMode.append);
+      }
+    } catch (_) {}
   }
 
   Future<File> _fileForName(String name) async {
@@ -11079,7 +11106,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
     });
     try {
       final lines = <String>[];
-      if (_useSqlite) {
+      if (_storageReady) {
         final text =
             _sqliteStorage.read(_storageName('simplepresent_redo.log')) ?? '';
         if (text.isNotEmpty) lines.addAll(text.split('\n'));
@@ -11255,7 +11282,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
   Future<void> _copyAll() async {
     try {
       String text = '';
-      if (_useSqlite) {
+      if (_storageReady) {
         text =
             _sqliteStorage.read(_storageName('simplepresent_redo.log')) ?? '';
       } else {
@@ -11387,7 +11414,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
 
   Future<List<Map<String, dynamic>>> _readListFile(String name) async {
     try {
-      if (_useSqlite) {
+      if (_storageReady) {
         try {
           final rows = _sqliteStorage.readTaskList(_storageName(name));
           return rows.map((e) => Map<String, dynamic>.from(e)).toList();
@@ -11414,7 +11441,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
     try {
       final encoder = const JsonEncoder.withIndent('  ');
       final content = encoder.convert(list);
-      if (_useSqlite) {
+      if (_storageReady) {
         _sqliteStorage.writeTaskList(_storageName(name), list);
         return;
       }

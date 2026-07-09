@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:sembast/sembast.dart';
 import 'package:sembast/sembast_io.dart';
 
 /// A simple Sembast-backed storage that exposes the same minimal API the
@@ -15,11 +13,11 @@ class SqliteStorage {
   Database? _db;
 
   // Stores: 'lists' -> map filename -> List<dynamic>
-  final _listsStore = stringMapStoreFactory.store('lists');
+  final _listsStore = StoreRef<String, Object?>('lists');
   // 'raw' for arbitrary string blobs (settings, notes)
-  final _rawStore = stringMapStoreFactory.store('raw');
+  final _rawStore = StoreRef<String, Object?>('raw');
   // 'time_entries' -> map date -> List<dynamic>
-  final _timeStore = stringMapStoreFactory.store('time_entries');
+  final _timeStore = StoreRef<String, Object?>('time_entries');
 
   // In-memory caches to keep APIs synchronous where the app expects it.
   final Map<String, List<Map<String, dynamic>>> _listsCache = {};
@@ -42,7 +40,7 @@ class SqliteStorage {
     try {
       final recs = await _listsStore.find(_db!);
       for (final r in recs) {
-        final key = r.key as String;
+        final key = r.key;
         final val = r.value;
         if (val is List) {
           _listsCache[key] = val
@@ -57,7 +55,7 @@ class SqliteStorage {
     try {
       final recs = await _rawStore.find(_db!);
       for (final r in recs) {
-        final key = r.key as String;
+        final key = r.key;
         final val = r.value;
         if (val is String) _rawCache[key] = val;
       }
@@ -67,7 +65,7 @@ class SqliteStorage {
     try {
       final recs = await _timeStore.find(_db!);
       for (final r in recs) {
-        final key = r.key as String;
+        final key = r.key;
         final val = r.value;
         if (val is List) {
           _timeCache[key] = val
