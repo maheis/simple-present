@@ -153,21 +153,24 @@ Future<void> _debugLog(String msg) async {
 Future<void> exportTodayAndRefresh(List<TaskItem> tasks) async {
   try {
     final dir = await getApplicationDocumentsDirectory();
-    final folder = Directory('${dir.path}/simplepresent_widget');
-    if (!await folder.exists()) await folder.create(recursive: true);
+    // Android widget reads files from <app_data_parent>/app_flutter/<folder>/today
+    final appFlutterDir = Directory(p.join(dir.parent.path, 'app_flutter'));
+    final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
+    final todayDir = Directory(p.join(appFlutterDir.path, folderName, 'today'));
+    if (!await todayDir.exists()) await todayDir.create(recursive: true);
 
     for (final t in tasks) {
       try {
-        final f = File('${folder.path}/${t.id}.json');
+        final f = File(p.join(todayDir.path, '${t.id}.json'));
         await f.writeAsString(jsonEncode(t.toJson()));
       } catch (_) {}
     }
 
-    // Try to notify native layer on Android to refresh widgets.
+    // Notify native layer on Android to refresh widgets via the main window channel.
     try {
       if (Platform.isAndroid) {
-        const MethodChannel('simple_present/widget')
-            .invokeMethod<void>('refresh');
+        const MethodChannel('simple_present/window')
+            .invokeMethod<void>('refreshTodayWidget');
       }
     } catch (_) {}
   } catch (_) {}
