@@ -2240,15 +2240,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     onChanged: (v) => fileName = v,
                   ),
                   const SizedBox(height: 12),
-                  DropdownButton<String>(
-                    value: chosenDir,
-                    items: options
-                        .map((o) => DropdownMenuItem(value: o, child: Text(o)))
-                        .toList(),
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setState(() => chosenDir = v);
-                    },
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButton<String>(
+                          value: chosenDir,
+                          items: options
+                              .map((o) =>
+                                  DropdownMenuItem(value: o, child: Text(o)))
+                              .toList(),
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setState(() => chosenDir = v);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () async {
+                          try {
+                            final picked = await fs.getDirectoryPath();
+                            if (picked != null && picked.isNotEmpty) {
+                              setState(() => chosenDir = picked);
+                            }
+                          } catch (_) {}
+                        },
+                        child: const Text('Choose folder...'),
+                      ),
+                    ],
                   )
                 ],
               ),

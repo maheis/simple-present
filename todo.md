@@ -71,6 +71,10 @@
   - [x] nur sicherung wenn sich auch was geändert hat!
   - [x] anzahl der sicherungen konfiguriertbar (count)
 - [x] aufgaben suche im done
+- [x] export passiert redundant.
+- [x] keine toasts bei sicherung!
+- [x] abgearbeitete aufgaben in der app, sollen unter android dann auch in den notification verschwinden (wenn sie da drin sind, bleiben sie stehen)
+- [x] import fragt nicht mehr nach clean/merge, sondern überschreibt einfach alles. sollte aber fragen!
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Windows Store Veröffentlichung (.notes/WINDOWS_APP_STORE.md)
 - [ ] Worklog an Aufgaben...
@@ -109,12 +113,10 @@
 - [ ] android verliert manchmal den text focus beim editieren
 - [ ] manueller export auch in unterordner
 - [?] aufgaben müssen immer einzeln bearbeitet werden, keine listen im ganzen niederschreieben. verliere sonst häufiger aufgabenlisten, besonders unter android.
-- [x] export passiert redundant.
-- [x] keine toasts bei sicherung!
-- [x] abgearbeitete aufgaben in der app, sollen unter android dann auch in den notification verschwinden (wenn sie da drin sind, bleiben sie stehen)
 - [ ] refresh widget?
 - [ ] edit cloud url springt immer ans ende des textes, sollte aber am cursor bleiben!
-- [ ] import fragt nicht mehr nach clean/merge, sondern überschreibt einfach alles. sollte aber fragen!
+- [ ] es kommt zu vielen dopplungen von aufgaben
+- [ ] today habe ich lokale eben leer geräumt bekommen...
 
 ## notes
 
