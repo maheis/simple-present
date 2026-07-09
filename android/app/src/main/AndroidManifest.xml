@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Required for Android 13+ notification runtime permission -->
+    <!-- Required for network access and Android 13+ notification runtime permission -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Audio playback permissions -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
@@ -24,6 +25,8 @@
         </receiver>
 
         <service android:name=".TodayWidgetService" android:exported="false" android:permission="android.permission.BIND_REMOTEVIEWS" />
+        <!-- Firebase messaging service will be registered by the google-services plugin
+               if `google-services.json` is present and Firebase dependencies are available. -->
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data android:name="flutterEmbedding" android:value="2" />

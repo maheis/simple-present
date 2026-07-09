@@ -16,8 +16,6 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:simple_present/storage/json_storage.dart';
 import 'package:file_selector/file_selector.dart' as fs;
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 
 // sentinel to indicate "no change" in copyWith optional parameters
 const _noChange = Object();
@@ -121,37 +119,15 @@ bool _isClientOlderThanServer(String clientVersion, String serverVersion) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Initialize Firebase for push messaging. Native Android setup is required
-  // (google-services.json, gradle plugins, and manifest entries). See
-  // README or Firebase docs. We initialize here to ensure token acquisition
-  // and background message handler registration work.
-  try {
-    await Firebase.initializeApp();
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  } catch (_) {
-    // ignore: avoid_print
-    print('Firebase init failed or not configured');
-  }
+  // No Firebase initialization: widget sync is local-only between app and
+  // the home screen widget. Cloud / Firebase features disabled.
   await initializeDateFormatting('de_DE');
   runApp(const SimplePresentApp());
 }
 
 // Background message handler runs in its own isolate. Keep it top-level and
 // annotate as an entry point so it isn't tree-shaken.
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  try {
-    await Firebase.initializeApp();
-  } catch (_) {}
-  // Lightweight handling: log request and optionally trigger a short sync.
-  try {
-    await _debugLog('firebase BG msg: ${message.data}');
-    // Example: if server sends {action: 'sync'} we can trigger a background
-    // sync implementation here. For safety this implementation only logs.
-    // TODO: implement safe background sync using a headless API or schedule
-    // a WorkManager job that the Android native layer can run.
-  } catch (_) {}
-}
+// Firebase removed: no background message handler.
 
 // Top-level debug logger used by multiple widgets. It writes to
 // `<Documents>/simplepresent/simplepresent_debug.log` (or the
@@ -1092,6 +1068,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return;
       }
       await _openTaskFromWidget(taskId);
+      return;
+    }
+
+    if (call.method == 'widgetRequestSync') {
+      // Native requested that the app attempt a safe cloud pull and then
+      // refresh the today widget UI. Run if the app is initialized.
+      if (!_initializationComplete) return;
+      try {
+        await _syncPullFromCloud();
+        await _refreshAndroidTodayWidget();
+      } catch (_) {}
       return;
     }
   }
@@ -3985,6 +3972,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               if (j == -1) return;
               setState(() => _today[j] = _today[j]
                   .copyWith(inProgress: true, inProgressAt: inferredAt));
+              unawaited(_exportTodayImmediateFromMemory());
               await _saveToday();
             }));
           } catch (_) {}
@@ -3997,6 +3985,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           inProgress: true,
           inProgressAt: now);
       setState(() => _today[idx] = after);
+      unawaited(_exportTodayImmediateFromMemory());
       unawaited(_appendRedoLog('stopwatch_start',
           taskId: before.id,
           details: {'before': before.toJson(), 'after': after.toJson()}));
@@ -4024,6 +4013,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           stopwatchStartedAt: null,
           stopwatchAccumulatedSeconds: newAccum);
       setState(() => _today[idx] = after);
+      unawaited(_exportTodayImmediateFromMemory());
       unawaited(_appendRedoLog('stopwatch_stop',
           taskId: before.id,
           details: {'before': before.toJson(), 'after': after.toJson()}));
@@ -4604,6 +4594,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             if (idx == -1) return;
             setState(() => _today[idx] =
                 _today[idx].copyWith(important: val, importantAt: now));
+            unawaited(_exportTodayImmediateFromMemory());
             await _saveToday();
           }));
         } catch (_) {}
@@ -4634,6 +4625,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 if (j == -1) return;
                 setState(() => _today[j] =
                     _today[j].copyWith(inProgress: false, inProgressAt: null));
+                unawaited(_exportTodayImmediateFromMemory());
                 await _saveToday();
               }));
             } catch (_) {}
@@ -4678,6 +4670,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   inProgressAt: null,
                   stopwatchRunning: false,
                   stopwatchStartedAt: null));
+              unawaited(_exportTodayImmediateFromMemory());
               await _saveToday();
               try {
                 unawaited(_cancelTaskNotification(taskId));
@@ -4689,6 +4682,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               if (idx2 == -1) return;
               setState(() => _today[idx2] =
                   _today[idx2].copyWith(done: false, completedAt: null));
+              unawaited(_exportTodayImmediateFromMemory());
               await _saveToday();
             }));
           }
@@ -4865,6 +4859,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               final j = _today.indexWhere((t) => t.id == id);
               if (j == -1) return;
               setState(() => _today[j] = _today[j].copyWith(scheduledAt: null));
+              unawaited(_exportTodayImmediateFromMemory());
               await _saveToday();
             });
           } else {
@@ -4873,6 +4868,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               final j = _today.indexWhere((t) => t.id == id);
               if (j == -1) return;
               setState(() => _today[j] = _today[j].copyWith(scheduledAt: val));
+              unawaited(_exportTodayImmediateFromMemory());
               await _saveToday();
             });
             // Only move to backlog when the scheduled date is strictly in the future.
@@ -5158,6 +5154,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final j = _today.indexWhere((t) => t.id == taskId);
       if (j == -1) return;
       setState(() => _today[j] = _today[j].copyWith(scheduledAt: scheduled));
+      unawaited(_exportTodayImmediateFromMemory());
       await _saveToday();
       // Stage this scheduled change for delayed reorder handling
       setState(() => _stagedScheduled[_today[j].id] = scheduled);
@@ -5766,6 +5763,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final beforeSched = _today[idx].scheduledAt;
       // clear in-memory and save current view
       setState(() => _today[idx] = _today[idx].copyWith(scheduledAt: null));
+      unawaited(_exportTodayImmediateFromMemory());
       await _saveToday();
       try {
         if (!_stagedEditBefore.containsKey(id))
@@ -11092,6 +11090,64 @@ class _RedoLogPageState extends State<RedoLogPage> {
     }
   }
 
+  Future<void> _exportTodayToWidgetFiles(List<TaskItem> tasks) async {
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      // Candidate app_flutter parent location(s)
+      Directory? appFlutter;
+      try {
+        final p1 = Directory(p.join(docs.parent.path, 'app_flutter'));
+        if (!await p1.exists()) await p1.create(recursive: true);
+        appFlutter = p1;
+      } catch (_) {}
+      if (appFlutter == null) {
+        try {
+          final p2 = Directory(p.join(docs.path, 'app_flutter'));
+          if (!await p2.exists()) await p2.create(recursive: true);
+          appFlutter = p2;
+        } catch (_) {}
+      }
+      if (appFlutter == null) return;
+
+      final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
+      final todayDir = Directory(p.join(appFlutter.path, folderName, 'today'));
+      if (!await todayDir.exists()) await todayDir.create(recursive: true);
+
+      final keepIds = <String>{};
+      for (final t in tasks) {
+        final id = t.id;
+        keepIds.add(id);
+        final file = File(p.join(todayDir.path, '$id.json'));
+        try {
+          final json = t.toJson();
+          await file
+              .writeAsString(const JsonEncoder.withIndent('  ').convert(json));
+        } catch (_) {}
+      }
+
+      // Remove stale files not in keepIds
+      try {
+        final files = todayDir.listSync().whereType<File>().toList();
+        for (final f in files) {
+          final name = p.basenameWithoutExtension(f.path);
+          if (!keepIds.contains(name)) {
+            try {
+              await f.delete();
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+    } catch (_) {}
+  }
+
+  Future<void> _exportTodayImmediateFromMemory() async {
+    try {
+      final tasks = _today.where((t) => !t.done).toList();
+      await _exportTodayToWidgetFiles(tasks);
+      if (Platform.isAndroid) unawaited(_refreshAndroidTodayWidget());
+    } catch (_) {}
+  }
+
   String _shortDetails(Map<String, dynamic> e) {
     final d = e['details'];
     final action = (e['action'] ?? '').toString();
@@ -11411,6 +11467,18 @@ class _RedoLogPageState extends State<RedoLogPage> {
           await _debugLog('direct wrote list file: ${f.path}');
         } catch (_) {}
       }
+      // If we just wrote the today list, export per-task JSON files for the
+      // home screen widget and trigger a widget refresh.
+      try {
+        if (name == _storageName('simplepresent_today.json')) {
+          final tasks = list
+              .map((e) => TaskItem.fromJson(e))
+              .where((t) => !t.done)
+              .toList();
+          await _exportTodayToWidgetFiles(tasks);
+          if (Platform.isAndroid) unawaited(_refreshAndroidTodayWidget());
+        }
+      } catch (_) {}
     } catch (_) {}
   }
 
