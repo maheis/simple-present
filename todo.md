@@ -105,16 +105,16 @@
       jetzt ist das icon wieder vermatscht, glaube muss transparentes icon mit gößerem transparenten rand sein, damit es rund passt
 - [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
-- [ ] reopen in der done liste führt zu gecken effekten
+- [x] reopen in der done liste führt zu gecken effekten
 - [?] ausführliches sync testen! kommt ständig zu fehlern, die nicht reproduzierbar sind! 
       z.b. move von backlog zu today wird nicht synchronisiert, sachen die ins backlog gehen, bleiben in today...
       dopplung von aufgaben...
 - [?] sync button macht immer noch nicht 100%
-- [ ] alle aktionen sollen task loading auslösen
+- [-] alle aktionen sollen task loading auslösen
 - [ ] android hintergrund synchronisation (push) implementieren
-- [ ] android verliert manchmal den text focus beim editieren
-- [ ] refresh widget?
-- [ ] edit cloud url springt immer ans ende des textes, sollte aber am cursor bleiben!
+- [ ] android verliert manchmal den text focus beim editieren und springt runter in "neue aufgaben"-feld
+- [ ] refresh widget!
+- [x] edit cloud url springt immer ans ende des textes, sollte aber am cursor bleiben!
 - [?] aufgaben durcheinander
   - [ ] es kommt zu vielen dopplungen von aufgaben
   - [ ] today war auf einmal komplett leer!
