@@ -253,3 +253,100 @@
 - [x] zurück-button in der done-liste
 - [x] reopen sound
 - [x] burger menü für die buttons
+- [-] animation:
+  - [ ] aufklappen/zuklappen
+  - [ ] positionsveränderungen
+  - [ ] verschieben in andere listen
+  - [ ] wackeln als animation
+- [x] keine toasts by sync
+- [x] icons für...
+  - [x] notes
+  - [x] statistik
+  - [x] redo log
+  - [x] settings
+- [x] aufgaben mit datum "heute" automatisch aus dem backlog ins today verschieben!
+- [x] sync redo-log klappt nicht. aber braucht es das wirklich? rückbauen?
+- [x] repeat funktioniert nicht mehr?!
+- [x] jsons in unterordner
+- [x] jsons pro task. die einzelnen listen _backlog, _done , _today, _trash sollen dann als unterordner struktur abgebildet werden.
+- [x] done setzten stoppt die stopuhr nicht mehr und setzt auch in progress nicht mehr zurück!
+- [x] 24 Uhr move today -> backlog
+- [x] android sound unterbricht musik wiedergaben...
+        -> nutzt jetzt SystemSound auf Android (unterbricht nicht, Audio-Focus-freundlich)
+- [x] repeat
+  - [x] weekly
+    - [x] 2
+    - [x] 3
+  - [x] monthly
+    - [x] day of month (first, last, first weekday, last weekday...)
+  - [x] yearly
+  - [x] ask next repeat date on creating follow up task
+- [x] repeat optional: dynamische zeit, fertigmeldung + intervall. -> "ask next repeat" reicht!
+- [x] settings file wird nicht korrekt im ordner verwendet!
+- [x] revoked device toast kommt von unten, alle toasts von unten sollen auf die standard von oben umgebaut werden
+- [x] android sollte nicht immer den fokus auf neue aufgabe legen!
+- [x] aufgaben die ins backlog geschoben werden lösen ein "there" aus. d.h. irgendwie wird der status geändert. -> find ich eigentlich gut!
+- [x] repeat aufgaben die automatisch ins today geschoben weden, legen direkt eine repeat aufgabe an! damit doppeln die aufgaben sich!
+- [x] Windows Zertifikat für exe?!
+- [x] sync button muss ein vollständiges synchronisieren auslösen!
+        -> lädt jetzt alle 3 Listen hoch, zieht Remote State, reloaded UI
+- [x] aufgaben die im backlog in der vergangenheit liegen, sollen automatisch ins today verschoben werden, wenn sie noch nicht erledigt sind!
+- [x] andoid statt localhost als geräte namen!
+- [x] hübschere und fancy lade animation im loading screen
+- [x] burger menü alles klein
+- [x] termin im backlog < einer woche soll wochentag da stehen, termin > 1 woche soll datum stehen
+- [x] icon im loding screen auf icon.png umstellen
+- [x] runter sortieren, sortiert "drüber"
+- [x] android: aktionen in der notification (erledigt, in arbeit)
+- [x] sort bei öffnen von listen
+- [x] android widget
+  - [x] today widget, absprung in die app!
+  - [x] keine actions
+  - [x] breite soll kleiner gemacht werden können (aktuell geht nur breiter, nicht schmaler als 3 kacheln))
+  - [x] oben links icon und überschrift
+  - [x] transparentes widget (60% hintergrundstransparenz), damit es sich in den hintergrund einfügt
+  - [x] schrift
+  - [x] widget übernimmt konfigurierte app-schrift
+  - [x] radio-button
+  - [x] sortierreihenfolge wie in der app!
+- [x] subtasks müssen in folgeaufgaben wieder nicht bearbeitet sein!
+- [x] today wurde nicht nach heute geschoben
+- [x] loading auf dem task wenn man z.b. verschiben drückt
+- [-] widget: kalender einfügen? -> aktuell mit dem widget karussell gelöst!
+- [x] in progress swipen -> switcht den text sofort auf done...
+- [x] action que
+- [x] nur ein pair button (wenn erstes gerät, soll es halt registriert werden, sonst hinzugefügt werden)
+- [x] sync: move von backlog zu today wird nicht synchronisiert (wie button-fehler! touch stößt an!) ! verschwindet aus backlog, taucht aber im today nicht auf! sachen die ins backlog gehen, bleiben in today...
+- [x] kein swipe bei aufgeklappen aufgaben
+- [x] filebasiertes synchronisieren über export/import (z.b. json) implementieren
+  - [x] import soll fragen ob clean
+  - [x] export als automatische sicherung in den settings. zeitbasiert (intervall, uhrzeiten) oder z.b. bei start der applikation
+  - [x] nur sicherung wenn sich auch was geändert hat!
+  - [x] anzahl der sicherungen konfiguriertbar (count)
+- [x] aufgaben suche im done
+- [x] export passiert redundant.
+- [x] keine toasts bei sicherung!
+- [x] abgearbeitete aufgaben in der app, sollen unter android dann auch in den notification verschwinden (wenn sie da drin sind, bleiben sie stehen)
+- [x] import fragt nicht mehr nach clean/merge, sondern überschreibt einfach alles. sollte aber fragen!
+- [-] manchmal werden aufgaben falsch selektiert (bei kachel button move oder verschieben)
+- [-] manchmal werden andere aufgauben auch in progress gesetzt wenn ich eine auf in progress setze (performance? müsste ein delay nach der aktion sein? beobachten konnte ich es wenn der pc ausgelastet war)
+- [-] backlog wird manchmal komplett zu today
+- [-] today manchmal leer, ziemlich weired grade!
+- [x] manueller export auch in unterordner
+- [-] aufgaben müssen immer einzeln bearbeitet werden, keine listen im ganzen niederschreieben. verliere sonst häufiger aufgabenlisten, besonders unter android.
+- [x] reopen in der done liste führt zu gecken effekten
+- [-] alle aktionen sollen task loading auslösen
+- [x] edit cloud url springt immer ans ende des textes, sollte aber am cursor bleiben!
+- [x] umbau auf sembast
+
+
+## Cloud Sync Improvements (Recent Fixes)
+
+- [x] Swipe snap-back immediately, execute action in background
+- [x] Loading spinner on ALL task modifications
+- [x] Action queue to prevent concurrent operations on same task
+- [x] Single adaptive pair/register button
+- [x] Push queue to prevent drops on concurrent list changes
+- [x] Fix sync duplications (move tombstone detection)
+- [x] Notes synchronization via manual sync button
+- [x] Time entry synchronization via manual sync button
