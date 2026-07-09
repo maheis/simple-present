@@ -124,6 +124,20 @@ class TodayWidgetProvider : AppWidgetProvider() {
             views.setPendingIntentTemplate(R.id.widget_list, templatePendingIntent)
             views.setOnClickPendingIntent(R.id.widget_header, openAppPending)
 
+            // Refresh button: send broadcast to this provider to trigger update
+            try {
+                val refreshIntent = Intent(ACTION_REFRESH_WIDGET).apply {
+                    `package` = context.packageName
+                }
+                val refreshPending = PendingIntent.getBroadcast(
+                    context,
+                    appWidgetId + 20000,
+                    refreshIntent,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+                views.setOnClickPendingIntent(R.id.widget_refresh, refreshPending)
+            } catch (_: Exception) {}
+
             appWidgetManager.updateAppWidget(appWidgetId, views)
             appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.widget_list)
         }
