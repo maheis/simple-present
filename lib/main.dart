@@ -212,7 +212,7 @@ class TaskStep {
           '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
       return TaskStep(id: genId, text: json, done: false);
     }
-    final map = json as Map<String, dynamic>;
+    final map = Map<String, dynamic>.from(json as Map);
     final String id = (map['id'] ?? map['uid'] ?? '').toString();
     final String useId = id.isNotEmpty
         ? id
@@ -371,7 +371,7 @@ class TaskItem {
           '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
       return TaskItem(id: genId, text: json, done: false);
     }
-    final map = json as Map<String, dynamic>;
+    final map = Map<String, dynamic>.from(json as Map);
     final String id = (map['id'] ?? map['uid'] ?? '').toString();
     final String useId = id.isNotEmpty
         ? id
@@ -551,10 +551,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Map<String, GlobalKey> _tileKeys = {};
   // Minimal view removed.
 
-  // Storage filenames: in debug builds use debug_ prefixed filenames so
-  // debug and production data remain separate. Use _storage(...) everywhere
-  // when accessing file keys.
-  String _storage(String name) => kDebugMode ? 'debug_$name' : name;
+  // Storage filenames are environment-independent. Debug/prod separation
+  // happens via storage directory path, not via filename prefixes.
+  String _storage(String name) => name;
 
   String _listDirBase(String filename) {
     var name = filename;
@@ -660,6 +659,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String? _storagePathOverride;
   // Enable debug write logging
   bool _debugWriteLog = false;
+  // Always-visible runtime trace for list loading diagnostics.
+  String _loadTraceText = 'load trace: idle';
   final List<Map<String, String>> _pendingNotificationTaskActions =
       <Map<String, String>>[];
   final List<String> _pendingWidgetOpenTaskIds = <String>[];
@@ -886,6 +887,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(DateTime.now());
       await f.writeAsString('[$stamp] $msg\n', mode: FileMode.append);
     } catch (_) {}
+  }
+
+  void _setLoadTrace(String msg) {
+    final text = 'load trace: $msg';
+    // During startup, FutureBuilder is still in loading state. Avoid triggering
+    // setState from background load operations until initialization finished.
+    if (!mounted || !_initializationComplete) {
+      _loadTraceText = text;
+      return;
+    }
+    setState(() {
+      _loadTraceText = text;
+    });
   }
 
   Future<void> _ensureListFile(String filename) async {
@@ -1215,13 +1229,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
-  Future<void> _loadList(String filename, List<TaskItem> target) async {
+  Future<void> _loadList(String filename, List<TaskItem> target,
+      {bool trace = false}) async {
     target.clear();
+    final traceThisLoad = trace;
+    if (traceThisLoad) {
+      _setLoadTrace('loading $filename ...');
+    }
     try {
       if (_useSqlite) {
         final rows = _sqliteStorage.readTaskList(filename);
-        target.addAll(rows.map(TaskItem.fromJson));
+        for (var i = 0; i < rows.length; i++) {
+          try {
+            target.add(TaskItem.fromJson(rows[i]));
+          } catch (e) {
+            unawaited(_debugLog(
+                'loadList parse error (sqlite): file=$filename index=$i error=$e'));
+          }
+        }
         _dedupeTaskIdsInPlace(target, filename);
+        if (traceThisLoad) {
+          _setLoadTrace('sqlite $filename -> ${target.length}');
+        }
         return;
       }
       if (_isListDir(filename)) {
@@ -1239,16 +1268,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           }
         }
         _dedupeTaskIdsInPlace(target, filename);
+        if (traceThisLoad) {
+          _setLoadTrace('dir $filename -> ${target.length}');
+        }
         return;
       }
       final f = await _fileFor(filename);
       if (await f.exists()) {
         final text = await f.readAsString();
         final data = jsonDecode(text) as List<dynamic>;
-        target.addAll(data.map(TaskItem.fromJson));
+        for (var i = 0; i < data.length; i++) {
+          try {
+            target.add(TaskItem.fromJson(data[i]));
+          } catch (e) {
+            unawaited(_debugLog(
+                'loadList parse error (file): file=$filename index=$i error=$e'));
+          }
+        }
       }
       _dedupeTaskIdsInPlace(target, filename);
-    } catch (_) {}
+      if (traceThisLoad) {
+        _setLoadTrace('file $filename -> ${target.length}');
+      }
+    } catch (e) {
+      if (traceThisLoad) {
+        _setLoadTrace('ERROR $filename: $e');
+      }
+      unawaited(_debugLog('loadList failed: file=$filename error=$e'));
+    }
   }
 
   void _dedupeTaskIdsInPlace(List<TaskItem> list, String sourceName) {
@@ -1338,131 +1385,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _dailyMigrationLastRunMem = todayKey;
       didRun = true;
 
-      // First run today -> migrate open tasks from today -> backlog
-      final List<TaskItem> todayList = [];
-      await _loadList(_storage('simplepresent_today.json'), todayList);
+      // Keep Today untouched during daily migration.
+      // Auto-moving open Today tasks to Backlog caused lists to appear empty
+      // on startup and looked like a load failure.
       final List<TaskItem> movedToDone = [];
       int movedToBacklogCount = 0;
-      if (todayList.isNotEmpty) {
-        final List<TaskItem> backlogList = [];
-        await _loadList(_storage('simplepresent_backlog.json'), backlogList);
-        final List<TaskItem> doneList = [];
-        await _loadList(_storage('simplepresent_done.json'), doneList);
-
-        for (int i = todayList.length - 1; i >= 0; i--) {
-          final t = todayList[i];
-          if (!t.done) {
-            backlogList.insert(0, t);
-            movedToBacklogCount++;
-          } else {
-            movedToDone.add(t);
-          }
-        }
-
-        // create a backup of today's list before making any writes so we can
-        // restore if subsequent saves fail.
-        File? backupFile;
-        try {
-          backupFile = await _fileFor('simplepresent_today.backup.json');
-          final encoder = const JsonEncoder.withIndent('  ');
-          try {
-            await backupFile.writeAsString(
-                encoder.convert(todayList.map((e) => e.toJson()).toList()));
-            unawaited(_debugLog('wrote today backup: ${backupFile.path}'));
-          } catch (e) {
-            unawaited(_debugLog('failed to write today backup: $e'));
-            backupFile = null;
-          }
-        } catch (e) {
-          unawaited(_debugLog('failed to prepare today backup: $e'));
-          backupFile = null;
-        }
-
-        // Now save backlog and done lists, but verify that persisted state
-        // actually contains the expected tasks before clearing today.
-        bool persistOk = true;
-        final backlogFile = _storage('simplepresent_backlog.json');
-        try {
-          await _saveList(backlogFile, backlogList);
-          final verifyBacklog = <TaskItem>[];
-          await _loadList(backlogFile, verifyBacklog);
-          final missing = backlogList
-              .where((t) => !verifyBacklog.any((v) => v.id == t.id))
-              .toList();
-          if (missing.isNotEmpty) {
-            persistOk = false;
-            unawaited(_debugLog(
-                'daily migration verify failed: backlog missing ${missing.map((m) => m.id).join(',')}'));
-          }
-        } catch (e, st) {
-          persistOk = false;
-          unawaited(_debugLog('daily migration save backlog failed: $e\n$st'));
-        }
-
-        if (persistOk && movedToDone.isNotEmpty) {
-          final doneFile = _storage('simplepresent_done.json');
-          try {
-            // Append each moved task to Done via per-task queue to ensure atomic per-task processing
-            for (final it in movedToDone.reversed) {
-              await _queueAppendToList('simplepresent_done.json', it,
-                  insertTop: false);
-            }
-            final verifyDone = <TaskItem>[];
-            await _loadList(doneFile, verifyDone);
-            final missingDone = movedToDone
-                .where((t) => !verifyDone.any((v) => v.id == t.id))
-                .toList();
-            if (missingDone.isNotEmpty) {
-              persistOk = false;
-              unawaited(_debugLog(
-                  'daily migration verify failed: done missing ${missingDone.map((m) => m.id).join(',')}'));
-            }
-          } catch (e, st) {
-            persistOk = false;
-            unawaited(_debugLog('daily migration save done failed: $e\n$st'));
-          }
-        }
-
-        if (persistOk) {
-          // All persisted correctly — remove each task from persisted Today
-          // so we keep per-task atomicity and avoid a full list overwrite.
-          for (final t in todayList) {
-            try {
-              await _queueRemoveFromList('simplepresent_today.json', t.id);
-            } catch (_) {}
-          }
-          try {
-            if (backupFile != null && await backupFile.exists()) {
-              await backupFile.delete();
-              unawaited(_debugLog('removed today backup after clear'));
-            }
-          } catch (e) {
-            unawaited(_debugLog('failed to remove today backup: $e'));
-          }
-        } else {
-          // Persistence failed — restore from backup (if available) and record event.
-          unawaited(_debugLog(
-              'daily migration aborted: persistence verification failed; restoring today from backup if present'));
-          try {
-            if (backupFile != null && await backupFile.exists()) {
-              final txt = await backupFile.readAsString();
-              final data = jsonDecode(txt) as List<dynamic>;
-              final restored = data.map(TaskItem.fromJson).toList();
-              if (restored.isNotEmpty) {
-                await _queueReplaceList(
-                    _storage('simplepresent_today.json'), restored);
-                await _recordRestoreEvent(
-                    'migration_verify_failed', restored.length);
-                unawaited(_debugLog(
-                    'restored today from backup after failed migration'));
-              }
-            }
-          } catch (e, st) {
-            unawaited(
-                _debugLog('failed to restore today from backup: $e\n$st'));
-          }
-        }
-      }
 
       // Move tasks that are already marked done from Backlog to Done.
       try {
@@ -2390,7 +2317,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _loadToday() async {
-    await _loadList(_currentFile, _today);
+    await _loadList(_currentFile, _today, trace: true);
     // If today is unexpectedly empty but a backup exists, restore it.
     try {
       if ((_today.isEmpty)) {
@@ -7362,6 +7289,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                     duration: const Duration(milliseconds: 220),
                                     curve: Curves.easeOutCubic,
                                     height: 8.0,
+                                  ),
+                                  Container(
+                                    width: double.infinity,
+                                    margin: const EdgeInsets.only(bottom: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(8),
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .surfaceContainerHighest
+                                          .withAlpha((0.6 * 255).round()),
+                                    ),
+                                    child: Text(
+                                      _loadTraceText,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontFamily: _fontFamily,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                                    ),
                                   ),
                                   Expanded(
                                     child: _today.isEmpty

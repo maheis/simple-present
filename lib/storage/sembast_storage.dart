@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -10,6 +11,7 @@ import 'package:sembast/sembast_io.dart';
 /// an in-memory cache so read methods remain synchronous for compatibility.
 class SqliteStorage {
   late final String _storageRoot;
+  late final String _dbPath;
   Database? _db;
 
   // Stores: 'lists' -> map filename -> List<dynamic>
@@ -24,6 +26,95 @@ class SqliteStorage {
   final Map<String, String> _rawCache = {};
   final Map<String, List<Map<String, dynamic>>> _timeCache = {};
 
+  String _canonicalKey(String key) {
+    var k = key.trim();
+    if (k.startsWith('debug_')) k = k.substring('debug_'.length);
+    return k;
+  }
+
+  List<String> _keyFallbacks(String key) {
+    final canonical = _canonicalKey(key);
+    // Read both canonical and legacy debug_-prefixed keys for compatibility.
+    return <String>[canonical, 'debug_$canonical'];
+  }
+
+  String _listBaseName(String key) {
+    var k = key.trim().toLowerCase();
+    if (k.startsWith('debug_')) k = k.substring('debug_'.length);
+    if (k.contains('/')) {
+      final parts = k.split('/');
+      k = parts.isNotEmpty ? parts.last : k;
+    }
+    if (k.endsWith('.json')) k = k.substring(0, k.length - 5);
+    if (k.startsWith('simplepresent_'))
+      k = k.substring('simplepresent_'.length);
+    return k;
+  }
+
+  String? _resolveListCacheKey(String requested) {
+    for (final key in _keyFallbacks(requested)) {
+      if (_listsCache.containsKey(key)) return key;
+    }
+
+    final wantedBase = _listBaseName(requested);
+    if (wantedBase.isEmpty) return null;
+    for (final key in _listsCache.keys) {
+      if (_listBaseName(key) == wantedBase) return key;
+    }
+    return null;
+  }
+
+  List<Map<String, dynamic>>? _readListFromDbFileFallback(String requested) {
+    try {
+      final dbFile = File(_dbPath);
+      if (!dbFile.existsSync()) return null;
+
+      final wantedKeys = <String>{..._keyFallbacks(requested)};
+      final wantedBase = _listBaseName(requested);
+
+      String? matchedKey;
+      List<Map<String, dynamic>>? matchedList;
+
+      for (final line in dbFile.readAsLinesSync()) {
+        final t = line.trim();
+        if (t.isEmpty || !t.startsWith('{')) continue;
+
+        dynamic decoded;
+        try {
+          decoded = jsonDecode(t);
+        } catch (_) {
+          continue;
+        }
+        if (decoded is! Map) continue;
+
+        final store = decoded['store']?.toString() ?? '';
+        if (store != 'lists') continue;
+
+        final key = decoded['key']?.toString() ?? '';
+        if (key.isEmpty) continue;
+
+        final keyMatches = wantedKeys.contains(key) ||
+            (wantedBase.isNotEmpty && _listBaseName(key) == wantedBase);
+        if (!keyMatches) continue;
+
+        final value = decoded['value'];
+        if (value is! List) continue;
+
+        matchedKey = key;
+        matchedList = value
+            .whereType<Map>()
+            .map((m) => Map<String, dynamic>.from(m))
+            .toList();
+      }
+
+      if (matchedKey != null && matchedList != null) {
+        _listsCache[matchedKey] = matchedList;
+        return matchedList;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> init({required bool debugMode}) async {
     final dir = await getApplicationDocumentsDirectory();
     final folderName = debugMode ? 'simplepresent-debug' : 'simplepresent';
@@ -33,8 +124,8 @@ class SqliteStorage {
     } catch (_) {}
     _storageRoot = sub.path;
 
-    final dbPath = p.join(_storageRoot, 'simplepresent.db');
-    _db = await databaseFactoryIo.openDatabase(dbPath);
+    _dbPath = p.join(_storageRoot, 'simplepresent.db');
+    _db = await databaseFactoryIo.openDatabase(_dbPath);
 
     // Load lists
     try {
@@ -78,43 +169,52 @@ class SqliteStorage {
   }
 
   List<Map<String, dynamic>> readTaskList(String listName) {
-    final list = _listsCache[listName];
+    final resolvedKey = _resolveListCacheKey(listName);
+    var list = resolvedKey == null ? null : _listsCache[resolvedKey];
+    list ??= _readListFromDbFileFallback(listName);
     if (list == null) return const [];
     // Return a defensive copy
-    return List<Map<String, dynamic>>.from(list.map((m) => Map.from(m)));
+    return List<Map<String, dynamic>>.from(
+        list.map((m) => Map<String, dynamic>.from(m)));
   }
 
   void writeTaskList(String listName, List<Map<String, dynamic>> items) {
+    final key = _canonicalKey(listName);
     // update cache
-    _listsCache[listName] = List<Map<String, dynamic>>.from(
+    _listsCache[key] = List<Map<String, dynamic>>.from(
         items.map((m) => Map<String, dynamic>.from(m)));
     // persist async
     unawaited(() async {
       try {
-        await _listsStore.record(listName).put(_db!, items);
+        await _listsStore.record(key).put(_db!, items);
       } catch (_) {}
     }());
   }
 
   bool taskListExists(String listName) {
-    return _listsCache.containsKey(listName);
+    return _resolveListCacheKey(listName) != null;
   }
 
   String? read(String name) {
-    return _rawCache[name];
+    for (final key in _keyFallbacks(name)) {
+      final val = _rawCache[key];
+      if (val != null) return val;
+    }
+    return null;
   }
 
   void write(String name, String content) {
-    _rawCache[name] = content;
+    final key = _canonicalKey(name);
+    _rawCache[key] = content;
     unawaited(() async {
       try {
-        await _rawStore.record(name).put(_db!, content);
+        await _rawStore.record(key).put(_db!, content);
       } catch (_) {}
     }());
   }
 
   bool exists(String name) {
-    return _rawCache.containsKey(name);
+    return _keyFallbacks(name).any(_rawCache.containsKey);
   }
 
   void dispose() {
@@ -158,7 +258,8 @@ class SqliteStorage {
   List<Map<String, dynamic>> getTimeEntriesForDate(String date) {
     final list = _timeCache[date];
     if (list == null) return const [];
-    return List<Map<String, dynamic>>.from(list.map((m) => Map.from(m)));
+    return List<Map<String, dynamic>>.from(
+        list.map((m) => Map<String, dynamic>.from(m)));
   }
 
   List<String> getTimeEntryDates() {
