@@ -169,6 +169,35 @@ Future<void> _debugLog(String msg) async {
   } catch (_) {}
 }
 
+/// Export per-task JSON files for external widgets and trigger a refresh.
+///
+/// This is a minimal, safe implementation used by the desktop build when
+/// storage is Sembast-based. It writes one JSON file per task into the
+/// application documents directory under `simplepresent_widget/` and
+/// invokes an Android platform method `refresh` if available.
+Future<void> exportTodayAndRefresh(List<TaskItem> tasks) async {
+  try {
+    final dir = await getApplicationDocumentsDirectory();
+    final folder = Directory('${dir.path}/simplepresent_widget');
+    if (!await folder.exists()) await folder.create(recursive: true);
+
+    for (final t in tasks) {
+      try {
+        final f = File('${folder.path}/${t.id}.json');
+        await f.writeAsString(jsonEncode(t.toJson()));
+      } catch (_) {}
+    }
+
+    // Try to notify native layer on Android to refresh widgets.
+    try {
+      if (Platform.isAndroid) {
+        const MethodChannel('simple_present/widget')
+            .invokeMethod<void>('refresh');
+      }
+    } catch (_) {}
+  } catch (_) {}
+}
+
 // Force-write debug log removed. Use _debugLog() instead (respects _debugWriteLog flag)
 
 class SimplePresentApp extends StatelessWidget {
