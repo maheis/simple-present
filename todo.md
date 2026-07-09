@@ -115,12 +115,12 @@
 - [ ] android verliert manchmal den text focus beim editieren
 - [ ] refresh widget?
 - [ ] edit cloud url springt immer ans ende des textes, sollte aber am cursor bleiben!
-- [ ] aufgaben durcheinander
+- [?] aufgaben durcheinander
   - [ ] es kommt zu vielen dopplungen von aufgaben
   - [ ] today war auf einmal komplett leer!
   - [ ] aufgaben werden nicht automatisch aus dem backlog geholt wenn sie auf heute liegen!
   - [ ] verschieben zwischen listen (insbesondere durch status änderungen!)
-- [ ] umbau auf sembast
+- [x] umbau auf sembast
 
 ## notes
 

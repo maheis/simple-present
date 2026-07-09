@@ -659,8 +659,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String? _storagePathOverride;
   // Enable debug write logging
   bool _debugWriteLog = false;
-  // Always-visible runtime trace for list loading diagnostics.
-  String _loadTraceText = 'load trace: idle';
   final List<Map<String, String>> _pendingNotificationTaskActions =
       <Map<String, String>>[];
   final List<String> _pendingWidgetOpenTaskIds = <String>[];
@@ -887,19 +885,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           DateFormat('yyyy-MM-dd HH:mm:ss.SSS').format(DateTime.now());
       await f.writeAsString('[$stamp] $msg\n', mode: FileMode.append);
     } catch (_) {}
-  }
-
-  void _setLoadTrace(String msg) {
-    final text = 'load trace: $msg';
-    // During startup, FutureBuilder is still in loading state. Avoid triggering
-    // setState from background load operations until initialization finished.
-    if (!mounted || !_initializationComplete) {
-      _loadTraceText = text;
-      return;
-    }
-    setState(() {
-      _loadTraceText = text;
-    });
   }
 
   Future<void> _ensureListFile(String filename) async {
@@ -1229,13 +1214,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
-  Future<void> _loadList(String filename, List<TaskItem> target,
-      {bool trace = false}) async {
+  Future<void> _loadList(String filename, List<TaskItem> target) async {
     target.clear();
-    final traceThisLoad = trace;
-    if (traceThisLoad) {
-      _setLoadTrace('loading $filename ...');
-    }
     try {
       if (_useSqlite) {
         final rows = _sqliteStorage.readTaskList(filename);
@@ -1248,9 +1228,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           }
         }
         _dedupeTaskIdsInPlace(target, filename);
-        if (traceThisLoad) {
-          _setLoadTrace('sqlite $filename -> ${target.length}');
-        }
         return;
       }
       if (_isListDir(filename)) {
@@ -1268,9 +1245,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           }
         }
         _dedupeTaskIdsInPlace(target, filename);
-        if (traceThisLoad) {
-          _setLoadTrace('dir $filename -> ${target.length}');
-        }
         return;
       }
       final f = await _fileFor(filename);
@@ -1287,13 +1261,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
       }
       _dedupeTaskIdsInPlace(target, filename);
-      if (traceThisLoad) {
-        _setLoadTrace('file $filename -> ${target.length}');
-      }
     } catch (e) {
-      if (traceThisLoad) {
-        _setLoadTrace('ERROR $filename: $e');
-      }
       unawaited(_debugLog('loadList failed: file=$filename error=$e'));
     }
   }
@@ -2317,7 +2285,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _loadToday() async {
-    await _loadList(_currentFile, _today, trace: true);
+    await _loadList(_currentFile, _today);
     // If today is unexpectedly empty but a backup exists, restore it.
     try {
       if ((_today.isEmpty)) {
@@ -7289,31 +7257,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                     duration: const Duration(milliseconds: 220),
                                     curve: Curves.easeOutCubic,
                                     height: 8.0,
-                                  ),
-                                  Container(
-                                    width: double.infinity,
-                                    margin: const EdgeInsets.only(bottom: 6),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(8),
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .surfaceContainerHighest
-                                          .withAlpha((0.6 * 255).round()),
-                                    ),
-                                    child: Text(
-                                      _loadTraceText,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontFamily: _fontFamily,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurfaceVariant,
-                                      ),
-                                    ),
                                   ),
                                   Expanded(
                                     child: _today.isEmpty
