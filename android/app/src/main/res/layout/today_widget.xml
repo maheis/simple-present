@@ -5,10 +5,7 @@
 
         <ImageView android:layout_width="20dp" android:layout_height="20dp" android:src="@mipmap/ic_launcher" android:contentDescription="icon" android:layout_marginEnd="8dp" />
 
-        <ImageView android:id="@+id/widget_header_text" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:contentDescription="today" />
-
-        <!-- Refresh button: taps trigger a broadcast handled by TodayWidgetProvider -->
-        <ImageView android:id="@+id/widget_refresh" android:layout_width="28dp" android:layout_height="28dp" android:src="@drawable/ic_refresh" android:contentDescription="refresh" android:layout_marginStart="8dp" android:padding="4dp" />
+        <ImageView android:id="@+id/widget_header_text" android:layout_width="wrap_content" android:layout_height="wrap_content" android:contentDescription="today" />
 
     </LinearLayout>
 

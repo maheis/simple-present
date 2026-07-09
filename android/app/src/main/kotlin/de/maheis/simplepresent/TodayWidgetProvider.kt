@@ -25,11 +25,6 @@ class TodayWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action == ACTION_REFRESH_WIDGET) {
-            // create a short-lived flag file to indicate refreshing state
-            try {
-                val flag = java.io.File(context.filesDir, "widget_refreshing")
-                flag.writeText(System.currentTimeMillis().toString())
-            } catch (_: Exception) {}
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val ids = appWidgetManager.getAppWidgetIds(
                 ComponentName(context, TodayWidgetProvider::class.java)
@@ -38,24 +33,6 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 updateWidget(context, appWidgetManager, id)
             }
             appWidgetManager.notifyAppWidgetViewDataChanged(ids, R.id.widget_list)
-
-            // Clear the flag after a short delay and refresh widgets again so
-            // the UI shows the transient refreshing state briefly.
-            try {
-                Thread {
-                    try {
-                        Thread.sleep(1800)
-                        val flag = java.io.File(context.filesDir, "widget_refreshing")
-                        if (flag.exists()) flag.delete()
-                        val mgr = AppWidgetManager.getInstance(context)
-                        val ids2 = mgr.getAppWidgetIds(
-                            ComponentName(context, TodayWidgetProvider::class.java)
-                        )
-                        for (id2 in ids2) updateWidget(context, mgr, id2)
-                        mgr.notifyAppWidgetViewDataChanged(ids2, R.id.widget_list)
-                    } catch (_: Exception) {}
-                }.start()
-            } catch (_: Exception) {}
         }
     }
 
@@ -147,39 +124,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
             views.setPendingIntentTemplate(R.id.widget_list, templatePendingIntent)
             views.setOnClickPendingIntent(R.id.widget_header, openAppPending)
 
-            // Refresh button: send broadcast to this provider to trigger update
-            try {
-                val refreshIntent = Intent(ACTION_REFRESH_WIDGET).apply {
-                    `package` = context.packageName
-                }
-                val refreshPending = PendingIntent.getBroadcast(
-                    context,
-                    appWidgetId + 20000,
-                    refreshIntent,
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                )
-                views.setOnClickPendingIntent(R.id.widget_refresh, refreshPending)
-            } catch (_: Exception) {}
-
-            // Widget refresh uses local files only; do not start MainActivity
-            // or trigger cloud sync.
-
             appWidgetManager.updateAppWidget(appWidgetId, views)
             appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.widget_list)
-            // render a compact refresh glyph into the header refresh ImageView
-            try {
-                val refreshText = if (isRefreshing(context)) "refreshing..." else "⟳"
-                val refreshBitmap = WidgetTextRenderer.renderTextBitmap(
-                    context = context,
-                    text = refreshText,
-                    fontResId = fontResIdForFamily(family, bold = false),
-                    textSizeSp = if (isRefreshing(context)) 12f else 16f,
-                    textColor = Color.parseColor("#E6F5F0"),
-                    maxWidthPx = (36 * metrics.density).toInt(),
-                    bold = false,
-                )
-                views.setImageViewBitmap(R.id.widget_refresh, refreshBitmap)
-            } catch (_: Exception) {}
         }
 
         private fun readConfiguredFontFamily(context: Context): String {
@@ -209,15 +155,4 @@ class TodayWidgetProvider : AppWidgetProvider() {
             }
         }
     }
-
-        private fun isRefreshing(context: Context): Boolean {
-            return try {
-                val flag = java.io.File(context.filesDir, "widget_refreshing")
-                if (!flag.exists()) return false
-                val age = System.currentTimeMillis() - flag.lastModified()
-                age < 5000 // treat as refreshing if flag is younger than 5s
-            } catch (_: Exception) {
-                false
-            }
-        }
 }
