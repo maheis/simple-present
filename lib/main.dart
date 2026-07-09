@@ -11387,6 +11387,17 @@ class _RedoLogPageState extends State<RedoLogPage> {
       final content = encoder.convert(list);
       if (_storageReady) {
         _sqliteStorage.writeTaskList(_storageName(name), list);
+        // When using Sembast, also export per-task JSON files for the
+        // Android widget if we just wrote the `today` list.
+        try {
+          if (name == _storageName('simplepresent_today.json')) {
+            final tasks = list
+                .map((e) => TaskItem.fromJson(Map<String, dynamic>.from(e)))
+                .where((t) => !t.done)
+                .toList();
+            unawaited(exportTodayAndRefresh(tasks));
+          }
+        } catch (_) {}
         return;
       }
       final f = await _fileForName(_storageName(name));
