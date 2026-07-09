@@ -99,10 +99,10 @@
       jetzt ist das icon wieder vermatscht, glaube muss transparentes icon mit gößerem transparenten rand sein, damit es rund passt
 - [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
-- [??] manchmal werden aufgaben falsch selektiert (bei kachel button move oder verschieben)
-- [??] manchmal werden andere aufgauben auch in progress gesetzt wenn ich eine auf in progress setze (performance? müsste ein delay nach der aktion sein? beobachten konnte ich es wenn der pc ausgelastet war)
-- [??] backlog wird manchmal komplett zu today
-- [??] today manchmal leer, ziemlich wired grade!
+- [-] manchmal werden aufgaben falsch selektiert (bei kachel button move oder verschieben)
+- [-] manchmal werden andere aufgauben auch in progress gesetzt wenn ich eine auf in progress setze (performance? müsste ein delay nach der aktion sein? beobachten konnte ich es wenn der pc ausgelastet war)
+- [-] backlog wird manchmal komplett zu today
+- [-] today manchmal leer, ziemlich wired grade!
 - [ ] reopen in der done liste führt zu gecken effekten
 - [?] ausführliches sync testen! kommt ständig zu fehlern, die nicht reproduzierbar sind! 
       z.b. move von backlog zu today wird nicht synchronisiert, sachen die ins backlog gehen, bleiben in today...
@@ -111,12 +111,16 @@
 - [ ] alle aktionen sollen task loading auslösen
 - [ ] android hintergrund synchronisation (push) implementieren
 - [ ] android verliert manchmal den text focus beim editieren
-- [ ] manueller export auch in unterordner
+- [x] manueller export auch in unterordner
 - [?] aufgaben müssen immer einzeln bearbeitet werden, keine listen im ganzen niederschreieben. verliere sonst häufiger aufgabenlisten, besonders unter android.
 - [ ] refresh widget?
 - [ ] edit cloud url springt immer ans ende des textes, sollte aber am cursor bleiben!
-- [ ] es kommt zu vielen dopplungen von aufgaben
-- [ ] today habe ich lokale eben leer geräumt bekommen...
+- [ ] aufgaben durcheinander
+  - [ ] es kommt zu vielen dopplungen von aufgaben
+  - [ ] today war auf einmal komplett leer!
+  - [ ] aufgaben werden nicht automatisch aus dem backlog geholt wenn sie auf heute liegen
+  - [ ] verschieben zwischen listen (insbesondere durch status änderungen!)
+- [ ] umbau auf sembast
 
 ## notes
 

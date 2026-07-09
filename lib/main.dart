@@ -771,7 +771,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _appendRedoLog(String action,
       {String? taskId, Map<String, dynamic>? details}) async {
     try {
-      final file = await _fileFor(_storage('simplepresent_redo.log'));
       final entry = <String, dynamic>{
         'timestamp': DateTime.now().toIso8601String(),
         'action': action,
@@ -781,18 +780,40 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             : Platform.localHostname),
         'details': details ?? {},
       };
-      await file.writeAsString('${jsonEncode(entry)}\n', mode: FileMode.append);
+      final line = '${jsonEncode(entry)}\n';
+      await _appendRawLogEntry(_storage('simplepresent_redo.log'), line);
+    } catch (_) {}
+  }
+
+  Future<void> _appendRawLogEntry(String name, String entry) async {
+    try {
+      if (_useSqlite) {
+        final existing = _sqliteStorage.read(name) ?? '';
+        final newVal = existing + entry;
+        _sqliteStorage.write(name, newVal);
+      } else {
+        final file = await _fileFor(name);
+        await file.writeAsString(entry, mode: FileMode.append);
+      }
     } catch (_) {}
   }
 
   Future<void> _openNotes() async {
     try {
-      final file = await _fileFor(_storage('simplepresent_notes.txt'));
       String text = '';
-      if (await file.exists()) {
-        try {
-          text = await file.readAsString();
-        } catch (_) {}
+      try {
+        if (_useSqlite) {
+          text = _sqliteStorage.read(_storage('simplepresent_notes.txt')) ?? '';
+        } else {
+          final file = await _fileFor(_storage('simplepresent_notes.txt'));
+          if (await file.exists()) {
+            try {
+              text = await file.readAsString();
+            } catch (_) {}
+          }
+        }
+      } catch (_) {
+        text = '';
       }
       final controller = TextEditingController(text: text);
       final original = text;
@@ -802,7 +823,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           onWillPop: () async {
             try {
               if (controller.text != original) {
-                await file.writeAsString(controller.text);
+                if (_useSqlite) {
+                  _sqliteStorage.write(
+                      _storage('simplepresent_notes.txt'), controller.text);
+                } else {
+                  final file =
+                      await _fileFor(_storage('simplepresent_notes.txt'));
+                  await file.writeAsString(controller.text);
+                }
                 unawaited(_syncPushNotes(controller.text));
               }
             } catch (_) {}
@@ -895,7 +923,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // ensure current file respects debug mode
     _currentFile = _storage('simplepresent_today.json');
     // JSON file storage only.
-    _useSqlite = false;
+    // Use Sembast-backed storage for new installs (no automatic migration).
+    _useSqlite = true;
+    try {
+      await _sqliteStorage.init(debugMode: kDebugMode);
+    } catch (_) {}
     // Legacy migration removed: files are expected to live under
     // the app-specific `simplepresent/` subfolder. No automatic
     // migration is performed.
@@ -2080,10 +2112,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _recordRestoreEvent(String reason, int restoredCount) async {
     try {
-      final f = await _fileFor('simplepresent_restore_events.log');
       final now = DateTime.now().toIso8601String();
       final entry = '$now | restored=$restoredCount | reason=$reason\n';
-      await f.writeAsString(entry, mode: FileMode.append);
+      await _appendRawLogEntry('simplepresent_restore_events.log', entry);
       unawaited(_debugLog('restore event logged: $entry'));
     } catch (_) {}
   }
@@ -3099,16 +3130,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           if (kind == 'notes') {
             final incomingText = (payload['text'] ?? '').toString();
             try {
-              final notesFile =
-                  await _fileFor(_storage('simplepresent_notes.txt'));
-              final localModified = await (await notesFile.exists())
-                  ? (await notesFile.lastModified()).millisecondsSinceEpoch
-                  : 0;
-              if (item.modifiedAt > localModified) {
-                try {
-                  await notesFile.writeAsString(incomingText);
-                  if (mounted) _showTopToast('notes updated from cloud');
-                } catch (_) {}
+              if (_useSqlite) {
+                // No reliable filesystem mtime for DB blobs; always replace
+                // if payload is newer according to server timestamp.
+                _sqliteStorage.write(
+                    _storage('simplepresent_notes.txt'), incomingText);
+                if (mounted) _showTopToast('notes updated from cloud');
+              } else {
+                final notesFile =
+                    await _fileFor(_storage('simplepresent_notes.txt'));
+                final localModified = await (await notesFile.exists())
+                    ? (await notesFile.lastModified()).millisecondsSinceEpoch
+                    : 0;
+                if (item.modifiedAt > localModified) {
+                  try {
+                    await notesFile.writeAsString(incomingText);
+                    if (mounted) _showTopToast('notes updated from cloud');
+                  } catch (_) {}
+                }
               }
             } catch (_) {}
             continue;
@@ -5831,7 +5870,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           try {
             String? savedText;
             if (_useSqlite) {
-              savedText = _sqliteStorage.read(f);
+              try {
+                final rows = _sqliteStorage.readTaskList(f);
+                savedText = const JsonEncoder.withIndent('  ').convert(rows);
+              } catch (_) {
+                savedText = null;
+              }
             } else {
               final savedFile = await _fileFor(f);
               if (await savedFile.exists()) {
@@ -5850,16 +5894,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   snippet = savedText.substring(start, end + 1);
                 }
               }
-              final logFile2 =
-                  await _fileFor('simplepresent_clear_schedule.log');
               final now2 = DateTime.now().toIso8601String();
               final entry2 =
                   '$now2 | post-save snippet for $f id=$id | snippet=${snippet.replaceAll("\n", " ")}\n';
-              if (await logFile2.exists()) {
-                await logFile2.writeAsString(entry2, mode: FileMode.append);
-              } else {
-                await logFile2.writeAsString(entry2);
-              }
+              await _appendRawLogEntry(
+                  'simplepresent_clear_schedule.log', entry2);
             }
           } catch (_) {}
         }
@@ -5869,16 +5908,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       // write a debug log in app dir to help diagnose persistence mismatches
       try {
-        final logFile = await _fileFor('simplepresent_clear_schedule.log');
         final now = DateTime.now().toIso8601String();
         final entry =
             '$now | cleared schedule for id=$id | changed=${changedFiles.join(',')}' +
                 '\n';
-        if (await logFile.exists()) {
-          await logFile.writeAsString(entry, mode: FileMode.append);
-        } else {
-          await logFile.writeAsString(entry);
-        }
+        await _appendRawLogEntry('simplepresent_clear_schedule.log', entry);
       } catch (_) {}
     } catch (_) {}
     try {
@@ -11044,15 +11078,23 @@ class _RedoLogPageState extends State<RedoLogPage> {
       _loading = true;
     });
     try {
-      final f = await _fileForName(_storageName('simplepresent_redo.log'));
-      if (!await f.exists()) {
-        setState(() {
-          _entries = [];
-          _loading = false;
-        });
-        return;
+      final lines = <String>[];
+      if (_useSqlite) {
+        final text =
+            _sqliteStorage.read(_storageName('simplepresent_redo.log')) ?? '';
+        if (text.isNotEmpty) lines.addAll(text.split('\n'));
+      } else {
+        final f = await _fileForName(_storageName('simplepresent_redo.log'));
+        if (!await f.exists()) {
+          setState(() {
+            _entries = [];
+            _loading = false;
+          });
+          return;
+        }
+        final fileLines = await f.readAsLines();
+        lines.addAll(fileLines);
       }
-      final lines = await f.readAsLines();
       final recent =
           lines.length > 500 ? lines.sublist(lines.length - 500) : lines;
       final parsed = <Map<String, dynamic>>[];
@@ -11212,9 +11254,16 @@ class _RedoLogPageState extends State<RedoLogPage> {
 
   Future<void> _copyAll() async {
     try {
-      final f = await _fileForName(_storageName('simplepresent_redo.log'));
-      if (!await f.exists()) return;
-      final text = await f.readAsString();
+      String text = '';
+      if (_useSqlite) {
+        text =
+            _sqliteStorage.read(_storageName('simplepresent_redo.log')) ?? '';
+      } else {
+        final f = await _fileForName(_storageName('simplepresent_redo.log'));
+        if (!await f.exists()) return;
+        text = await f.readAsString();
+      }
+      if (text.isEmpty) return;
       await Clipboard.setData(ClipboardData(text: text));
       if (mounted) _showTopToastLocal('Copied redo log to clipboard');
     } catch (_) {}
@@ -11338,6 +11387,14 @@ class _RedoLogPageState extends State<RedoLogPage> {
 
   Future<List<Map<String, dynamic>>> _readListFile(String name) async {
     try {
+      if (_useSqlite) {
+        try {
+          final rows = _sqliteStorage.readTaskList(_storageName(name));
+          return rows.map((e) => Map<String, dynamic>.from(e)).toList();
+        } catch (_) {
+          return [];
+        }
+      }
       final f = await _fileForName(_storageName(name));
       if (!await f.exists()) return [];
       final s = await f.readAsString();
@@ -11355,9 +11412,13 @@ class _RedoLogPageState extends State<RedoLogPage> {
   Future<void> _writeListFile(
       String name, List<Map<String, dynamic>> list) async {
     try {
-      final f = await _fileForName(_storageName(name));
       final encoder = const JsonEncoder.withIndent('  ');
       final content = encoder.convert(list);
+      if (_useSqlite) {
+        _sqliteStorage.writeTaskList(_storageName(name), list);
+        return;
+      }
+      final f = await _fileForName(_storageName(name));
       try {
         await _debugLog('write list file tmp for: ${f.path}');
       } catch (_) {}
@@ -11622,9 +11683,8 @@ class _RedoLogPageState extends State<RedoLogPage> {
           'details': {'undone_entry': e},
         };
         try {
-          final rf = await _fileForName(_storageName('simplepresent_redo.log'));
-          await rf.writeAsString('${jsonEncode(undoEntry)}\n',
-              mode: FileMode.append);
+          await _appendRawLogEntry(_storageName('simplepresent_redo.log'),
+              '${jsonEncode(undoEntry)}\n');
         } catch (_) {}
         // Also try to push this undo entry to the cloud as an encrypted 'redo' item
         // Hand off cloud push to the caller (HomePage) by returning the undo entry.

@@ -2,97 +2,130 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:sembast/sembast.dart';
+import 'package:sembast/sembast_io.dart';
 
+/// A simple Sembast-backed storage that exposes the same minimal API the
+/// app expects from the original file-based `SqliteStorage` class. It keeps
+/// an in-memory cache so read methods remain synchronous for compatibility.
 class SqliteStorage {
   late final String _storageRoot;
+  Database? _db;
+
+  // Stores: 'lists' -> map filename -> List<dynamic>
+  final _listsStore = stringMapStoreFactory.store('lists');
+  // 'raw' for arbitrary string blobs (settings, notes)
+  final _rawStore = stringMapStoreFactory.store('raw');
+  // 'time_entries' -> map date -> List<dynamic>
+  final _timeStore = stringMapStoreFactory.store('time_entries');
+
+  // In-memory caches to keep APIs synchronous where the app expects it.
+  final Map<String, List<Map<String, dynamic>>> _listsCache = {};
+  final Map<String, String> _rawCache = {};
+  final Map<String, List<Map<String, dynamic>>> _timeCache = {};
 
   Future<void> init({required bool debugMode}) async {
     final dir = await getApplicationDocumentsDirectory();
     final folderName = debugMode ? 'simplepresent-debug' : 'simplepresent';
-    final sub = Directory('${dir.path}/$folderName');
+    final sub = Directory(p.join(dir.path, folderName));
     try {
       if (!await sub.exists()) await sub.create(recursive: true);
     } catch (_) {}
-
-    // Legacy migration removed: time entries are expected to reside under
-    // the `simplepresent` application subfolder. No automatic migration
-    // from the documents root is performed.
-
     _storageRoot = sub.path;
-  }
 
-  String _filePath(String name) {
-    return '$_storageRoot/$name';
-  }
+    final dbPath = p.join(_storageRoot, 'simplepresent.db');
+    _db = await databaseFactoryIo.openDatabase(dbPath);
 
-  Future<File> _fileFor(String name) async {
-    return File(_filePath(name));
-  }
+    // Load lists
+    try {
+      final recs = await _listsStore.find(_db!);
+      for (final r in recs) {
+        final key = r.key as String;
+        final val = r.value;
+        if (val is List) {
+          _listsCache[key] = val
+              .whereType<Map>()
+              .map((m) => Map<String, dynamic>.from(m))
+              .toList();
+        }
+      }
+    } catch (_) {}
 
-  Future<Map<String, dynamic>> _readJsonMap(String name) async {
-    final f = await _fileFor(name);
-    if (!await f.exists()) return <String, dynamic>{};
-    final text = await f.readAsString();
-    final decoded = jsonDecode(text);
-    if (decoded is Map) {
-      return Map<String, dynamic>.from(decoded);
-    }
-    return <String, dynamic>{};
-  }
+    // Load raw blobs
+    try {
+      final recs = await _rawStore.find(_db!);
+      for (final r in recs) {
+        final key = r.key as String;
+        final val = r.value;
+        if (val is String) _rawCache[key] = val;
+      }
+    } catch (_) {}
 
-  Future<void> _writeJson(String name, Object value) async {
-    final f = await _fileFor(name);
-    await f.parent.create(recursive: true);
-    await f.writeAsString(const JsonEncoder.withIndent('  ').convert(value));
+    // Load time entries
+    try {
+      final recs = await _timeStore.find(_db!);
+      for (final r in recs) {
+        final key = r.key as String;
+        final val = r.value;
+        if (val is List) {
+          _timeCache[key] = val
+              .whereType<Map>()
+              .map((m) => Map<String, dynamic>.from(m))
+              .toList();
+        }
+      }
+    } catch (_) {}
   }
 
   List<Map<String, dynamic>> readTaskList(String listName) {
-    try {
-      final f = File(_filePath(listName));
-      if (!f.existsSync()) return const [];
-      final decoded = jsonDecode(f.readAsStringSync());
-      if (decoded is! List) return const [];
-        return decoded
-          .whereType<Map>()
-          .map((entry) => Map<String, dynamic>.from(entry))
-          .toList();
-    } catch (_) {
-      return const [];
-    }
+    final list = _listsCache[listName];
+    if (list == null) return const [];
+    // Return a defensive copy
+    return List<Map<String, dynamic>>.from(list.map((m) => Map.from(m)));
   }
 
   void writeTaskList(String listName, List<Map<String, dynamic>> items) {
-    unawaited(_writeJson(listName, items));
+    // update cache
+    _listsCache[listName] = List<Map<String, dynamic>>.from(
+        items.map((m) => Map<String, dynamic>.from(m)));
+    // persist async
+    unawaited(() async {
+      try {
+        await _listsStore.record(listName).put(_db!, items);
+      } catch (_) {}
+    }());
   }
 
   bool taskListExists(String listName) {
-    return File(_filePath(listName)).existsSync();
+    return _listsCache.containsKey(listName);
   }
 
   String? read(String name) {
-    try {
-      final f = File(_filePath(name));
-      if (!f.existsSync()) return null;
-      return f.readAsStringSync();
-    } catch (_) {
-      return null;
-    }
+    return _rawCache[name];
   }
 
   void write(String name, String content) {
+    _rawCache[name] = content;
     unawaited(() async {
-      final f = await _fileFor(name);
-      await f.parent.create(recursive: true);
-      await f.writeAsString(content);
+      try {
+        await _rawStore.record(name).put(_db!, content);
+      } catch (_) {}
     }());
   }
 
   bool exists(String name) {
-    return File(_filePath(name)).existsSync();
+    return _rawCache.containsKey(name);
   }
 
-  void dispose() {}
+  void dispose() {
+    unawaited(() async {
+      try {
+        await _db?.close();
+      } catch (_) {}
+    }());
+  }
 
   void upsertTimeEntry({
     required String taskId,
@@ -106,9 +139,8 @@ class SqliteStorage {
   }) {
     unawaited(() async {
       final now = recordedAt ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
-      final all = await _readJsonMap('simplepresent_time_entries.json');
-      final list = (all[date] is List) ? List<dynamic>.from(all[date] as List) : <dynamic>[];
-      list.add(<String, dynamic>{
+      final list = _timeCache[date] ?? <Map<String, dynamic>>[];
+      final entry = <String, dynamic>{
         'task_id': taskId,
         'task_text': taskText,
         'task_done': taskDone ? 1 : 0,
@@ -116,44 +148,28 @@ class SqliteStorage {
         'stopwatch_seconds': stopwatchSeconds,
         'work_minutes': workMinutes,
         'recorded_at': now,
-      });
-      all[date] = list;
-      await _writeJson('simplepresent_time_entries.json', all);
+      };
+      final newList = List<Map<String, dynamic>>.from(list)..add(entry);
+      _timeCache[date] = newList;
+      try {
+        await _timeStore.record(date).put(_db!, newList);
+      } catch (_) {}
     }());
   }
 
   List<Map<String, dynamic>> getTimeEntriesForDate(String date) {
-    try {
-      final all = _readJsonMapSync('simplepresent_time_entries.json');
-      final raw = all[date];
-      if (raw is! List) return const [];
-        return raw
-          .whereType<Map>()
-          .map((entry) => Map<String, dynamic>.from(entry))
-          .toList();
-    } catch (_) {
-      return const [];
-    }
+    final list = _timeCache[date];
+    if (list == null) return const [];
+    return List<Map<String, dynamic>>.from(list.map((m) => Map.from(m)));
   }
 
   List<String> getTimeEntryDates() {
     try {
-      final all = _readJsonMapSync('simplepresent_time_entries.json');
-      final dates = all.keys.toList();
+      final dates = _timeCache.keys.toList();
       dates.sort((a, b) => b.compareTo(a));
       return dates;
     } catch (_) {
       return const [];
     }
-  }
-
-  Map<String, dynamic> _readJsonMapSync(String name) {
-    final f = File(_filePath(name));
-    if (!f.existsSync()) return <String, dynamic>{};
-    final decoded = jsonDecode(f.readAsStringSync());
-    if (decoded is Map) {
-      return Map<String, dynamic>.from(decoded);
-    }
-    return <String, dynamic>{};
   }
 }
