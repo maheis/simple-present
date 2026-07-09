@@ -111,8 +111,8 @@
       dopplung von aufgaben...
 - [?] sync button macht immer noch nicht 100%
 - [-] alle aktionen sollen task loading auslösen
-- [ ] android hintergrund synchronisation (push) implementieren
-- [ ] android verliert manchmal den text focus beim editieren und springt runter in "neue aufgaben"-feld
+- [?] android hintergrund synchronisation (push) implementieren
+- [?] android verliert manchmal den text focus beim editieren und springt runter in "neue aufgaben"-feld
 - [ ] refresh widget!
 - [x] edit cloud url springt immer ans ende des textes, sollte aber am cursor bleiben!
 - [?] aufgaben durcheinander

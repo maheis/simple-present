@@ -505,6 +505,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Map<String, TextEditingController> _subtaskInputControllers = {};
   final Map<String, FocusNode> _subtaskFocusNodes = {};
   final Map<String, TextEditingController> _workControllers = {};
+
+  void _requestInputFocusIfIdle() {
+    try {
+      for (final node in _editFocusNodes.values) {
+        if (node.hasFocus) return; // don't steal focus while editing
+      }
+      if (!_inputFocus.hasFocus) _inputFocus.requestFocus();
+    } catch (_) {}
+  }
+
   // Staged important flag changes (apply when delayed reorder fires)
   final Map<String, bool> _stagedImportant = {};
   // Staged inProgress and done flag changes (apply when delayed reorder fires)
@@ -730,7 +740,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _startScheduledChecker();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        if (!Platform.isAndroid) _inputFocus.requestFocus();
+        if (!Platform.isAndroid) _requestInputFocusIfIdle();
       }
     });
 
@@ -5964,7 +5974,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         unawaited(
             _appendRedoLog('create', taskId: newId, details: {'text': input}));
       } catch (_) {}
-      if (!Platform.isAndroid) _inputFocus.requestFocus();
+      if (!Platform.isAndroid) _requestInputFocusIfIdle();
       _registerActivity();
     }));
   }
@@ -7011,7 +7021,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       onScaleUpdate: (_) {},
                       behavior: HitTestBehavior.translucent,
                       onTap: () {
-                        if (!Platform.isAndroid) _inputFocus.requestFocus();
+                        if (!Platform.isAndroid) _requestInputFocusIfIdle();
                         _registerActivity();
                       },
                       child: Column(
@@ -8735,7 +8745,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                             _showingDone ? null : _addToToday,
                                         onTapOutside: (_) {
                                           if (!Platform.isAndroid)
-                                            _inputFocus.requestFocus();
+                                            _requestInputFocusIfIdle();
                                         },
                                       ),
                                     ),
