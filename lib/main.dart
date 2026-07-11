@@ -1889,6 +1889,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             } catch (_) {}
           }
 
+          // Determine target list and check for an existing follow-up to
+          // avoid creating duplicates (same text + same scheduled datetime).
+          final isTodayTarget = _isSameDay(chosen, DateTime.now());
+          final targetFilename = isTodayTarget
+              ? _storage('simplepresent_today.json')
+              : _storage('simplepresent_backlog.json');
+          final List<TaskItem> existingTarget = [];
+          await _loadList(targetFilename, existingTarget);
+          final alreadyExists = existingTarget.any((t) {
+            if (t.text != task.text) return false;
+            if (t.scheduledAt == null) return false;
+            return t.scheduledAt!.toIso8601String() == chosen.toIso8601String();
+          });
+          if (alreadyExists) return;
+
           final newId =
               '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
           final newTask = task.copyWith(
