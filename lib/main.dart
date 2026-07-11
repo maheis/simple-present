@@ -152,7 +152,8 @@ Future<void> _debugLog(String msg) async {
 /// storage is Sembast-based. It writes one JSON file per task into the
 /// application documents directory under `simplepresent_widget/` and
 /// invokes an Android platform method `refresh` if available.
-Future<void> exportTodayAndRefresh(List<TaskItem> tasks) async {
+Future<void> exportTodayAndRefresh(List<TaskItem> tasks,
+    {String? fontFamily}) async {
   try {
     final dir = await getApplicationDocumentsDirectory();
     // Android widget reads files from <app_data_parent>/app_flutter/<folder>/today
@@ -175,7 +176,7 @@ Future<void> exportTodayAndRefresh(List<TaskItem> tasks) async {
           p.join(appFlutterDir.path, folderName, 'simplepresent_widget.json'));
       final arr = tasks.map((t) => t.toJson()).toList();
       final out = <String, dynamic>{
-        'fontFamily': _fontFamily,
+        'fontFamily': fontFamily ?? 'OpenDyslexic',
         'tasks': arr,
       };
       await widgetFile.writeAsString(encoder.convert(out));
@@ -2077,7 +2078,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           try {
             if (filename == _storage('simplepresent_today.json')) {
               final tasks = source.where((t) => !t.done).toList();
-              unawaited(exportTodayAndRefresh(tasks));
+              unawaited(exportTodayAndRefresh(tasks, fontFamily: _fontFamily));
             }
           } catch (_) {}
         } else if (_isListDir(filename)) {

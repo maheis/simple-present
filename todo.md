@@ -41,7 +41,7 @@
 - [x] settings in eine eigene sembast-db
 - [x] funktionen heißen immer noch alle sqlite... 
 - [x] clean done
-- [ ] android: widget funktioniert seit umstellung auf sembast nicht mehr bzw. zeigt nichts mehr an!
+- [?] android: widget funktioniert seit umstellung auf sembast nicht mehr bzw. zeigt nichts mehr an!
 
 ## notes
 
