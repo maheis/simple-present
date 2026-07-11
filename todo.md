@@ -42,6 +42,7 @@
 - [x] funktionen heißen immer noch alle sqlite... 
 - [x] clean done
 - [?] android: widget funktioniert seit umstellung auf sembast nicht mehr bzw. zeigt nichts mehr an!
+- [ ] aufgaben die ich im backlog auf heute oder in vergangenheit lege, sollen in today gemoved werden!
 
 ## notes
 

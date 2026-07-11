@@ -5347,6 +5347,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       try {
         await _saveSettings();
       } catch (_) {}
+      // If we're editing an item in the backlog and the scheduled date is
+      // today or in the past, move it into Today immediately.
+      try {
+        if (_showingBacklog ||
+            _currentFile == _storage('simplepresent_backlog.json')) {
+          final now = DateTime.now();
+          final todayDateStr = DateFormat('yyyy-MM-dd').format(now);
+          final schedDateStr =
+              DateFormat('yyyy-MM-dd').format(scheduled.toLocal());
+          if (schedDateStr.compareTo(todayDateStr) <= 0) {
+            // Schedule move after this queue action completes to avoid reentrancy.
+            unawaited(
+                Future.microtask(() => _queueMoveFromBacklogByTaskId(taskId)));
+          }
+        }
+      } catch (_) {}
     });
   }
 
