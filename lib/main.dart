@@ -15,6 +15,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:simple_present/storage/json_storage.dart';
+import 'package:simple_present/storage/sembast_storage.dart';
 import 'package:file_selector/file_selector.dart' as fs;
 
 // sentinel to indicate "no change" in copyWith optional parameters
@@ -532,7 +533,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Map<String, DateTime?> _stagedScheduled = {};
   final AudioPlayer _audioPlayer = AudioPlayer();
   // JSON storage (legacy sqlite migration support is handled separately)
-  final _sqliteStorage = SqliteStorage();
+  final _sembastStorage = SembastStorage();
   bool _useSqlite = false;
   Timer? _idleTimer;
   Timer? _attentionTimer;
@@ -828,15 +829,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       };
       final line = '${jsonEncode(entry)}\n';
       await _appendRawLogEntry(_storage('simplepresent_redo.log'), line);
+      _sembastStorage.write(_storage('simplepresent_redo.log'), line);
     } catch (_) {}
   }
 
   Future<void> _appendRawLogEntry(String name, String entry) async {
     try {
       if (_useSqlite) {
-        final existing = _sqliteStorage.read(name) ?? '';
+        final existing = _sembastStorage.read(name) ?? '';
         final newVal = existing + entry;
-        _sqliteStorage.write(name, newVal);
+        _sembastStorage.write(name, newVal);
       } else {
         final file = await _fileFor(name);
         await file.writeAsString(entry, mode: FileMode.append);
@@ -849,7 +851,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       String text = '';
       try {
         if (_useSqlite) {
-          text = _sqliteStorage.read(_storage('simplepresent_notes.txt')) ?? '';
+          text =
+              _sembastStorage.read(_storage('simplepresent_notes.txt')) ?? '';
         } else {
           final file = await _fileFor(_storage('simplepresent_notes.txt'));
           if (await file.exists()) {
@@ -870,7 +873,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             try {
               if (controller.text != original) {
                 if (_useSqlite) {
-                  _sqliteStorage.write(
+                  _sembastStorage.write(
                       _storage('simplepresent_notes.txt'), controller.text);
                 } else {
                   final file =
@@ -937,8 +940,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _ensureListFile(String filename) async {
     try {
       if (_useSqlite) {
-        if (!_sqliteStorage.taskListExists(filename)) {
-          _sqliteStorage
+        if (!_sembastStorage.taskListExists(filename)) {
+          _sembastStorage
               .writeTaskList(filename, const <Map<String, dynamic>>[]);
         }
         return;
@@ -972,7 +975,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // Use Sembast-backed storage for new installs (no automatic migration).
     _useSqlite = true;
     try {
-      await _sqliteStorage.init(debugMode: kDebugMode);
+      await _sembastStorage.init(debugMode: kDebugMode);
     } catch (_) {}
     // Legacy migration removed: files are expected to live under
     // the app-specific `simplepresent/` subfolder. No automatic
@@ -1265,7 +1268,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     target.clear();
     try {
       if (_useSqlite) {
-        final rows = _sqliteStorage.readTaskList(filename);
+        final rows = _sembastStorage.readTaskList(filename);
         for (var i = 0; i < rows.length; i++) {
           try {
             target.add(TaskItem.fromJson(rows[i]));
@@ -1467,7 +1470,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         await _loadToday();
         final encoded = enc.convert(settings);
         if (_useSqlite) {
-          _sqliteStorage.write(
+          _sembastStorage.write(
               _storage('simplepresent_settings.json'), encoded);
         } else {
           final settingsFile =
@@ -1934,7 +1937,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             'saveList start: $filename count=${source.length} sqlite=$_useSqlite listdir=${_isListDir(filename)}'));
         final encoder = const JsonEncoder.withIndent('  ');
         if (_useSqlite) {
-          _sqliteStorage.writeTaskList(
+          _sembastStorage.writeTaskList(
             filename,
             source.map((e) => e.toJson()).toList(),
           );
@@ -3106,7 +3109,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               if (_useSqlite) {
                 // No reliable filesystem mtime for DB blobs; always replace
                 // if payload is newer according to server timestamp.
-                _sqliteStorage.write(
+                _sembastStorage.write(
                     _storage('simplepresent_notes.txt'), incomingText);
                 if (mounted) _showTopToast('notes updated from cloud');
               } else {
@@ -3133,7 +3136,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             final entryTaskId = (entry['task_id'] ?? '').toString();
             final entryTaskText = (entry['task_text'] ?? '').toString();
             if (date.isEmpty || entryTaskId.isEmpty) continue;
-            _sqliteStorage.upsertTimeEntry(
+            _sembastStorage.upsertTimeEntry(
               taskId: entryTaskId,
               taskText: entryTaskText,
               date: date,
@@ -3331,7 +3334,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               if (parsed is Map) {
                 for (final e in parsed.entries) {
                   try {
-                    _sqliteStorage.writeSetting(e.key.toString(), e.value);
+                    _sembastStorage.writeSetting(e.key.toString(), e.value);
                   } catch (_) {}
                 }
               }
@@ -3344,7 +3347,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           // If there are multiple raw entries, only convert the first one
           // and discard (delete) the rest.
           try {
-            final allRaw = _sqliteStorage.readAllSettings();
+            final allRaw = _sembastStorage.readAllSettings();
             if (allRaw.isNotEmpty) {
               final firstKey = allRaw.keys.first;
               final firstVal = allRaw[firstKey];
@@ -3363,7 +3366,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               if (parsed != null) {
                 for (final e in parsed.entries) {
                   try {
-                    _sqliteStorage.writeSetting(e.key.toString(), e.value);
+                    _sembastStorage.writeSetting(e.key.toString(), e.value);
                   } catch (_) {}
                 }
               }
@@ -3371,7 +3374,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               // Delete all raw entries (including the first) to avoid duplicate sources.
               for (final k in allRaw.keys) {
                 try {
-                  _sqliteStorage.deleteRaw(k);
+                  _sembastStorage.deleteRaw(k);
                 } catch (_) {}
               }
             }
@@ -3383,7 +3386,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (_useSqlite) {
         // Load settings from per-key Sembast store.
         try {
-          final raw = _sqliteStorage.readAllSettings();
+          final raw = _sembastStorage.readAllSettings();
           // raw keys are canonicalized; copy into `data` map with original keys
           data = Map<String, dynamic>.from(raw);
         } catch (_) {
@@ -3698,7 +3701,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       try {
         if (_useSqlite) {
           try {
-            final existing = _sqliteStorage.readAllSettings();
+            final existing = _sembastStorage.readAllSettings();
             if (existing is Map && existing.containsKey('lastRunDate')) {
               out['lastRunDate'] = existing['lastRunDate'];
             }
@@ -3723,7 +3726,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         try {
           for (final e in out.entries) {
             try {
-              _sqliteStorage.writeSetting(e.key, e.value);
+              _sembastStorage.writeSetting(e.key, e.value);
             } catch (_) {}
           }
         } catch (_) {}
@@ -3799,7 +3802,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _toastTimer?.cancel();
     _toastEntry?.remove();
     _stopwatchTicker?.cancel();
-    _sqliteStorage.dispose();
+    _sembastStorage.dispose();
     super.dispose();
   }
 
@@ -4169,9 +4172,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     List<TimeEntry> allTimeEntries = [];
     if (_useSqlite) {
       try {
-        final dates = _sqliteStorage.getTimeEntryDates();
+        final dates = _sembastStorage.getTimeEntryDates();
         for (final date in dates) {
-          final rows = _sqliteStorage.getTimeEntriesForDate(date);
+          final rows = _sembastStorage.getTimeEntriesForDate(date);
           for (final row in rows) {
             allTimeEntries.add(TimeEntry(
               taskId: row['task_id'] as String,
@@ -4594,7 +4597,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (!_useSqlite) return;
     final date = DateFormat('yyyy-MM-dd').format(DateTime.now());
     try {
-      _sqliteStorage.upsertTimeEntry(
+      _sembastStorage.upsertTimeEntry(
         taskId: task.id,
         taskText: task.text,
         date: date,
@@ -5906,7 +5909,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             String? savedText;
             if (_useSqlite) {
               try {
-                final rows = _sqliteStorage.readTaskList(f);
+                final rows = _sembastStorage.readTaskList(f);
                 savedText = const JsonEncoder.withIndent('  ').convert(rows);
               } catch (_) {
                 savedText = null;
@@ -11078,7 +11081,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
   List<Map<String, dynamic>> _entries = [];
   bool _loading = true;
   bool _storageReady = false;
-  final _sqliteStorage = SqliteStorage();
+  final _sembastStorage = SembastStorage();
   late final ScrollController _hScrollController;
   late final ScrollController _vScrollController;
   OverlayEntry? _toastEntryLocal;
@@ -11096,7 +11099,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
 
   Future<void> _initStorageAndLoad() async {
     try {
-      await _sqliteStorage.init(debugMode: kDebugMode);
+      await _sembastStorage.init(debugMode: kDebugMode);
       _storageReady = true;
     } catch (_) {
       _storageReady = false;
@@ -11113,7 +11116,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
       _vScrollController.dispose();
     } catch (_) {}
     try {
-      _sqliteStorage.dispose();
+      _sembastStorage.dispose();
     } catch (_) {}
     super.dispose();
   }
@@ -11121,8 +11124,8 @@ class _RedoLogPageState extends State<RedoLogPage> {
   Future<void> _appendRawLogEntry(String name, String entry) async {
     try {
       if (_storageReady) {
-        final existing = _sqliteStorage.read(name) ?? '';
-        _sqliteStorage.write(name, existing + entry);
+        final existing = _sembastStorage.read(name) ?? '';
+        _sembastStorage.write(name, existing + entry);
       } else {
         final f = await _fileForName(name);
         await f.writeAsString(entry, mode: FileMode.append);
@@ -11152,7 +11155,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
       final lines = <String>[];
       if (_storageReady) {
         final text =
-            _sqliteStorage.read(_storageName('simplepresent_redo.log')) ?? '';
+            _sembastStorage.read(_storageName('simplepresent_redo.log')) ?? '';
         if (text.isNotEmpty) lines.addAll(text.split('\n'));
       } else {
         final f = await _fileForName(_storageName('simplepresent_redo.log'));
@@ -11328,7 +11331,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
       String text = '';
       if (_storageReady) {
         text =
-            _sqliteStorage.read(_storageName('simplepresent_redo.log')) ?? '';
+            _sembastStorage.read(_storageName('simplepresent_redo.log')) ?? '';
       } else {
         final f = await _fileForName(_storageName('simplepresent_redo.log'));
         if (!await f.exists()) return;
@@ -11460,7 +11463,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
     try {
       if (_storageReady) {
         try {
-          final rows = _sqliteStorage.readTaskList(_storageName(name));
+          final rows = _sembastStorage.readTaskList(_storageName(name));
           return rows.map((e) => Map<String, dynamic>.from(e)).toList();
         } catch (_) {
           return [];
@@ -11486,7 +11489,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
       final encoder = const JsonEncoder.withIndent('  ');
       final content = encoder.convert(list);
       if (_storageReady) {
-        _sqliteStorage.writeTaskList(_storageName(name), list);
+        _sembastStorage.writeTaskList(_storageName(name), list);
         // When using Sembast, also export per-task JSON files for the
         // Android widget if we just wrote the `today` list.
         try {

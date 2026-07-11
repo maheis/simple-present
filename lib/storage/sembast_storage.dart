@@ -7,9 +7,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sembast/sembast_io.dart';
 
 /// A simple Sembast-backed storage that exposes the same minimal API the
-/// app expects from the original file-based `SqliteStorage` class. It keeps
+/// app expects from the original file-based `SembastStorage` class. It keeps
 /// an in-memory cache so read methods remain synchronous for compatibility.
-class SqliteStorage {
+class SembastStorage {
   late final String _storageRoot;
   late final String _dbPath;
   Database? _db;
