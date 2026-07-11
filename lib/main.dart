@@ -1430,6 +1430,41 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // Promote backlog tasks that are due (today or overdue) into Today.
       await _promoteDueBacklogToToday(showToast: true);
 
+      // Move completed tasks from Today into Done during daily migration.
+      try {
+        final todayFile = _storage('simplepresent_today.json');
+        final List<TaskItem> todayList = [];
+        final List<TaskItem> doneList = [];
+        await Future.wait([
+          _loadList(todayFile, todayList),
+          _loadList(_storage('simplepresent_done.json'), doneList),
+        ]);
+
+        final doneFromToday = todayList.where((t) => t.done).toList();
+        if (doneFromToday.isNotEmpty) {
+          // Remove done tasks from Today and append to Done (newest first)
+          todayList.removeWhere((t) => t.done);
+          doneList.insertAll(0, doneFromToday);
+          await Future.wait([
+            _saveList(todayFile, todayList, triggerCloudSync: false),
+            _saveList(_storage('simplepresent_done.json'), doneList,
+                triggerCloudSync: false),
+          ]);
+
+          // Create any recurrence follow-ups for moved tasks but don't
+          // re-append them to Done (appendToDone=false).
+          for (final t in doneFromToday) {
+            try {
+              await _createNextRecurrenceIfNeeded(t, appendToDone: false);
+            } catch (_) {}
+          }
+
+          movedToDone.addAll(doneFromToday);
+          unawaited(_debugLog(
+              'daily migration moved ${doneFromToday.length} done tasks from Today to Done'));
+        }
+      } catch (_) {}
+
       settings['lastRunDate'] = todayKey;
       final enc = const JsonEncoder.withIndent('  ');
       try {
