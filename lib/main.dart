@@ -1042,6 +1042,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
     } catch (_) {}
 
+    // Pull latest cloud state before attempting local daily migration so we
+    // operate on the most recent authoritative data and avoid reintroducing
+    // moved tasks from remote state.
+    try {
+      await _syncPullFromCloud();
+    } catch (_) {}
+
     // Ensure daily migration runs now if needed, and schedule a timer for
     // the next midnight so it also runs when the app remains open overnight.
     var ranDailyMigration = false;
@@ -1050,7 +1057,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _scheduleDailyMigrationTimer();
     } catch (_) {}
 
-    await _syncPullFromCloud();
     // If daily migration already ran in this startup path, it already includes
     // backlog due -> today promotion. Avoid a second immediate promotion pass.
     if (!ranDailyMigration) {
