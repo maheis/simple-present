@@ -1840,7 +1840,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       final rec = task.recurrence;
       if (rec != null && rec.isNotEmpty) {
-        final base = task.scheduledAt ?? DateTime.now();
+        final now = DateTime.now();
+        final todayStart = DateTime(now.year, now.month, now.day);
+        // If the task was scheduled in the past (e.g. yesterday), compute
+        // the next recurrence relative to today so follow-ups land on
+        // sensible future dates instead of repeating past dates.
+        final DateTime base = (task.scheduledAt != null &&
+                task.scheduledAt!.isBefore(todayStart))
+            ? now
+            : (task.scheduledAt ?? now);
         final next = _computeNextRecurrence(base, rec);
         if (next != null) {
           // Only ask user if askRepeatDateOnRecreation is enabled for this task
