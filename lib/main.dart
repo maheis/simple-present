@@ -168,6 +168,19 @@ Future<void> exportTodayAndRefresh(List<TaskItem> tasks) async {
       } catch (_) {}
     }
 
+    // Also write a single aggregated JSON file for legacy widgets to read.
+    try {
+      final encoder = const JsonEncoder.withIndent('  ');
+      final widgetFile = File(
+          p.join(appFlutterDir.path, folderName, 'simplepresent_widget.json'));
+      final arr = tasks.map((t) => t.toJson()).toList();
+      final out = <String, dynamic>{
+        'fontFamily': _fontFamily,
+        'tasks': arr,
+      };
+      await widgetFile.writeAsString(encoder.convert(out));
+    } catch (_) {}
+
     // Notify native layer on Android to refresh widgets via the main window channel.
     try {
       if (Platform.isAndroid) {
