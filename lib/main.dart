@@ -2061,6 +2061,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             filename,
             source.map((e) => e.toJson()).toList(),
           );
+          try {
+            if (filename == _storage('simplepresent_today.json')) {
+              final tasks = source.where((t) => !t.done).toList();
+              unawaited(exportTodayAndRefresh(tasks));
+            }
+          } catch (_) {}
         } else if (_isListDir(filename)) {
           final dir =
               Directory('${(await _appDir).path}/${_listDirBase(filename)}');

@@ -5,12 +5,12 @@
       dopplung von aufgaben...
 - [?] sync button macht immer noch nicht 100%
 - [?] android hintergrund synchronisation (push) implementieren
-- [?] android verliert manchmal den text focus beim editieren und springt runter in "neue aufgaben"-feld
 - [?] aufgaben durcheinander
   - [ ] es kommt zu vielen dopplungen von aufgaben
   - [ ] today war auf einmal komplett leer!
   - [ ] aufgaben werden nicht automatisch aus dem backlog geholt wenn sie auf heute liegen!
   - [ ] verschieben zwischen listen (insbesondere durch status änderungen!)
+- [?] android verliert manchmal den text focus beim editieren und springt runter in "neue aufgaben"-feld
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Windows Store Veröffentlichung (.notes/WINDOWS_APP_STORE.md)
 - [ ] Worklog an Aufgaben...
@@ -37,10 +37,11 @@
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
 - [ ] refresh widget - bei aktualisierung von today in der app!
 - [x] fertige aufgaben werden nicht mehr automatisch aus dem today entfernt
-- [o] aufgaben von yesterday legen nach erledigung eine neue today aufgabe an. follow up soll auch bei vergangenen aufgaben wie today behandelt werden, also follow up vom heutigem tag aus generiert werden!
+- [x] aufgaben von yesterday legen nach erledigung eine neue today aufgabe an. follow up soll auch bei vergangenen aufgaben wie today behandelt werden, also follow up vom heutigem tag aus generiert werden!
 - [x] settings in eine eigene sembast-db
 - [x] funktionen heißen immer noch alle sqlite... 
 - [x] clean done
+- [ ] android: widget funktioniert seit umstellung auf sembast nicht mehr bzw. zeigt nichts mehr an!
 
 ## notes
 
