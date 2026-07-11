@@ -3318,9 +3318,81 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
       } catch (_) {}
 
+      // If Sembast is enabled, prefer storing settings as per-key entries
+      // inside the DB (faster than one large JSON file). If a legacy JSON
+      // settings file exists, migrate its entries into per-key DB entries.
+      try {
+        final f = await _fileFor(candidateName);
+        if (_useSqlite) {
+          if (await f.exists()) {
+            try {
+              final txt = await f.readAsString();
+              final parsed = jsonDecode(txt);
+              if (parsed is Map) {
+                for (final e in parsed.entries) {
+                  try {
+                    _sqliteStorage.writeSetting(e.key.toString(), e.value);
+                  } catch (_) {}
+                }
+              }
+            } catch (_) {}
+            try {
+              await f.delete();
+            } catch (_) {}
+          }
+          // Migrate any raw settings stored in the DB into per-key entries.
+          // If there are multiple raw entries, only convert the first one
+          // and discard (delete) the rest.
+          try {
+            final allRaw = _sqliteStorage.readAllSettings();
+            if (allRaw.isNotEmpty) {
+              final firstKey = allRaw.keys.first;
+              final firstVal = allRaw[firstKey];
+              Map<String, dynamic>? parsed;
+              try {
+                if (firstVal is String) {
+                  final maybe = jsonDecode(firstVal);
+                  if (maybe is Map) parsed = Map<String, dynamic>.from(maybe);
+                } else if (firstVal is Map) {
+                  parsed = Map<String, dynamic>.from(firstVal);
+                }
+              } catch (_) {
+                parsed = null;
+              }
+
+              if (parsed != null) {
+                for (final e in parsed.entries) {
+                  try {
+                    _sqliteStorage.writeSetting(e.key.toString(), e.value);
+                  } catch (_) {}
+                }
+              }
+
+              // Delete all raw entries (including the first) to avoid duplicate sources.
+              for (final k in allRaw.keys) {
+                try {
+                  _sqliteStorage.deleteRaw(k);
+                } catch (_) {}
+              }
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+
       final f = await _fileFor(_storage('simplepresent_settings.json'));
-      if (!await f.exists()) return;
-      data = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
+      if (_useSqlite) {
+        // Load settings from per-key Sembast store.
+        try {
+          final raw = _sqliteStorage.readAllSettings();
+          // raw keys are canonicalized; copy into `data` map with original keys
+          data = Map<String, dynamic>.from(raw);
+        } catch (_) {
+          data = {};
+        }
+      } else {
+        if (!await f.exists()) return;
+        data = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
+      }
       // Log where settings were loaded from and current storage override
       unawaited(_debugLog(
           'loaded settings from: ${f.path}; storagePathOverride=${_storagePathOverride ?? ''}'));
@@ -3624,10 +3696,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       // Preserve lastRunDate if present in existing settings so daily-reset runs only once per day
       try {
-        if (await f.exists()) {
-          final existing = jsonDecode(await f.readAsString());
-          if (existing is Map && existing.containsKey('lastRunDate')) {
-            out['lastRunDate'] = existing['lastRunDate'];
+        if (_useSqlite) {
+          try {
+            final existing = _sqliteStorage.readAllSettings();
+            if (existing is Map && existing.containsKey('lastRunDate')) {
+              out['lastRunDate'] = existing['lastRunDate'];
+            }
+          } catch (_) {}
+        } else {
+          if (await f.exists()) {
+            final existing = jsonDecode(await f.readAsString());
+            if (existing is Map && existing.containsKey('lastRunDate')) {
+              out['lastRunDate'] = existing['lastRunDate'];
+            }
           }
         }
       } catch (_) {}
@@ -3638,7 +3719,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       out['notifiedDue'] = _notifiedDue.toList();
       final encoder = const JsonEncoder.withIndent('  ');
       final encoded = encoder.convert(out);
-      await f.writeAsString(encoded);
+      if (_useSqlite) {
+        try {
+          for (final e in out.entries) {
+            try {
+              _sqliteStorage.writeSetting(e.key, e.value);
+            } catch (_) {}
+          }
+        } catch (_) {}
+      } else {
+        await f.writeAsString(encoded);
+      }
       await _refreshAndroidTodayWidget();
     } catch (_) {}
   }
@@ -4098,12 +4189,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     // Also include in-memory tasks with tracked time for today that may not
     // have been written to the DB yet (e.g. running stopwatch).
-    if (!_useSqlite) {
-      final List<TaskItem> todayList = [];
-      final List<TaskItem> backlogList = [];
-      await _loadList(_storage('simplepresent_today.json'), todayList);
-      await _loadList(_storage('simplepresent_backlog.json'), backlogList);
+    try {
       final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final todayList = <TaskItem>[];
+      final backlogList = <TaskItem>[];
+      await Future.wait([
+        _loadList(_storage('simplepresent_today.json'), todayList),
+        _loadList(_storage('simplepresent_backlog.json'), backlogList),
+      ]);
       for (final t in [...todayList, ...backlogList]) {
         final hasTime = t.stopwatchAccumulatedSeconds > 0 || t.workMinutes > 0;
         if (!hasTime) continue;
@@ -4117,7 +4210,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           workMinutes: t.workMinutes,
         ));
       }
-    }
+    } catch (_) {}
 
     if (!mounted) return;
     await Navigator.of(context).push(MaterialPageRoute(

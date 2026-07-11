@@ -13,6 +13,7 @@ class SqliteStorage {
   late final String _storageRoot;
   late final String _dbPath;
   Database? _db;
+  Database? _settingsDb;
 
   // Stores: 'lists' -> map filename -> List<dynamic>
   final _listsStore = StoreRef<String, Object?>('lists');
@@ -24,6 +25,7 @@ class SqliteStorage {
   // In-memory caches to keep APIs synchronous where the app expects it.
   final Map<String, List<Map<String, dynamic>>> _listsCache = {};
   final Map<String, String> _rawCache = {};
+  final Map<String, String> _settingsCache = {};
   final Map<String, List<Map<String, dynamic>>> _timeCache = {};
 
   String _canonicalKey(String key) {
@@ -127,6 +129,24 @@ class SqliteStorage {
     _dbPath = p.join(_storageRoot, 'simplepresent.db');
     _db = await databaseFactoryIo.openDatabase(_dbPath);
 
+    // Open a dedicated settings DB for per-key settings to improve
+    // performance when writing many small setting entries.
+    try {
+      _settingsDb = await databaseFactoryIo
+          .openDatabase(p.join(_storageRoot, 'simplepresent_settings.db'));
+      // Load settings cache
+      try {
+        final recs = await _rawStore.find(_settingsDb!);
+        for (final r in recs) {
+          final key = r.key;
+          final val = r.value;
+          if (val is String) _settingsCache[key] = val;
+        }
+      } catch (_) {}
+    } catch (_) {
+      _settingsDb = null;
+    }
+
     // Load lists
     try {
       final recs = await _listsStore.find(_db!);
@@ -217,10 +237,84 @@ class SqliteStorage {
     return _keyFallbacks(name).any(_rawCache.containsKey);
   }
 
+  /// Delete a raw value from the storage (both cache and persistent store).
+  void deleteRaw(String name) {
+    for (final key in _keyFallbacks(name)) {
+      _rawCache.remove(key);
+      _settingsCache.remove(key);
+      unawaited(() async {
+        try {
+          await _rawStore.record(key).delete(_db!);
+        } catch (_) {}
+      }());
+      if (_settingsDb != null) {
+        unawaited(() async {
+          try {
+            await _rawStore.record(key).delete(_settingsDb!);
+          } catch (_) {}
+        }());
+      }
+    }
+  }
+
+  /// Read a single setting (JSON-decoded if possible) stored under [key].
+  dynamic readSetting(String key) {
+    final k = _canonicalKey(key);
+    final val =
+        _settingsCache.containsKey(k) ? _settingsCache[k] : _rawCache[k];
+    if (val == null) return null;
+    try {
+      return jsonDecode(val);
+    } catch (_) {
+      return val;
+    }
+  }
+
+  /// Write a setting value under [key]. The value is JSON-encoded.
+  void writeSetting(String key, dynamic value) {
+    final k = _canonicalKey(key);
+    final encoded = jsonEncode(value);
+    _settingsCache[k] = encoded;
+    unawaited(() async {
+      try {
+        if (_settingsDb != null) {
+          await _rawStore.record(k).put(_settingsDb!, encoded);
+        } else {
+          await _rawStore.record(k).put(_db!, encoded);
+        }
+      } catch (_) {}
+    }());
+  }
+
+  /// Read all settings available in the raw cache and return a decoded map.
+  Map<String, dynamic> readAllSettings() {
+    final out = <String, dynamic>{};
+    // Prefer settings cache (dedicated DB). Fall back to raw cache entries.
+    for (final entry in _settingsCache.entries) {
+      try {
+        out[entry.key] = jsonDecode(entry.value);
+      } catch (_) {
+        out[entry.key] = entry.value;
+      }
+    }
+    for (final entry in _rawCache.entries) {
+      if (out.containsKey(entry.key)) continue;
+      try {
+        out[entry.key] = jsonDecode(entry.value);
+      } catch (_) {
+        out[entry.key] = entry.value;
+      }
+    }
+    return out;
+  }
+
   void dispose() {
     unawaited(() async {
       try {
         await _db?.close();
+        try {
+          await _settingsDb?.close();
+        } catch (_) {}
       } catch (_) {}
     }());
   }
