@@ -1269,6 +1269,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       if (_useSqlite) {
         final rows = _sembastStorage.readTaskList(filename);
+        // If Sembast returned no rows, fall back to legacy file JSON if present.
+        if (rows.isEmpty) {
+          try {
+            final f = await _fileFor(filename);
+            if (await f.exists()) {
+              final text = await f.readAsString();
+              final data = jsonDecode(text) as List<dynamic>;
+              for (var i = 0; i < data.length; i++) {
+                try {
+                  target.add(TaskItem.fromJson(data[i]));
+                } catch (e) {
+                  unawaited(_debugLog(
+                      'loadList fallback parse error (file): file=$filename index=$i error=$e'));
+                }
+              }
+              _dedupeTaskIdsInPlace(target, filename);
+              return;
+            }
+          } catch (_) {}
+        }
         for (var i = 0; i < rows.length; i++) {
           try {
             target.add(TaskItem.fromJson(rows[i]));
@@ -1468,15 +1488,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final enc = const JsonEncoder.withIndent('  ');
       try {
         await _loadToday();
-        final encoded = enc.convert(settings);
-        if (_useSqlite) {
-          _sembastStorage.write(
-              _storage('simplepresent_settings.json'), encoded);
-        } else {
-          final settingsFile =
-              await _fileFor(_storage('simplepresent_settings.json'));
-          await settingsFile.writeAsString(encoded);
-        }
+        // Persist lastRunDate into the dedicated settings DB when using Sembast.
+        try {
+          if (_useSqlite) {
+            try {
+              _sembastStorage.writeSetting(
+                  'lastRunDate', settings['lastRunDate']);
+            } catch (_) {}
+          } else {
+            final settingsFile =
+                await _fileFor(_storage('simplepresent_settings.json'));
+            final encoded = enc.convert(settings);
+            await settingsFile.writeAsString(encoded);
+          }
+        } catch (_) {}
       } catch (_) {}
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
