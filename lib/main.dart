@@ -1391,16 +1391,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       unawaited(_debugLog('daily migration started: $todayKey'));
       Map<String, dynamic> settings = {};
       try {
-        // Always load settings from the dedicated JSON file to keep settings
-        // centralized and portable across storage backends.
-        final settingsFile =
-            await _fileFor(_storage('simplepresent_settings.json'));
-        if (await settingsFile.exists()) {
+        if (_useSqlite) {
           try {
-            settings = jsonDecode(await settingsFile.readAsString())
-                as Map<String, dynamic>;
+            settings = _sembastStorage.readAllSettings();
           } catch (_) {
             settings = {};
+          }
+        } else {
+          // File-based: read legacy JSON if present
+          final settingsFile =
+              await _fileFor(_storage('simplepresent_settings.json'));
+          if (await settingsFile.exists()) {
+            try {
+              settings = jsonDecode(await settingsFile.readAsString())
+                  as Map<String, dynamic>;
+            } catch (_) {
+              settings = {};
+            }
           }
         }
       } catch (_) {
@@ -3647,7 +3654,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (_useSqlite) {
           try {
             final existing = _sembastStorage.readAllSettings();
-            if (existing is Map && existing.containsKey('lastRunDate')) {
+            if (existing.containsKey('lastRunDate')) {
               out['lastRunDate'] = existing['lastRunDate'];
             }
           } catch (_) {}

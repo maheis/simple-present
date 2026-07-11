@@ -22,7 +22,7 @@
   - [ ] mehr?
   - [ ] Aufräumen (ois)
 - [ ] sync: erster sync muss schneller, es muss beim öffnen geprüft werden bevor der client selbst aktionen ausführt. sonst kann es zu chaos kommen! (aufgaben die anm handy in heute lagen nd schon erledigt waren, wurden beim anderen in backlog verschoben und da liegengelassen...) 
-- [ ] sync: self signed certs prüfen (ca-chain)
+- [ ] sync: self signed certs prüfen (ca-chain) 
 - [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben! (primärgerät-definieren?)
 - [ ] papierkorb:
         schiebt sync in den papierkorb?

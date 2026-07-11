@@ -277,9 +277,24 @@ class SembastStorage {
     _settingsCache[k] = encoded;
     unawaited(() async {
       try {
+        // Try to open/create the dedicated settings DB lazily.
+        if (_settingsDb == null) {
+          try {
+            _settingsDb = await databaseFactoryIo.openDatabase(
+                p.join(_storageRoot, 'simplepresent_settings.db'));
+          } catch (_) {
+            _settingsDb = null;
+          }
+        }
         if (_settingsDb != null) {
+          // Persist into dedicated settings DB.
           await _rawStore.record(k).put(_settingsDb!, encoded);
+          // Remove any stale copy from the main DB to avoid duplicates.
+          try {
+            await _rawStore.record(k).delete(_db!);
+          } catch (_) {}
         } else {
+          // Fallback: persist into main DB when settings DB couldn't be opened.
           await _rawStore.record(k).put(_db!, encoded);
         }
       } catch (_) {}
