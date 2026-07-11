@@ -90,6 +90,7 @@ List<int>? _parseVersionParts(String raw) {
   final core = normalized.split('-').first;
   final parts = core.split('.');
   if (parts.isEmpty) return null;
+
   final out = <int>[];
   for (final p in parts) {
     final v = int.tryParse(p);
@@ -264,29 +265,7 @@ class TaskStep {
 }
 
 class TaskItem {
-  TaskItem({
-    required this.id,
-    required this.text,
-    this.done = false,
-    this.important = false,
-    this.inProgress = false,
-    this.recurrence,
-    this.askRepeatDateOnRecreation = false,
-    this.completedAt,
-    this.inProgressAt,
-    this.importantAt,
-    this.createdAt,
-    this.scheduledAt,
-    this.notes,
-    this.subtasks = const [],
-    this.stopwatchAccumulatedSeconds = 0,
-    this.stopwatchRunning = false,
-    this.stopwatchStartedAt,
-    this.workMinutes = 0,
-  });
-
   final String id;
-
   final String text;
   final bool done;
   final bool important;
@@ -309,6 +288,27 @@ class TaskItem {
   final DateTime? stopwatchStartedAt;
   // manually recorded minutes (rounded suggestions accumulate here)
   final int workMinutes;
+
+  TaskItem({
+    required this.id,
+    required this.text,
+    this.done = false,
+    this.important = false,
+    this.inProgress = false,
+    this.recurrence,
+    this.askRepeatDateOnRecreation = false,
+    this.completedAt,
+    this.inProgressAt,
+    this.importantAt,
+    this.createdAt,
+    this.scheduledAt,
+    this.notes,
+    this.subtasks = const [],
+    this.stopwatchAccumulatedSeconds = 0,
+    this.stopwatchRunning = false,
+    this.stopwatchStartedAt,
+    this.workMinutes = 0,
+  });
 
   TaskItem copyWith({
     String? id,
@@ -1692,6 +1692,65 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+  /// Clean duplicate entries in the Done list.
+  ///
+  /// Keeps the most recently completed entry for tasks that share the same
+  /// normalized text + scheduledAt + recurrence signature and removes others.
+  Future<void> _cleanDoneList() async {
+    try {
+      final List<TaskItem> doneList = [];
+      await _loadList(_storage('simplepresent_done.json'), doneList);
+      if (doneList.length < 2) return;
+
+      final Map<String, TaskItem> keep = {};
+      for (final t in doneList) {
+        final textKey = t.text.trim().toLowerCase();
+        final sched = t.scheduledAt?.toIso8601String() ?? '';
+        final rec = t.recurrence ?? '';
+        final key = '$textKey|$sched|$rec';
+        final existing = keep[key];
+        if (existing == null) {
+          keep[key] = t;
+        } else {
+          final existingTime = existing.completedAt ??
+              existing.createdAt ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          final thisTime = t.completedAt ??
+              t.createdAt ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          if (thisTime.isAfter(existingTime)) {
+            keep[key] = t;
+          }
+        }
+      }
+
+      final keepIds = keep.values.map((e) => e.id).toSet();
+      final toRemove = doneList.where((t) => !keepIds.contains(t.id)).toList();
+      if (toRemove.isEmpty) return;
+      for (final r in toRemove) {
+        await _queueRemoveFromList('simplepresent_done.json', r.id);
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showTopToast('cleaned ${toRemove.length} duplicate done task(s)');
+      });
+    } catch (_) {}
+  }
+
+  /// Delete all tasks in the Done list (destructive).
+  Future<void> _deleteAllDone() async {
+    try {
+      final filename = _storage('simplepresent_done.json');
+      await _saveList(filename, <TaskItem>[], triggerCloudSync: true);
+      if (_currentFile == filename) {
+        _today.clear();
+        if (mounted) setState(() {});
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showTopToast('deleted all archived tasks');
+      });
+    } catch (_) {}
+  }
+
   bool _isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
@@ -1845,10 +1904,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         // If the task was scheduled in the past (e.g. yesterday), compute
         // the next recurrence relative to today so follow-ups land on
         // sensible future dates instead of repeating past dates.
-        final DateTime base = (task.scheduledAt != null &&
-                task.scheduledAt!.isBefore(todayStart))
-            ? now
-            : (task.scheduledAt ?? now);
+        final DateTime base =
+            (task.scheduledAt != null && task.scheduledAt!.isBefore(todayStart))
+                ? now
+                : (task.scheduledAt ?? now);
         final next = _computeNextRecurrence(base, rec);
         if (next != null) {
           // Only ask user if askRepeatDateOnRecreation is enabled for this task
@@ -7250,6 +7309,44 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                         Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
+                                            _showingDone
+                                                ? IconButton(
+                                                    icon: Icon(
+                                                        Icons.delete_sweep,
+                                                        color: Theme.of(context)
+                                                            .iconTheme
+                                                            .color),
+                                                    tooltip: 'clean done',
+                                                    onPressed: () async {
+                                                      final confirm =
+                                                          await showDialog<
+                                                                  bool>(
+                                                              context: context,
+                                                              builder: (ctx) =>
+                                                                  AlertDialog(
+                                                                    title: const Text(
+                                                                        'Delete all archived tasks?'),
+                                                                    content:
+                                                                        const Text(
+                                                                            'This will permanently remove all tasks from the Done list.'),
+                                                                    actions: [
+                                                                      TextButton(
+                                                                          onPressed: () => Navigator.of(ctx).pop(
+                                                                              false),
+                                                                          child:
+                                                                              const Text('Cancel')),
+                                                                      TextButton(
+                                                                          onPressed: () => Navigator.of(ctx).pop(
+                                                                              true),
+                                                                          child: const Text(
+                                                                              'Delete',
+                                                                              style: TextStyle(color: Colors.red))),
+                                                                    ],
+                                                                  ));
+                                                      if (confirm == true)
+                                                        await _deleteAllDone();
+                                                    })
+                                                : const SizedBox.shrink(),
                                             PopupMenuButton<String>(
                                               icon: Icon(Icons.more_vert,
                                                   color: Theme.of(context)
@@ -7368,6 +7465,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                       const SizedBox(width: 8),
                                                       const Text('done')
                                                     ])));
+                                                // clean done moved to a visible button in Done view
                                                 // 'Next' removed by request
                                                 return items;
                                               },

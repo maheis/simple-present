@@ -37,9 +37,10 @@
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
 - [ ] refresh widget - bei aktualisierung von today in der app!
 - [x] fertige aufgaben werden nicht mehr automatisch aus dem today entfernt
-- [ ] aufgaben von yesterday legen nach erledigung eine neue today aufgabe an. follow up soll auch bei vergangenen aufgaben wie today behandelt werden, also follow up vom heutigem tag aus generiert werden!
+- [o] aufgaben von yesterday legen nach erledigung eine neue today aufgabe an. follow up soll auch bei vergangenen aufgaben wie today behandelt werden, also follow up vom heutigem tag aus generiert werden!
 - [x] settings in eine eigene sembast-db
 - [x] funktionen heißen immer noch alle sqlite... 
+- [x] clean done
 
 ## notes
 
