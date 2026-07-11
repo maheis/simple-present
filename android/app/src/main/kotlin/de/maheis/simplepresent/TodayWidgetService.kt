@@ -99,88 +99,53 @@ private class TodayWidgetFactory(
         } else {
             "simplepresent"
         }
-        // Prefer aggregated widget file if present.
+        // Only use aggregated widget file for data (legacy per-task folder removed).
         val widgetFile = File(File(appFlutter, folderName), "simplepresent_widget.json")
-        if (widgetFile.exists() && widgetFile.isFile) {
-            try {
-                val root = JSONObject(widgetFile.readText())
-                val font = root.optString("fontFamily", "").trim()
-                if (font.isNotEmpty()) fontFamily = font
-                val arr = root.optJSONArray("tasks")
-                if (arr != null) {
-                    var idx = 0
-                    for (i in 0 until arr.length()) {
-                        try {
-                            val obj = arr.optJSONObject(i) ?: continue
-                            val id = obj.optString("id", "").trim()
-                            val text = obj.optString("text", "").trim()
-                            if (id.isEmpty() || text.isEmpty()) continue
-                            val done = obj.optBoolean("done", false)
-                            if (done) continue
-                            val inProgress = obj.optBoolean("inProgress", false)
-                            val important = obj.optBoolean("important", false)
-                            val scheduledRaw = obj.optString("scheduled_at", obj.optString("scheduledAt", ""))
-                            val inProgressAtRaw = obj.optString("in_progress_at", obj.optString("inProgressAt", ""))
-                            val scheduledAtMs = parseIsoMillis(scheduledRaw)
-                            val inProgressAtMs = parseIsoMillis(inProgressAtRaw)
-                            items.add(
-                                WidgetTask(
-                                    id = id,
-                                    text = text,
-                                    done = done,
-                                    inProgress = inProgress,
-                                    important = important,
-                                    scheduledAtMs = scheduledAtMs,
-                                    inProgressAtMs = inProgressAtMs,
-                                    loadIndex = idx,
-                                )
+        if (!widgetFile.exists() || !widgetFile.isFile) {
+            // No data available for widget
+            return
+        }
+        try {
+            val root = JSONObject(widgetFile.readText())
+            val font = root.optString("fontFamily", "").trim()
+            if (font.isNotEmpty()) fontFamily = font
+            val arr = root.optJSONArray("tasks")
+            if (arr != null) {
+                var idx = 0
+                for (i in 0 until arr.length()) {
+                    try {
+                        val obj = arr.optJSONObject(i) ?: continue
+                        val id = obj.optString("id", "").trim()
+                        val text = obj.optString("text", "").trim()
+                        if (id.isEmpty() || text.isEmpty()) continue
+                        val done = obj.optBoolean("done", false)
+                        if (done) continue
+                        val inProgress = obj.optBoolean("inProgress", false)
+                        val important = obj.optBoolean("important", false)
+                        val scheduledRaw = obj.optString("scheduled_at", obj.optString("scheduledAt", ""))
+                        val inProgressAtRaw = obj.optString("in_progress_at", obj.optString("inProgressAt", ""))
+                        val scheduledAtMs = parseIsoMillis(scheduledRaw)
+                        val inProgressAtMs = parseIsoMillis(inProgressAtRaw)
+                        items.add(
+                            WidgetTask(
+                                id = id,
+                                text = text,
+                                done = done,
+                                inProgress = inProgress,
+                                important = important,
+                                scheduledAtMs = scheduledAtMs,
+                                inProgressAtMs = inProgressAtMs,
+                                loadIndex = idx,
                             )
-                            idx++
-                        } catch (_: Exception) {
-                        }
+                        )
+                        idx++
+                    } catch (_: Exception) {
                     }
                 }
-            } catch (_: Exception) {
             }
-            // proceed to sort later
-        } else {
-            val todayDir = File(File(appFlutter, folderName), "today")
-            if (!todayDir.exists() || !todayDir.isDirectory) return
-
-            val files = todayDir.listFiles()?.sortedBy { it.name } ?: return
-            var index = 0
-            for (file in files) {
-                if (!file.isFile || !file.name.endsWith(".json")) continue
-                try {
-                    val obj = JSONObject(file.readText())
-                    val id = obj.optString("id", "").trim()
-                    val text = obj.optString("text", "").trim()
-                    if (id.isEmpty() || text.isEmpty()) continue
-                    val done = obj.optBoolean("done", false)
-                    if (done) continue
-                    val inProgress = obj.optBoolean("inProgress", false)
-                    val important = obj.optBoolean("important", false)
-                    val scheduledRaw = obj.optString("scheduled_at", obj.optString("scheduledAt", ""))
-                    val inProgressAtRaw = obj.optString("in_progress_at", obj.optString("inProgressAt", ""))
-                    val scheduledAtMs = parseIsoMillis(scheduledRaw)
-                    val inProgressAtMs = parseIsoMillis(inProgressAtRaw)
-                    items.add(
-                        WidgetTask(
-                            id = id,
-                            text = text,
-                            done = done,
-                            inProgress = inProgress,
-                            important = important,
-                            scheduledAtMs = scheduledAtMs,
-                            inProgressAtMs = inProgressAtMs,
-                            loadIndex = index,
-                        )
-                    )
-                    index++
-                } catch (_: Exception) {
-                }
-            }
+        } catch (_: Exception) {
         }
+        // proceed to sort later
 
         sortLikeApp(items)
         if (items.size > 25) {

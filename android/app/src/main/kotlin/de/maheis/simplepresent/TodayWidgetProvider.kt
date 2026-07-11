@@ -134,24 +134,12 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 val debugMode = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
                 val folderName = if (debugMode) "simplepresent-debug" else "simplepresent"
                 val prefix = if (debugMode) "debug_" else ""
-                // Prefer aggregated widget JSON if present (contains font and tasks)
+                // Only use aggregated widget JSON for font configuration.
                 val widgetFile = java.io.File(java.io.File(appFlutter, folderName), "simplepresent_widget.json")
-                if (widgetFile.exists()) {
-                    val wtext = widgetFile.readText()
-                    val wobj = org.json.JSONObject(wtext)
-                    val font = wobj.optString("fontFamily", "").trim()
-                    if (font.isNotEmpty()) return font
-                }
-
-                // Fallback to legacy settings file
-                val settingsFile = java.io.File(
-                    java.io.File(appFlutter, folderName),
-                    "${prefix}simplepresent_settings.json"
-                )
-                if (!settingsFile.exists()) return "OpenDyslexic"
-                val text = settingsFile.readText()
-                val obj = org.json.JSONObject(text)
-                obj.optString("fontFamily", "OpenDyslexic")
+                if (!widgetFile.exists()) return "OpenDyslexic"
+                val wtext = widgetFile.readText()
+                val wobj = org.json.JSONObject(wtext)
+                return wobj.optString("fontFamily", "OpenDyslexic")
             } catch (_: Exception) {
                 "OpenDyslexic"
             }
