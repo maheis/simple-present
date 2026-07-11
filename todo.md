@@ -40,6 +40,7 @@
 - [ ] aufgaben von yesterday legen nach erledigung eine neue today aufgabe an. entweder soll yesterday automatisch auf heute gelegt werden, oder aber wie eine today behandelt werden!
 - [ ] settings zurück ins json?
 - [ ] settings eintrag gibt es mehrfach!
+- [ ] funktionen heißen immer noch alle sqlite... 
 
 ## notes
 

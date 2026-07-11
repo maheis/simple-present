@@ -1368,20 +1368,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       unawaited(_debugLog('daily migration started: $todayKey'));
       Map<String, dynamic> settings = {};
       try {
-        if (_useSqlite) {
-          final txt =
-              _sqliteStorage.read(_storage('simplepresent_settings.json'));
-          if (txt != null) settings = jsonDecode(txt) as Map<String, dynamic>;
-        } else {
-          final settingsFile =
-              await _fileFor(_storage('simplepresent_settings.json'));
-          if (await settingsFile.exists()) {
-            try {
-              settings = jsonDecode(await settingsFile.readAsString())
-                  as Map<String, dynamic>;
-            } catch (_) {
-              settings = {};
-            }
+        // Always load settings from the dedicated JSON file to keep settings
+        // centralized and portable across storage backends.
+        final settingsFile =
+            await _fileFor(_storage('simplepresent_settings.json'));
+        if (await settingsFile.exists()) {
+          try {
+            settings = jsonDecode(await settingsFile.readAsString())
+                as Map<String, dynamic>;
+          } catch (_) {
+            settings = {};
           }
         }
       } catch (_) {
@@ -3300,60 +3296,44 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _loadSettings() async {
     try {
       Map<String, dynamic> data = {};
-      if (_useSqlite) {
-        final txt =
-            _sqliteStorage.read(_storage('simplepresent_settings.json'));
-        if (txt == null) return;
-        data = jsonDecode(txt) as Map<String, dynamic>;
-        // Clean up legacy keys that should no longer be persisted
-        var cleaned = false;
-        if (data.containsKey('window')) {
-          data.remove('window');
-          cleaned = true;
-        }
-        if (cleaned) {
+      // Always read settings from the JSON file. If a legacy settings file
+      // exists in the parent documents directory, migrate it into the app
+      // storage location.
+      // Ensure legacy file in parent documents directory is migrated here
+      final parent = await getApplicationDocumentsDirectory();
+      final candidateName = _storage('simplepresent_settings.json');
+      try {
+        final legacy = File('${parent.path}/$candidateName');
+        if (await legacy.exists()) {
+          final dest = await _fileFor(candidateName);
           try {
-            _sqliteStorage.write(
-                _storage('simplepresent_settings.json'), jsonEncode(data));
-          } catch (_) {}
-        }
-      } else {
-        // Ensure legacy file in parent documents directory is migrated here
-        final parent = await getApplicationDocumentsDirectory();
-        final candidateName = _storage('simplepresent_settings.json');
-        try {
-          final legacy = File('${parent.path}/$candidateName');
-          if (await legacy.exists()) {
-            final dest = await _fileFor(candidateName);
+            // prefer rename to preserve permissions; fallback to copy
+            await legacy.rename(dest.path);
+          } catch (_) {
             try {
-              // prefer rename to preserve permissions; fallback to copy
-              await legacy.rename(dest.path);
-            } catch (_) {
-              try {
-                await legacy.copy(dest.path);
-                await legacy.delete();
-              } catch (_) {}
-            }
+              await legacy.copy(dest.path);
+              await legacy.delete();
+            } catch (_) {}
           }
-        } catch (_) {}
+        }
+      } catch (_) {}
 
-        final f = await _fileFor(_storage('simplepresent_settings.json'));
-        if (!await f.exists()) return;
-        data = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
-        // Log where settings were loaded from and current storage override
-        unawaited(_debugLog(
-            'loaded settings from: ${f.path}; storagePathOverride=${_storagePathOverride ?? ''}'));
-        // Clean up legacy keys that should no longer be persisted
-        var cleaned = false;
-        if (data.containsKey('window')) {
-          data.remove('window');
-          cleaned = true;
-        }
-        if (cleaned) {
-          try {
-            await f.writeAsString(jsonEncode(data));
-          } catch (_) {}
-        }
+      final f = await _fileFor(_storage('simplepresent_settings.json'));
+      if (!await f.exists()) return;
+      data = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
+      // Log where settings were loaded from and current storage override
+      unawaited(_debugLog(
+          'loaded settings from: ${f.path}; storagePathOverride=${_storagePathOverride ?? ''}'));
+      // Clean up legacy keys that should no longer be persisted
+      var cleaned = false;
+      if (data.containsKey('window')) {
+        data.remove('window');
+        cleaned = true;
+      }
+      if (cleaned) {
+        try {
+          await f.writeAsString(jsonEncode(data));
+        } catch (_) {}
       }
       int readInt(String key, int fallback) {
         final v = data[key];
@@ -3644,21 +3624,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       // Preserve lastRunDate if present in existing settings so daily-reset runs only once per day
       try {
-        if (_useSqlite) {
-          final existingText =
-              _sqliteStorage.read(_storage('simplepresent_settings.json'));
-          if (existingText != null) {
-            final existing = jsonDecode(existingText);
-            if (existing is Map && existing.containsKey('lastRunDate')) {
-              out['lastRunDate'] = existing['lastRunDate'];
-            }
-          }
-        } else {
-          if (await f.exists()) {
-            final existing = jsonDecode(await f.readAsString());
-            if (existing is Map && existing.containsKey('lastRunDate')) {
-              out['lastRunDate'] = existing['lastRunDate'];
-            }
+        if (await f.exists()) {
+          final existing = jsonDecode(await f.readAsString());
+          if (existing is Map && existing.containsKey('lastRunDate')) {
+            out['lastRunDate'] = existing['lastRunDate'];
           }
         }
       } catch (_) {}
@@ -3669,11 +3638,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       out['notifiedDue'] = _notifiedDue.toList();
       final encoder = const JsonEncoder.withIndent('  ');
       final encoded = encoder.convert(out);
-      if (_useSqlite) {
-        _sqliteStorage.write(_storage('simplepresent_settings.json'), encoded);
-      } else {
-        await f.writeAsString(encoded);
-      }
+      await f.writeAsString(encoded);
       await _refreshAndroidTodayWidget();
     } catch (_) {}
   }
