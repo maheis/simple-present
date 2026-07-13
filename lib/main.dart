@@ -9869,7 +9869,8 @@ class _SettingsPageState extends State<SettingsPage> {
           return;
         }
       }
-      final uri = Uri.parse(raw);
+      final sanitized = raw.trim();
+      final uri = Uri.parse(sanitized);
       if (uri.scheme != 'simplepresent' || uri.host != 'pair') {
         setState(() => _cloudStatus = 'invalid pairing link ($sourceLabel).');
         return;
@@ -12179,7 +12180,7 @@ class _QrScannerPageState extends State<_QrScannerPage> {
           if (_handled) return;
           final barcodes = capture.barcodes;
           for (final barcode in barcodes) {
-            final value = barcode.rawValue;
+            final value = barcode.rawValue?.trim();
             if (value != null && value.isNotEmpty) {
               _handled = true;
               Navigator.of(context).pop(value);
