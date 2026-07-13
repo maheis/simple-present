@@ -2,7 +2,7 @@
 
 A **simple** task management system focused on **present** tasks.
 
-![Vorstellungsgrafik](.notes/google-store-vorstellungsgrafik.png)
+![Vorstellungsgrafik](.notes/vorstellungsgrafik.png)
 
 ## What it does
 
