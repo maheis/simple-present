@@ -997,6 +997,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       await _sqliteStorage.init(debugMode: kDebugMode);
     } catch (_) {}
+    // Notify user if a one-time settings cleanup just ran in storage.
+    try {
+      final cleaned = _sqliteStorage.readSetting('settings_cleanup_done');
+      final shown = _sqliteStorage.readSetting('settings_cleanup_toast_shown');
+      if (cleaned == true && shown != true) {
+        _showTopToast('Settings deduplicated and cleaned up');
+        try {
+          _sqliteStorage.writeSetting('settings_cleanup_toast_shown', true);
+        } catch (_) {}
+      }
+    } catch (_) {}
     // Legacy migration removed: files are expected to live under
     // the app-specific `simplepresent/` subfolder. No automatic
     // migration is performed.

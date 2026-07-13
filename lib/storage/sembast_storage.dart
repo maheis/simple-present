@@ -172,6 +172,48 @@ class SembastStorage {
       }
     } catch (_) {}
 
+    // Normalize and deduplicate setting keys across caches.
+    try {
+      // Build canonicalized maps preferring the dedicated settings DB values.
+      final Map<String, String> canonicalSettings = {};
+      for (final e in _settingsCache.entries) {
+        final k = _canonicalKey(e.key);
+        canonicalSettings[k] = e.value;
+      }
+      final Map<String, String> canonicalRaw = {};
+      for (final e in _rawCache.entries) {
+        final k = _canonicalKey(e.key);
+        // Only add raw entry if not already present in settings DB cache
+        if (!canonicalSettings.containsKey(k)) {
+          // prefer existing canonicalRaw value if duplicate variants exist
+          canonicalRaw.putIfAbsent(k, () => e.value);
+        }
+      }
+
+      // Replace caches with canonicalized keys
+      _settingsCache.clear();
+      _settingsCache.addAll(canonicalSettings);
+      _rawCache.clear();
+      _rawCache.addAll(canonicalRaw);
+
+      // If we have a dedicated settings DB, remove any stale copies from
+      // the main DB to avoid duplicate entries across DB files.
+      if (_settingsDb != null && _db != null) {
+        for (final key in canonicalSettings.keys) {
+          try {
+            await _rawStore.record(key).delete(_db!);
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+
+    // Run a one-time cleanup that consolidates settings into the dedicated
+    // settings DB and removes duplicates from the main DB. This makes the
+    // normalization persistent across restarts. We guard with a flag so it
+    // only runs once.
+    try {
+      await _cleanupDuplicateSettingsIfNeeded();
+    } catch (_) {}
     // Load time entries
     try {
       final recs = await _timeStore.find(_db!);
@@ -379,5 +421,76 @@ class SembastStorage {
     } catch (_) {
       return const [];
     }
+  }
+
+  Future<void> _cleanupDuplicateSettingsIfNeeded() async {
+    try {
+      const flagKey = 'settings_cleanup_done';
+      // If already marked done in either cache, skip
+      if (_settingsCache.containsKey(flagKey) ||
+          _rawCache.containsKey(flagKey)) {
+        try {
+          final v = readSetting(flagKey);
+          if (v == true) return;
+        } catch (_) {}
+      }
+
+      // Create file backups for safety
+      try {
+        final dbFile = File(_dbPath);
+        if (await dbFile.exists()) {
+          final copyPath =
+              '$_dbPath.bak.${DateTime.now().millisecondsSinceEpoch}';
+          await dbFile.copy(copyPath);
+        }
+        final settingsPath = p.join(_storageRoot, 'simplepresent_settings.db');
+        final settingsFile = File(settingsPath);
+        if (await settingsFile.exists()) {
+          final copyPath =
+              '$settingsPath.bak.${DateTime.now().millisecondsSinceEpoch}';
+          await settingsFile.copy(copyPath);
+        }
+      } catch (_) {}
+
+      // Ensure settings DB is open
+      if (_settingsDb == null) {
+        try {
+          _settingsDb = await databaseFactoryIo
+              .openDatabase(p.join(_storageRoot, 'simplepresent_settings.db'));
+        } catch (_) {
+          _settingsDb = null;
+        }
+      }
+
+      // Consolidate canonical keys from caches
+      final Map<String, String> canonical = {};
+      for (final e in _settingsCache.entries) canonical[e.key] = e.value;
+      for (final e in _rawCache.entries) {
+        canonical.putIfAbsent(e.key, () => e.value);
+      }
+
+      if (_settingsDb != null) {
+        for (final entry in canonical.entries) {
+          try {
+            await _rawStore.record(entry.key).put(_settingsDb!, entry.value);
+          } catch (_) {}
+          try {
+            await _rawStore.record(entry.key).delete(_db!);
+          } catch (_) {}
+        }
+      } else {
+        // Fallback: persist canonical keys into main DB
+        for (final entry in canonical.entries) {
+          try {
+            await _rawStore.record(entry.key).put(_db!, entry.value);
+          } catch (_) {}
+        }
+      }
+
+      // Mark cleanup as done
+      try {
+        writeSetting(flagKey, true);
+      } catch (_) {}
+    } catch (_) {}
   }
 }
