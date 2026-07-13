@@ -17,6 +17,8 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:simple_present/storage/json_storage.dart';
 import 'package:simple_present/storage/sembast_storage.dart';
 import 'package:file_selector/file_selector.dart' as fs;
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 // sentinel to indicate "no change" in copyWith optional parameters
 const _noChange = Object();
@@ -90,7 +92,6 @@ List<int>? _parseVersionParts(String raw) {
   final core = normalized.split('-').first;
   final parts = core.split('.');
   if (parts.isEmpty) return null;
-
   final out = <int>[];
   for (final p in parts) {
     final v = int.tryParse(p);
@@ -121,14 +122,37 @@ bool _isClientOlderThanServer(String clientVersion, String serverVersion) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Firebase removed: push messaging handled via local mechanisms or omitted.
+  // Initialize Firebase for push messaging. Native Android setup is required
+  // (google-services.json, gradle plugins, and manifest entries). See
+  // README or Firebase docs. We initialize here to ensure token acquisition
+  // and background message handler registration work.
+  try {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  } catch (_) {
+    // ignore: avoid_print
+    print('Firebase init failed or not configured');
+  }
   await initializeDateFormatting('de_DE');
   runApp(const SimplePresentApp());
 }
 
 // Background message handler runs in its own isolate. Keep it top-level and
 // annotate as an entry point so it isn't tree-shaken.
-// Firebase background handler removed.
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {}
+  // Lightweight handling: log request and optionally trigger a short sync.
+  try {
+    await _debugLog('firebase BG msg: ${message.data}');
+    // Example: if server sends {action: 'sync'} we can trigger a background
+    // sync implementation here. For safety this implementation only logs.
+    // TODO: implement safe background sync using a headless API or schedule
+    // a WorkManager job that the Android native layer can run.
+  } catch (_) {}
+}
 
 // Top-level debug logger used by multiple widgets. It writes to
 // `<Documents>/simplepresent/simplepresent_debug.log` (or the
@@ -152,41 +176,24 @@ Future<void> _debugLog(String msg) async {
 /// storage is Sembast-based. It writes one JSON file per task into the
 /// application documents directory under `simplepresent_widget/` and
 /// invokes an Android platform method `refresh` if available.
-Future<void> exportTodayAndRefresh(List<TaskItem> tasks,
-    {String? fontFamily}) async {
+Future<void> exportTodayAndRefresh(List<TaskItem> tasks) async {
   try {
     final dir = await getApplicationDocumentsDirectory();
-    // Android widget reads files from <app_data_parent>/app_flutter/<folder>/today
-    final appFlutterDir = Directory(p.join(dir.parent.path, 'app_flutter'));
-    final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
-    final todayDir = Directory(p.join(appFlutterDir.path, folderName, 'today'));
-    if (!await todayDir.exists()) await todayDir.create(recursive: true);
+    final folder = Directory('${dir.path}/simplepresent_widget');
+    if (!await folder.exists()) await folder.create(recursive: true);
 
     for (final t in tasks) {
       try {
-        final f = File(p.join(todayDir.path, '${t.id}.json'));
+        final f = File('${folder.path}/${t.id}.json');
         await f.writeAsString(jsonEncode(t.toJson()));
       } catch (_) {}
     }
 
-    // Also write a single aggregated JSON file for legacy widgets to read.
-    try {
-      final encoder = const JsonEncoder.withIndent('  ');
-      final widgetFile = File(
-          p.join(appFlutterDir.path, folderName, 'simplepresent_widget.json'));
-      final arr = tasks.map((t) => t.toJson()).toList();
-      final out = <String, dynamic>{
-        'fontFamily': fontFamily ?? 'OpenDyslexic',
-        'tasks': arr,
-      };
-      await widgetFile.writeAsString(encoder.convert(out));
-    } catch (_) {}
-
-    // Notify native layer on Android to refresh widgets via the main window channel.
+    // Try to notify native layer on Android to refresh widgets.
     try {
       if (Platform.isAndroid) {
-        const MethodChannel('simple_present/window')
-            .invokeMethod<void>('refreshTodayWidget');
+        const MethodChannel('simple_present/widget')
+            .invokeMethod<void>('refresh');
       }
     } catch (_) {}
   } catch (_) {}
@@ -279,7 +286,29 @@ class TaskStep {
 }
 
 class TaskItem {
+  TaskItem({
+    required this.id,
+    required this.text,
+    this.done = false,
+    this.important = false,
+    this.inProgress = false,
+    this.recurrence,
+    this.askRepeatDateOnRecreation = false,
+    this.completedAt,
+    this.inProgressAt,
+    this.importantAt,
+    this.createdAt,
+    this.scheduledAt,
+    this.notes,
+    this.subtasks = const [],
+    this.stopwatchAccumulatedSeconds = 0,
+    this.stopwatchRunning = false,
+    this.stopwatchStartedAt,
+    this.workMinutes = 0,
+  });
+
   final String id;
+
   final String text;
   final bool done;
   final bool important;
@@ -302,27 +331,6 @@ class TaskItem {
   final DateTime? stopwatchStartedAt;
   // manually recorded minutes (rounded suggestions accumulate here)
   final int workMinutes;
-
-  TaskItem({
-    required this.id,
-    required this.text,
-    this.done = false,
-    this.important = false,
-    this.inProgress = false,
-    this.recurrence,
-    this.askRepeatDateOnRecreation = false,
-    this.completedAt,
-    this.inProgressAt,
-    this.importantAt,
-    this.createdAt,
-    this.scheduledAt,
-    this.notes,
-    this.subtasks = const [],
-    this.stopwatchAccumulatedSeconds = 0,
-    this.stopwatchRunning = false,
-    this.stopwatchStartedAt,
-    this.workMinutes = 0,
-  });
 
   TaskItem copyWith({
     String? id,
@@ -547,7 +555,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Map<String, DateTime?> _stagedScheduled = {};
   final AudioPlayer _audioPlayer = AudioPlayer();
   // JSON storage (legacy sqlite migration support is handled separately)
-  final _sembastStorage = SembastStorage();
+  final _sqliteStorage = SembastStorage();
   bool _useSqlite = false;
   Timer? _idleTimer;
   Timer? _attentionTimer;
@@ -729,14 +737,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       Stream<int>.periodic(const Duration(milliseconds: 220), (x) => x);
 
   // Automatic export (backup) settings
-  bool _autoExportOnStart = true;
-  int _autoExportIntervalMinutes = 5; // minutes; 0 = disabled
+  bool _autoExportOnStart = false;
+  int _autoExportIntervalMinutes = 0; // 0 = disabled
   bool _autoExportRunning = false;
   List<String> _autoExportTimes = <String>[]; // list of 'HH:MM' strings
   Timer? _autoExportIntervalTimer;
   final List<Timer> _autoExportTimeTimers = <Timer>[];
   String _lastAutoExportChecksum = '';
-  int _autoExportMaxBackups = 90;
+  int _autoExportMaxBackups = 14;
 
   late final Future<void> _initFuture = _initializeApp();
 
@@ -843,16 +851,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       };
       final line = '${jsonEncode(entry)}\n';
       await _appendRawLogEntry(_storage('simplepresent_redo.log'), line);
-      _sembastStorage.write(_storage('simplepresent_redo.log'), line);
     } catch (_) {}
   }
 
   Future<void> _appendRawLogEntry(String name, String entry) async {
     try {
       if (_useSqlite) {
-        final existing = _sembastStorage.read(name) ?? '';
+        final existing = _sqliteStorage.read(name) ?? '';
         final newVal = existing + entry;
-        _sembastStorage.write(name, newVal);
+        _sqliteStorage.write(name, newVal);
       } else {
         final file = await _fileFor(name);
         await file.writeAsString(entry, mode: FileMode.append);
@@ -865,8 +872,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       String text = '';
       try {
         if (_useSqlite) {
-          text =
-              _sembastStorage.read(_storage('simplepresent_notes.txt')) ?? '';
+          text = _sqliteStorage.read(_storage('simplepresent_notes.txt')) ?? '';
         } else {
           final file = await _fileFor(_storage('simplepresent_notes.txt'));
           if (await file.exists()) {
@@ -887,7 +893,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             try {
               if (controller.text != original) {
                 if (_useSqlite) {
-                  _sembastStorage.write(
+                  _sqliteStorage.write(
                       _storage('simplepresent_notes.txt'), controller.text);
                 } else {
                   final file =
@@ -954,8 +960,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _ensureListFile(String filename) async {
     try {
       if (_useSqlite) {
-        if (!_sembastStorage.taskListExists(filename)) {
-          _sembastStorage
+        if (!_sqliteStorage.taskListExists(filename)) {
+          _sqliteStorage
               .writeTaskList(filename, const <Map<String, dynamic>>[]);
         }
         return;
@@ -989,7 +995,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // Use Sembast-backed storage for new installs (no automatic migration).
     _useSqlite = true;
     try {
-      await _sembastStorage.init(debugMode: kDebugMode);
+      await _sqliteStorage.init(debugMode: kDebugMode);
     } catch (_) {}
     // Legacy migration removed: files are expected to live under
     // the app-specific `simplepresent/` subfolder. No automatic
@@ -1056,13 +1062,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
     } catch (_) {}
 
-    // Pull latest cloud state before attempting local daily migration so we
-    // operate on the most recent authoritative data and avoid reintroducing
-    // moved tasks from remote state.
-    try {
-      await _syncPullFromCloud();
-    } catch (_) {}
-
     // Ensure daily migration runs now if needed, and schedule a timer for
     // the next midnight so it also runs when the app remains open overnight.
     var ranDailyMigration = false;
@@ -1071,6 +1070,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _scheduleDailyMigrationTimer();
     } catch (_) {}
 
+    await _syncPullFromCloud();
     // If daily migration already ran in this startup path, it already includes
     // backlog due -> today promotion. Avoid a second immediate promotion pass.
     if (!ranDailyMigration) {
@@ -1288,27 +1288,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     target.clear();
     try {
       if (_useSqlite) {
-        final rows = _sembastStorage.readTaskList(filename);
-        // If Sembast returned no rows, fall back to legacy file JSON if present.
-        if (rows.isEmpty) {
-          try {
-            final f = await _fileFor(filename);
-            if (await f.exists()) {
-              final text = await f.readAsString();
-              final data = jsonDecode(text) as List<dynamic>;
-              for (var i = 0; i < data.length; i++) {
-                try {
-                  target.add(TaskItem.fromJson(data[i]));
-                } catch (e) {
-                  unawaited(_debugLog(
-                      'loadList fallback parse error (file): file=$filename index=$i error=$e'));
-                }
-              }
-              _dedupeTaskIdsInPlace(target, filename);
-              return;
-            }
-          } catch (_) {}
-        }
+        final rows = _sqliteStorage.readTaskList(filename);
         for (var i = 0; i < rows.length; i++) {
           try {
             target.add(TaskItem.fromJson(rows[i]));
@@ -1412,13 +1392,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       Map<String, dynamic> settings = {};
       try {
         if (_useSqlite) {
-          try {
-            settings = _sembastStorage.readAllSettings();
-          } catch (_) {
-            settings = {};
-          }
+          final txt =
+              _sqliteStorage.read(_storage('simplepresent_settings.json'));
+          if (txt != null) settings = jsonDecode(txt) as Map<String, dynamic>;
         } else {
-          // File-based: read legacy JSON if present
           final settingsFile =
               await _fileFor(_storage('simplepresent_settings.json'));
           if (await settingsFile.exists()) {
@@ -1446,11 +1423,55 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _dailyMigrationLastRunMem = todayKey;
       didRun = true;
 
-      // Keep Today untouched during daily migration.
-      // Auto-moving open Today tasks to Backlog caused lists to appear empty
-      // on startup and looked like a load failure.
+      // On first run we want Today to start empty: move existing Today
+      // items into Backlog or Done as appropriate, then continue with
+      // normal backlog->today promotion. For subsequent runs keep Today
+      // untouched to avoid surprising UI changes.
       final List<TaskItem> movedToDone = [];
       int movedToBacklogCount = 0;
+      final bool firstRun = lastRun == null;
+
+      if (firstRun) {
+        try {
+          final todayList = <TaskItem>[];
+          final backlogList = <TaskItem>[];
+          final doneList = <TaskItem>[];
+          await Future.wait([
+            _loadList(_storage('simplepresent_today.json'), todayList),
+            _loadList(_storage('simplepresent_backlog.json'), backlogList),
+            _loadList(_storage('simplepresent_done.json'), doneList),
+          ]);
+
+          if (todayList.isNotEmpty) {
+            final moveToDone = todayList.where((t) => t.done).toList();
+            final moveToBacklog = todayList.where((t) => !t.done).toList();
+
+            if (moveToBacklog.isNotEmpty) {
+              backlogList.addAll(moveToBacklog
+                  .map((t) => t.copyWith(done: false, inProgress: false)));
+              movedToBacklogCount += moveToBacklog.length;
+            }
+            if (moveToDone.isNotEmpty) {
+              doneList.insertAll(0, moveToDone);
+              movedToDone.addAll(moveToDone);
+            }
+
+            // Clear Today now that its items have been reassigned.
+            todayList.clear();
+
+            await Future.wait([
+              _saveList(_storage('simplepresent_backlog.json'), backlogList,
+                  triggerCloudSync: false),
+              _saveList(_storage('simplepresent_done.json'), doneList,
+                  triggerCloudSync: false),
+              _saveList(_storage('simplepresent_today.json'), todayList,
+                  triggerCloudSync: false),
+            ]);
+            unawaited(_debugLog(
+                'daily migration first-run: movedToBacklog=$movedToBacklogCount, movedToDone=${movedToDone.length}'));
+          }
+        } catch (_) {}
+      }
 
       // Move tasks that are already marked done from Backlog to Done.
       try {
@@ -1462,6 +1483,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           final doneList = <TaskItem>[];
           await _loadList(_storage('simplepresent_done.json'), doneList);
           doneList.insertAll(0, doneFromBacklog);
+          // record counts for UI notification
+          movedToDone.addAll(doneFromBacklog);
           await Future.wait([
             _saveList(_storage('simplepresent_backlog.json'), backlogList,
                 triggerCloudSync: false),
@@ -1476,59 +1499,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // Promote backlog tasks that are due (today or overdue) into Today.
       await _promoteDueBacklogToToday(showToast: true);
 
-      // Move completed tasks from Today into Done during daily migration.
-      try {
-        final todayFile = _storage('simplepresent_today.json');
-        final List<TaskItem> todayList = [];
-        final List<TaskItem> doneList = [];
-        await Future.wait([
-          _loadList(todayFile, todayList),
-          _loadList(_storage('simplepresent_done.json'), doneList),
-        ]);
-
-        final doneFromToday = todayList.where((t) => t.done).toList();
-        if (doneFromToday.isNotEmpty) {
-          // Remove done tasks from Today and append to Done (newest first)
-          todayList.removeWhere((t) => t.done);
-          doneList.insertAll(0, doneFromToday);
-          await Future.wait([
-            _saveList(todayFile, todayList, triggerCloudSync: false),
-            _saveList(_storage('simplepresent_done.json'), doneList,
-                triggerCloudSync: false),
-          ]);
-
-          // Create any recurrence follow-ups for moved tasks but don't
-          // re-append them to Done (appendToDone=false).
-          for (final t in doneFromToday) {
-            try {
-              await _createNextRecurrenceIfNeeded(t, appendToDone: false);
-            } catch (_) {}
-          }
-
-          movedToDone.addAll(doneFromToday);
-          unawaited(_debugLog(
-              'daily migration moved ${doneFromToday.length} done tasks from Today to Done'));
-        }
-      } catch (_) {}
-
       settings['lastRunDate'] = todayKey;
       final enc = const JsonEncoder.withIndent('  ');
       try {
         await _loadToday();
-        // Persist lastRunDate into the dedicated settings DB when using Sembast.
-        try {
-          if (_useSqlite) {
-            try {
-              _sembastStorage.writeSetting(
-                  'lastRunDate', settings['lastRunDate']);
-            } catch (_) {}
-          } else {
-            final settingsFile =
-                await _fileFor(_storage('simplepresent_settings.json'));
-            final encoded = enc.convert(settings);
-            await settingsFile.writeAsString(encoded);
-          }
-        } catch (_) {}
+        final encoded = enc.convert(settings);
+        if (_useSqlite) {
+          _sqliteStorage.write(
+              _storage('simplepresent_settings.json'), encoded);
+        } else {
+          final settingsFile =
+              await _fileFor(_storage('simplepresent_settings.json'));
+          await settingsFile.writeAsString(encoded);
+        }
       } catch (_) {}
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1706,65 +1689,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
-  /// Clean duplicate entries in the Done list.
-  ///
-  /// Keeps the most recently completed entry for tasks that share the same
-  /// normalized text + scheduledAt + recurrence signature and removes others.
-  Future<void> _cleanDoneList() async {
-    try {
-      final List<TaskItem> doneList = [];
-      await _loadList(_storage('simplepresent_done.json'), doneList);
-      if (doneList.length < 2) return;
-
-      final Map<String, TaskItem> keep = {};
-      for (final t in doneList) {
-        final textKey = t.text.trim().toLowerCase();
-        final sched = t.scheduledAt?.toIso8601String() ?? '';
-        final rec = t.recurrence ?? '';
-        final key = '$textKey|$sched|$rec';
-        final existing = keep[key];
-        if (existing == null) {
-          keep[key] = t;
-        } else {
-          final existingTime = existing.completedAt ??
-              existing.createdAt ??
-              DateTime.fromMillisecondsSinceEpoch(0);
-          final thisTime = t.completedAt ??
-              t.createdAt ??
-              DateTime.fromMillisecondsSinceEpoch(0);
-          if (thisTime.isAfter(existingTime)) {
-            keep[key] = t;
-          }
-        }
-      }
-
-      final keepIds = keep.values.map((e) => e.id).toSet();
-      final toRemove = doneList.where((t) => !keepIds.contains(t.id)).toList();
-      if (toRemove.isEmpty) return;
-      for (final r in toRemove) {
-        await _queueRemoveFromList('simplepresent_done.json', r.id);
-      }
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showTopToast('cleaned ${toRemove.length} duplicate done task(s)');
-      });
-    } catch (_) {}
-  }
-
-  /// Delete all tasks in the Done list (destructive).
-  Future<void> _deleteAllDone() async {
-    try {
-      final filename = _storage('simplepresent_done.json');
-      await _saveList(filename, <TaskItem>[], triggerCloudSync: true);
-      if (_currentFile == filename) {
-        _today.clear();
-        if (mounted) setState(() {});
-      }
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showTopToast('deleted all archived tasks');
-      });
-    } catch (_) {}
-  }
-
   bool _isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
@@ -1913,15 +1837,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       final rec = task.recurrence;
       if (rec != null && rec.isNotEmpty) {
-        final now = DateTime.now();
-        final todayStart = DateTime(now.year, now.month, now.day);
-        // If the task was scheduled in the past (e.g. yesterday), compute
-        // the next recurrence relative to today so follow-ups land on
-        // sensible future dates instead of repeating past dates.
-        final DateTime base =
-            (task.scheduledAt != null && task.scheduledAt!.isBefore(todayStart))
-                ? now
-                : (task.scheduledAt ?? now);
+        final base = task.scheduledAt ?? DateTime.now();
         final next = _computeNextRecurrence(base, rec);
         if (next != null) {
           // Only ask user if askRepeatDateOnRecreation is enabled for this task
@@ -1969,21 +1885,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               }
             } catch (_) {}
           }
-
-          // Determine target list and check for an existing follow-up to
-          // avoid creating duplicates (same text + same scheduled datetime).
-          final isTodayTarget = _isSameDay(chosen, DateTime.now());
-          final targetFilename = isTodayTarget
-              ? _storage('simplepresent_today.json')
-              : _storage('simplepresent_backlog.json');
-          final List<TaskItem> existingTarget = [];
-          await _loadList(targetFilename, existingTarget);
-          final alreadyExists = existingTarget.any((t) {
-            if (t.text != task.text) return false;
-            if (t.scheduledAt == null) return false;
-            return t.scheduledAt!.toIso8601String() == chosen.toIso8601String();
-          });
-          if (alreadyExists) return;
 
           final newId =
               '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
@@ -2071,16 +1972,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             'saveList start: $filename count=${source.length} sqlite=$_useSqlite listdir=${_isListDir(filename)}'));
         final encoder = const JsonEncoder.withIndent('  ');
         if (_useSqlite) {
-          _sembastStorage.writeTaskList(
+          _sqliteStorage.writeTaskList(
             filename,
             source.map((e) => e.toJson()).toList(),
           );
-          try {
-            if (filename == _storage('simplepresent_today.json')) {
-              final tasks = source.where((t) => !t.done).toList();
-              unawaited(exportTodayAndRefresh(tasks, fontFamily: _fontFamily));
-            }
-          } catch (_) {}
         } else if (_isListDir(filename)) {
           final dir =
               Directory('${(await _appDir).path}/${_listDirBase(filename)}');
@@ -3249,7 +3144,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               if (_useSqlite) {
                 // No reliable filesystem mtime for DB blobs; always replace
                 // if payload is newer according to server timestamp.
-                _sembastStorage.write(
+                _sqliteStorage.write(
                     _storage('simplepresent_notes.txt'), incomingText);
                 if (mounted) _showTopToast('notes updated from cloud');
               } else {
@@ -3276,7 +3171,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             final entryTaskId = (entry['task_id'] ?? '').toString();
             final entryTaskText = (entry['task_text'] ?? '').toString();
             if (date.isEmpty || entryTaskId.isEmpty) continue;
-            _sembastStorage.upsertTimeEntry(
+            _sqliteStorage.upsertTimeEntry(
               taskId: entryTaskId,
               taskText: entryTaskText,
               date: date,
@@ -3439,36 +3334,60 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _loadSettings() async {
     try {
       Map<String, dynamic> data = {};
-      // Legacy settings migration removed: do not auto-migrate external
-      // JSON or raw DB entries into the per-key settings DB.
-
-      final f = await _fileFor(_storage('simplepresent_settings.json'));
       if (_useSqlite) {
-        // Load settings from per-key Sembast store.
-        try {
-          final raw = _sembastStorage.readAllSettings();
-          // raw keys are canonicalized; copy into `data` map with original keys
-          data = Map<String, dynamic>.from(raw);
-        } catch (_) {
-          data = {};
+        final txt =
+            _sqliteStorage.read(_storage('simplepresent_settings.json'));
+        if (txt == null) return;
+        data = jsonDecode(txt) as Map<String, dynamic>;
+        // Clean up legacy keys that should no longer be persisted
+        var cleaned = false;
+        if (data.containsKey('window')) {
+          data.remove('window');
+          cleaned = true;
+        }
+        if (cleaned) {
+          try {
+            _sqliteStorage.write(
+                _storage('simplepresent_settings.json'), jsonEncode(data));
+          } catch (_) {}
         }
       } else {
+        // Ensure legacy file in parent documents directory is migrated here
+        final parent = await getApplicationDocumentsDirectory();
+        final candidateName = _storage('simplepresent_settings.json');
+        try {
+          final legacy = File('${parent.path}/$candidateName');
+          if (await legacy.exists()) {
+            final dest = await _fileFor(candidateName);
+            try {
+              // prefer rename to preserve permissions; fallback to copy
+              await legacy.rename(dest.path);
+            } catch (_) {
+              try {
+                await legacy.copy(dest.path);
+                await legacy.delete();
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
+
+        final f = await _fileFor(_storage('simplepresent_settings.json'));
         if (!await f.exists()) return;
         data = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
-      }
-      // Log where settings were loaded from and current storage override
-      unawaited(_debugLog(
-          'loaded settings from: ${f.path}; storagePathOverride=${_storagePathOverride ?? ''}'));
-      // Clean up legacy keys that should no longer be persisted
-      var cleaned = false;
-      if (data.containsKey('window')) {
-        data.remove('window');
-        cleaned = true;
-      }
-      if (cleaned) {
-        try {
-          await f.writeAsString(jsonEncode(data));
-        } catch (_) {}
+        // Log where settings were loaded from and current storage override
+        unawaited(_debugLog(
+            'loaded settings from: ${f.path}; storagePathOverride=${_storagePathOverride ?? ''}'));
+        // Clean up legacy keys that should no longer be persisted
+        var cleaned = false;
+        if (data.containsKey('window')) {
+          data.remove('window');
+          cleaned = true;
+        }
+        if (cleaned) {
+          try {
+            await f.writeAsString(jsonEncode(data));
+          } catch (_) {}
+        }
       }
       int readInt(String key, int fallback) {
         final v = data[key];
@@ -3760,12 +3679,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // Preserve lastRunDate if present in existing settings so daily-reset runs only once per day
       try {
         if (_useSqlite) {
-          try {
-            final existing = _sembastStorage.readAllSettings();
-            if (existing.containsKey('lastRunDate')) {
+          final existingText =
+              _sqliteStorage.read(_storage('simplepresent_settings.json'));
+          if (existingText != null) {
+            final existing = jsonDecode(existingText);
+            if (existing is Map && existing.containsKey('lastRunDate')) {
               out['lastRunDate'] = existing['lastRunDate'];
             }
-          } catch (_) {}
+          }
         } else {
           if (await f.exists()) {
             final existing = jsonDecode(await f.readAsString());
@@ -3783,13 +3704,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final encoder = const JsonEncoder.withIndent('  ');
       final encoded = encoder.convert(out);
       if (_useSqlite) {
-        try {
-          for (final e in out.entries) {
-            try {
-              _sembastStorage.writeSetting(e.key, e.value);
-            } catch (_) {}
-          }
-        } catch (_) {}
+        _sqliteStorage.write(_storage('simplepresent_settings.json'), encoded);
       } else {
         await f.writeAsString(encoded);
       }
@@ -3862,7 +3777,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _toastTimer?.cancel();
     _toastEntry?.remove();
     _stopwatchTicker?.cancel();
-    _sembastStorage.dispose();
+    _sqliteStorage.dispose();
     super.dispose();
   }
 
@@ -4232,9 +4147,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     List<TimeEntry> allTimeEntries = [];
     if (_useSqlite) {
       try {
-        final dates = _sembastStorage.getTimeEntryDates();
+        final dates = _sqliteStorage.getTimeEntryDates();
         for (final date in dates) {
-          final rows = _sembastStorage.getTimeEntriesForDate(date);
+          final rows = _sqliteStorage.getTimeEntriesForDate(date);
           for (final row in rows) {
             allTimeEntries.add(TimeEntry(
               taskId: row['task_id'] as String,
@@ -4252,14 +4167,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     // Also include in-memory tasks with tracked time for today that may not
     // have been written to the DB yet (e.g. running stopwatch).
-    try {
+    if (!_useSqlite) {
+      final List<TaskItem> todayList = [];
+      final List<TaskItem> backlogList = [];
+      await _loadList(_storage('simplepresent_today.json'), todayList);
+      await _loadList(_storage('simplepresent_backlog.json'), backlogList);
       final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      final todayList = <TaskItem>[];
-      final backlogList = <TaskItem>[];
-      await Future.wait([
-        _loadList(_storage('simplepresent_today.json'), todayList),
-        _loadList(_storage('simplepresent_backlog.json'), backlogList),
-      ]);
       for (final t in [...todayList, ...backlogList]) {
         final hasTime = t.stopwatchAccumulatedSeconds > 0 || t.workMinutes > 0;
         if (!hasTime) continue;
@@ -4273,7 +4186,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           workMinutes: t.workMinutes,
         ));
       }
-    } catch (_) {}
+    }
 
     if (!mounted) return;
     await Navigator.of(context).push(MaterialPageRoute(
@@ -4657,7 +4570,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (!_useSqlite) return;
     final date = DateFormat('yyyy-MM-dd').format(DateTime.now());
     try {
-      _sembastStorage.upsertTimeEntry(
+      _sqliteStorage.upsertTimeEntry(
         taskId: task.id,
         taskText: task.text,
         date: date,
@@ -5347,22 +5260,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       try {
         await _saveSettings();
       } catch (_) {}
-      // If we're editing an item in the backlog and the scheduled date is
-      // today or in the past, move it into Today immediately.
-      try {
-        if (_showingBacklog ||
-            _currentFile == _storage('simplepresent_backlog.json')) {
-          final now = DateTime.now();
-          final todayDateStr = DateFormat('yyyy-MM-dd').format(now);
-          final schedDateStr =
-              DateFormat('yyyy-MM-dd').format(scheduled.toLocal());
-          if (schedDateStr.compareTo(todayDateStr) <= 0) {
-            // Schedule move after this queue action completes to avoid reentrancy.
-            unawaited(
-                Future.microtask(() => _queueMoveFromBacklogByTaskId(taskId)));
-          }
-        }
-      } catch (_) {}
     });
   }
 
@@ -5985,7 +5882,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             String? savedText;
             if (_useSqlite) {
               try {
-                final rows = _sembastStorage.readTaskList(f);
+                final rows = _sqliteStorage.readTaskList(f);
                 savedText = const JsonEncoder.withIndent('  ').convert(rows);
               } catch (_) {
                 savedText = null;
@@ -7345,44 +7242,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                         Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            _showingDone
-                                                ? IconButton(
-                                                    icon: Icon(
-                                                        Icons.delete_sweep,
-                                                        color: Theme.of(context)
-                                                            .iconTheme
-                                                            .color),
-                                                    tooltip: 'clean done',
-                                                    onPressed: () async {
-                                                      final confirm =
-                                                          await showDialog<
-                                                                  bool>(
-                                                              context: context,
-                                                              builder: (ctx) =>
-                                                                  AlertDialog(
-                                                                    title: const Text(
-                                                                        'Delete all archived tasks?'),
-                                                                    content:
-                                                                        const Text(
-                                                                            'This will permanently remove all tasks from the Done list.'),
-                                                                    actions: [
-                                                                      TextButton(
-                                                                          onPressed: () => Navigator.of(ctx).pop(
-                                                                              false),
-                                                                          child:
-                                                                              const Text('Cancel')),
-                                                                      TextButton(
-                                                                          onPressed: () => Navigator.of(ctx).pop(
-                                                                              true),
-                                                                          child: const Text(
-                                                                              'Delete',
-                                                                              style: TextStyle(color: Colors.red))),
-                                                                    ],
-                                                                  ));
-                                                      if (confirm == true)
-                                                        await _deleteAllDone();
-                                                    })
-                                                : const SizedBox.shrink(),
                                             PopupMenuButton<String>(
                                               icon: Icon(Icons.more_vert,
                                                   color: Theme.of(context)
@@ -7501,7 +7360,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                       const SizedBox(width: 8),
                                                       const Text('done')
                                                     ])));
-                                                // clean done moved to a visible button in Done view
                                                 // 'Next' removed by request
                                                 return items;
                                               },
@@ -9460,15 +9318,15 @@ class _SettingsPageState extends State<SettingsPage> {
     cloudPIN = readString('cloudPIN', '');
     cloudAllowInsecureTls = readBool('cloudAllowInsecureTls', false);
     autoPurgeDoneEnabled = readBool('autoPurgeDoneEnabled', false);
-    autoExportOnStart = readBool('autoExportOnStart', true);
-    autoExportIntervalMinutes = readInt('autoExportIntervalMinutes', 5);
+    autoExportOnStart = readBool('autoExportOnStart', false);
+    autoExportIntervalMinutes = readInt('autoExportIntervalMinutes', 0);
     final aet = widget.initial['autoExportTimes'];
     if (aet is List) {
       autoExportTimesCsv = aet.map((e) => e.toString()).join(',');
     } else {
       autoExportTimesCsv = readString('autoExportTimesCsv', '');
     }
-    autoExportMaxBackups = readInt('autoExportMaxBackups', 90);
+    autoExportMaxBackups = readInt('autoExportMaxBackups', 14);
     doneRetentionDays = readInt('doneRetentionDays', 30).clamp(1, 365);
     maxTasksToday = readInt('maxTasksToday', 25).clamp(1, 9999);
     maxTasksBacklog = readInt('maxTasksBacklog', 50).clamp(1, 9999);
@@ -9869,8 +9727,7 @@ class _SettingsPageState extends State<SettingsPage> {
           return;
         }
       }
-      final sanitized = raw.trim();
-      final uri = Uri.parse(sanitized);
+      final uri = Uri.parse(raw);
       if (uri.scheme != 'simplepresent' || uri.host != 'pair') {
         setState(() => _cloudStatus = 'invalid pairing link ($sourceLabel).');
         return;
@@ -11197,7 +11054,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
   List<Map<String, dynamic>> _entries = [];
   bool _loading = true;
   bool _storageReady = false;
-  final _sembastStorage = SembastStorage();
+  final _sqliteStorage = SembastStorage();
   late final ScrollController _hScrollController;
   late final ScrollController _vScrollController;
   OverlayEntry? _toastEntryLocal;
@@ -11215,7 +11072,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
 
   Future<void> _initStorageAndLoad() async {
     try {
-      await _sembastStorage.init(debugMode: kDebugMode);
+      await _sqliteStorage.init(debugMode: kDebugMode);
       _storageReady = true;
     } catch (_) {
       _storageReady = false;
@@ -11232,7 +11089,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
       _vScrollController.dispose();
     } catch (_) {}
     try {
-      _sembastStorage.dispose();
+      _sqliteStorage.dispose();
     } catch (_) {}
     super.dispose();
   }
@@ -11240,8 +11097,8 @@ class _RedoLogPageState extends State<RedoLogPage> {
   Future<void> _appendRawLogEntry(String name, String entry) async {
     try {
       if (_storageReady) {
-        final existing = _sembastStorage.read(name) ?? '';
-        _sembastStorage.write(name, existing + entry);
+        final existing = _sqliteStorage.read(name) ?? '';
+        _sqliteStorage.write(name, existing + entry);
       } else {
         final f = await _fileForName(name);
         await f.writeAsString(entry, mode: FileMode.append);
@@ -11271,7 +11128,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
       final lines = <String>[];
       if (_storageReady) {
         final text =
-            _sembastStorage.read(_storageName('simplepresent_redo.log')) ?? '';
+            _sqliteStorage.read(_storageName('simplepresent_redo.log')) ?? '';
         if (text.isNotEmpty) lines.addAll(text.split('\n'));
       } else {
         final f = await _fileForName(_storageName('simplepresent_redo.log'));
@@ -11447,7 +11304,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
       String text = '';
       if (_storageReady) {
         text =
-            _sembastStorage.read(_storageName('simplepresent_redo.log')) ?? '';
+            _sqliteStorage.read(_storageName('simplepresent_redo.log')) ?? '';
       } else {
         final f = await _fileForName(_storageName('simplepresent_redo.log'));
         if (!await f.exists()) return;
@@ -11579,7 +11436,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
     try {
       if (_storageReady) {
         try {
-          final rows = _sembastStorage.readTaskList(_storageName(name));
+          final rows = _sqliteStorage.readTaskList(_storageName(name));
           return rows.map((e) => Map<String, dynamic>.from(e)).toList();
         } catch (_) {
           return [];
@@ -11605,7 +11462,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
       final encoder = const JsonEncoder.withIndent('  ');
       final content = encoder.convert(list);
       if (_storageReady) {
-        _sembastStorage.writeTaskList(_storageName(name), list);
+        _sqliteStorage.writeTaskList(_storageName(name), list);
         // When using Sembast, also export per-task JSON files for the
         // Android widget if we just wrote the `today` list.
         try {
@@ -12180,7 +12037,7 @@ class _QrScannerPageState extends State<_QrScannerPage> {
           if (_handled) return;
           final barcodes = capture.barcodes;
           for (final barcode in barcodes) {
-            final value = barcode.rawValue?.trim();
+            final value = barcode.rawValue;
             if (value != null && value.isNotEmpty) {
               _handled = true;
               Navigator.of(context).pop(value);
