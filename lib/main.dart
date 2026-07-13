@@ -1070,7 +1070,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _scheduleDailyMigrationTimer();
     } catch (_) {}
 
-    await _syncPullFromCloud();
+    // Start cloud pull in background so startup is never blocked by network.
+    unawaited(_syncPullFromCloud());
     // If daily migration already ran in this startup path, it already includes
     // backlog due -> today promotion. Avoid a second immediate promotion pass.
     if (!ranDailyMigration) {
@@ -3055,7 +3056,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _syncPullFromCloud() async {
-    if (!_cloudSyncConfigured || _cloudSyncBusy) return;
+    if (!_cloudSyncConfigured) {
+      unawaited(_debugLog('syncPullFromCloud: skip - not configured'));
+      return;
+    }
+    if (_cloudSyncBusy) {
+      unawaited(_debugLog('syncPullFromCloud: skip - already busy'));
+      return;
+    }
+    unawaited(_debugLog('syncPullFromCloud: start'));
+    final sw = Stopwatch()..start();
     // Finalize any open edits before applying remote state
     try {
       await _finalizeAllEdits();
@@ -3248,7 +3258,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _cloudLastSyncModifiedAt = maxModifiedAt;
       await _saveSettings();
       _onCloudSyncSuccess();
-    } catch (e) {
+    } catch (e, st) {
+      unawaited(_debugLog('syncPullFromCloud: error $e\n$st'));
       _onCloudSyncError(e);
     } finally {
       _cloudSyncBusy = false;
@@ -3260,6 +3271,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           mounted) {
         unawaited(_drainPushQueue());
       }
+      sw.stop();
+      unawaited(_debugLog(
+          'syncPullFromCloud: finished in ${sw.elapsedMilliseconds}ms'));
     }
   }
 
