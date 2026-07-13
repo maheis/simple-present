@@ -41,8 +41,12 @@
 - [x] settings in eine eigene sembast-db
 - [x] funktionen heißen immer noch alle sqlite... 
 - [x] clean done
-- [?] android: widget funktioniert seit umstellung auf sembast nicht mehr bzw. zeigt nichts mehr an!
+- [x] android: widget funktioniert seit umstellung auf sembast nicht mehr bzw. zeigt nichts mehr an!
 - [x] aufgaben die ich im backlog auf heute oder in vergangenheit lege, sollen in today gemoved werden!
+- [ ] default backup 90, on 5 minuts and on start
+- [ ] cliens hängen häufiger im start loading fest, ich glaube tritt nur bei cloud sync clients auf!
+- [ ] qr-code scan füllt nicht mehr die URL
+- [ ] today migration funktioniert nicht mehr sauber. today soll beim ersten start leer sein. alle aufgaben die done sind sollen in done verschoben werden, alle aufaben die offen  sind sollen ins backlog geschoben werden. alle aufgaben die auf heute oder in der vergangenheit liegen, sollen danach vom backlog ins today verschoben werden! 
 
 ## notes
 
