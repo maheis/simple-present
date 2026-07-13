@@ -729,14 +729,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       Stream<int>.periodic(const Duration(milliseconds: 220), (x) => x);
 
   // Automatic export (backup) settings
-  bool _autoExportOnStart = false;
-  int _autoExportIntervalMinutes = 0; // 0 = disabled
+  bool _autoExportOnStart = true;
+  int _autoExportIntervalMinutes = 5; // minutes; 0 = disabled
   bool _autoExportRunning = false;
   List<String> _autoExportTimes = <String>[]; // list of 'HH:MM' strings
   Timer? _autoExportIntervalTimer;
   final List<Timer> _autoExportTimeTimers = <Timer>[];
   String _lastAutoExportChecksum = '';
-  int _autoExportMaxBackups = 14;
+  int _autoExportMaxBackups = 90;
 
   late final Future<void> _initFuture = _initializeApp();
 
@@ -9460,15 +9460,15 @@ class _SettingsPageState extends State<SettingsPage> {
     cloudPIN = readString('cloudPIN', '');
     cloudAllowInsecureTls = readBool('cloudAllowInsecureTls', false);
     autoPurgeDoneEnabled = readBool('autoPurgeDoneEnabled', false);
-    autoExportOnStart = readBool('autoExportOnStart', false);
-    autoExportIntervalMinutes = readInt('autoExportIntervalMinutes', 0);
+    autoExportOnStart = readBool('autoExportOnStart', true);
+    autoExportIntervalMinutes = readInt('autoExportIntervalMinutes', 5);
     final aet = widget.initial['autoExportTimes'];
     if (aet is List) {
       autoExportTimesCsv = aet.map((e) => e.toString()).join(',');
     } else {
       autoExportTimesCsv = readString('autoExportTimesCsv', '');
     }
-    autoExportMaxBackups = readInt('autoExportMaxBackups', 14);
+    autoExportMaxBackups = readInt('autoExportMaxBackups', 90);
     doneRetentionDays = readInt('doneRetentionDays', 30).clamp(1, 365);
     maxTasksToday = readInt('maxTasksToday', 25).clamp(1, 9999);
     maxTasksBacklog = readInt('maxTasksBacklog', 50).clamp(1, 9999);
