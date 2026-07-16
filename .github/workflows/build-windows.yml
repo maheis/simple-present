@@ -25,23 +25,6 @@ jobs:
                   cmake --version
             - name: Flutter pub get
               run: flutter pub get
-            - name: Patch firebase CMakeLists in pub-cache (workaround)
-              if: runner.os == 'Windows'
-              shell: pwsh
-              run: |
-                  $cache = Join-Path $env:USERPROFILE '.pub-cache'
-                  if (Test-Path $cache) {
-                      Write-Host "Scanning pub-cache for firebase_cpp_sdk_windows CMakeLists..."
-                      $files = Get-ChildItem -Path $cache -Recurse -Filter CMakeLists.txt -ErrorAction SilentlyContinue |
-                                          Where-Object { $_.FullName -match 'firebase_cpp_sdk_windows' }
-                      foreach ($f in $files) {
-                          Write-Host "Patching $($f.FullName)"
-                          (Get-Content $f.FullName) -replace 'cmake_minimum_required\(VERSION [0-9\.]+\)', 'cmake_minimum_required(VERSION 3.5)' |
-                              Set-Content $f.FullName -Force
-                      }
-                  } else {
-                      Write-Host "Pub-cache not found at $cache, skipping patch"
-                  }
             - name: Build Windows release
               env:
                   CMAKE_POLICY_VERSION_MINIMUM: "3.5"
