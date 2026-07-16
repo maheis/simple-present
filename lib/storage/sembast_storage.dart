@@ -14,6 +14,9 @@ class SembastStorage {
   late final String _dbPath;
   Database? _db;
   Database? _settingsDb;
+  static const String _settingsDbFileName = 'simplepresent_settings.db';
+  static const String _settingsKey = 'settings';
+  static const String _legacySettingsBlobKey = 'simplepresent_settings.json';
 
   // Stores: 'lists' -> map filename -> List<dynamic>
   final _listsStore = StoreRef<String, Object?>('lists');
@@ -129,23 +132,8 @@ class SembastStorage {
     _dbPath = p.join(_storageRoot, 'simplepresent.db');
     _db = await databaseFactoryIo.openDatabase(_dbPath);
 
-    // Open a dedicated settings DB for per-key settings to improve
-    // performance when writing many small setting entries.
-    try {
-      _settingsDb = await databaseFactoryIo
-          .openDatabase(p.join(_storageRoot, 'simplepresent_settings.db'));
-      // Load settings cache
-      try {
-        final recs = await _rawStore.find(_settingsDb!);
-        for (final r in recs) {
-          final key = r.key;
-          final val = r.value;
-          if (val is String) _settingsCache[key] = val;
-        }
-      } catch (_) {}
-    } catch (_) {
-      _settingsDb = null;
-    }
+    // Open dedicated settings DB and load settings cache.
+    await _loadSettingsDbCache();
 
     // Load lists
     try {
@@ -302,8 +290,7 @@ class SembastStorage {
   /// Read a single setting (JSON-decoded if possible) stored under [key].
   dynamic readSetting(String key) {
     final k = _canonicalKey(key);
-    final val =
-        _settingsCache.containsKey(k) ? _settingsCache[k] : _rawCache[k];
+    final val = _settingsCache[k];
     if (val == null) return null;
     try {
       return jsonDecode(val);
@@ -319,43 +306,23 @@ class SembastStorage {
     _settingsCache[k] = encoded;
     unawaited(() async {
       try {
-        // Try to open/create the dedicated settings DB lazily.
-        if (_settingsDb == null) {
-          try {
-            _settingsDb = await databaseFactoryIo.openDatabase(
-                p.join(_storageRoot, 'simplepresent_settings.db'));
-          } catch (_) {
-            _settingsDb = null;
-          }
-        }
-        if (_settingsDb != null) {
-          // Persist into dedicated settings DB.
-          await _rawStore.record(k).put(_settingsDb!, encoded);
-          // Remove any stale copy from the main DB to avoid duplicates.
-          try {
-            await _rawStore.record(k).delete(_db!);
-          } catch (_) {}
-        } else {
-          // Fallback: persist into main DB when settings DB couldn't be opened.
-          await _rawStore.record(k).put(_db!, encoded);
-        }
+        final opened = await _ensureSettingsDbOpen();
+        if (!opened) return;
+        // Persist into dedicated settings DB.
+        await _rawStore.record(k).put(_settingsDb!, encoded);
+        // Remove any stale copy from the main DB to avoid duplicates.
+        try {
+          await _rawStore.record(k).delete(_db!);
+        } catch (_) {}
       } catch (_) {}
     }());
   }
 
-  /// Read all settings available in the raw cache and return a decoded map.
+  /// Read all settings from the dedicated settings DB cache.
   Map<String, dynamic> readAllSettings() {
     final out = <String, dynamic>{};
-    // Prefer settings cache (dedicated DB). Fall back to raw cache entries.
+    // Read only from dedicated settings cache.
     for (final entry in _settingsCache.entries) {
-      try {
-        out[entry.key] = jsonDecode(entry.value);
-      } catch (_) {
-        out[entry.key] = entry.value;
-      }
-    }
-    for (final entry in _rawCache.entries) {
-      if (out.containsKey(entry.key)) continue;
       try {
         out[entry.key] = jsonDecode(entry.value);
       } catch (_) {
@@ -443,7 +410,7 @@ class SembastStorage {
               '$_dbPath.bak.${DateTime.now().millisecondsSinceEpoch}';
           await dbFile.copy(copyPath);
         }
-        final settingsPath = p.join(_storageRoot, 'simplepresent_settings.db');
+        final settingsPath = p.join(_storageRoot, _settingsDbFileName);
         final settingsFile = File(settingsPath);
         if (await settingsFile.exists()) {
           final copyPath =
@@ -453,44 +420,61 @@ class SembastStorage {
       } catch (_) {}
 
       // Ensure settings DB is open
-      if (_settingsDb == null) {
-        try {
-          _settingsDb = await databaseFactoryIo
-              .openDatabase(p.join(_storageRoot, 'simplepresent_settings.db'));
-        } catch (_) {
-          _settingsDb = null;
-        }
-      }
+      final opened = await _ensureSettingsDbOpen();
+      if (!opened) return;
 
-      // Consolidate canonical keys from caches
+      // Consolidate canonical setting keys from caches only.
+      // Do not migrate arbitrary raw data (notes/logs) into settings DB.
       final Map<String, String> canonical = {};
       for (final e in _settingsCache.entries) canonical[e.key] = e.value;
-      for (final e in _rawCache.entries) {
-        canonical.putIfAbsent(e.key, () => e.value);
+      const candidates = <String>{
+        _settingsKey,
+        _legacySettingsBlobKey,
+        'settings_cleanup_done',
+        'settings_cleanup_toast_shown',
+      };
+      for (final k in candidates) {
+        final v = _rawCache[k];
+        if (v != null) canonical.putIfAbsent(k, () => v);
       }
 
-      if (_settingsDb != null) {
-        for (final entry in canonical.entries) {
-          try {
-            await _rawStore.record(entry.key).put(_settingsDb!, entry.value);
-          } catch (_) {}
-          try {
-            await _rawStore.record(entry.key).delete(_db!);
-          } catch (_) {}
-        }
-      } else {
-        // Fallback: persist canonical keys into main DB
-        for (final entry in canonical.entries) {
-          try {
-            await _rawStore.record(entry.key).put(_db!, entry.value);
-          } catch (_) {}
-        }
+      for (final entry in canonical.entries) {
+        try {
+          await _rawStore.record(entry.key).put(_settingsDb!, entry.value);
+        } catch (_) {}
+        try {
+          await _rawStore.record(entry.key).delete(_db!);
+        } catch (_) {}
       }
 
       // Mark cleanup as done
       try {
         writeSetting(flagKey, true);
       } catch (_) {}
+    } catch (_) {}
+  }
+
+  Future<bool> _ensureSettingsDbOpen() async {
+    if (_settingsDb != null) return true;
+    try {
+      _settingsDb = await databaseFactoryIo
+          .openDatabase(p.join(_storageRoot, _settingsDbFileName));
+    } catch (_) {
+      _settingsDb = null;
+    }
+    return _settingsDb != null;
+  }
+
+  Future<void> _loadSettingsDbCache() async {
+    try {
+      final opened = await _ensureSettingsDbOpen();
+      if (!opened) return;
+      final recs = await _rawStore.find(_settingsDb!);
+      for (final r in recs) {
+        final key = r.key;
+        final val = r.value;
+        if (val is String) _settingsCache[key] = val;
+      }
     } catch (_) {}
   }
 }

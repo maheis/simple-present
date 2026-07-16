@@ -803,6 +803,76 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return File('${dir.path}/$name');
   }
 
+  static const String _settingsStorageKey = 'settings';
+  static const String _legacySettingsFileName = 'simplepresent_settings.json';
+
+  Map<String, dynamic> _asSettingsMap(dynamic raw) {
+    if (raw is Map) {
+      try {
+        return Map<String, dynamic>.from(raw);
+      } catch (_) {
+        return <String, dynamic>{};
+      }
+    }
+    if (raw is String) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          return Map<String, dynamic>.from(decoded);
+        }
+      } catch (_) {}
+    }
+    return <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> _readSettingsMap() async {
+    try {
+      if (_useSembast) {
+        // Canonical path: dedicated settings DB key.
+        final canonical = _asSettingsMap(
+          _sembastStorage.readSetting(_settingsStorageKey),
+        );
+        if (canonical.isNotEmpty) return canonical;
+
+        // Legacy path 1: main DB raw blob under old filename key.
+        final legacyBlob =
+            _sembastStorage.read(_storage(_legacySettingsFileName));
+        final legacyMap = _asSettingsMap(legacyBlob);
+        if (legacyMap.isNotEmpty) {
+          _sembastStorage.writeSetting(_settingsStorageKey, legacyMap);
+          _sembastStorage.deleteRaw(_storage(_legacySettingsFileName));
+          return legacyMap;
+        }
+      }
+
+      // Legacy path 2: JSON file on disk.
+      final file = await _fileFor(_storage(_legacySettingsFileName));
+      if (!await file.exists()) return <String, dynamic>{};
+      final fileMap = _asSettingsMap(await file.readAsString());
+      if (fileMap.isNotEmpty && _useSembast) {
+        _sembastStorage.writeSetting(_settingsStorageKey, fileMap);
+        try {
+          await file.delete();
+        } catch (_) {}
+      }
+      return fileMap;
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  Future<void> _writeSettingsMap(Map<String, dynamic> data) async {
+    if (_useSembast) {
+      _sembastStorage.writeSetting(_settingsStorageKey, data);
+      // Remove stale legacy raw key from main DB if it still exists.
+      _sembastStorage.deleteRaw(_storage(_legacySettingsFileName));
+      return;
+    }
+    final file = await _fileFor(_storage(_legacySettingsFileName));
+    final encoded = const JsonEncoder.withIndent('  ').convert(data);
+    await file.writeAsString(encoded);
+  }
+
   // Legacy migration logic removed. Files should already live under
   // the `simplepresent` application subfolder; no automatic migration
   // from the documents root is performed.
@@ -1372,27 +1442,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     var didRun = false;
     try {
       unawaited(_debugLog('daily migration started: $todayKey'));
-      Map<String, dynamic> settings = {};
-      try {
-        if (_useSembast) {
-          final txt =
-              _sembastStorage.read(_storage('simplepresent_settings.json'));
-          if (txt != null) settings = jsonDecode(txt) as Map<String, dynamic>;
-        } else {
-          final settingsFile =
-              await _fileFor(_storage('simplepresent_settings.json'));
-          if (await settingsFile.exists()) {
-            try {
-              settings = jsonDecode(await settingsFile.readAsString())
-                  as Map<String, dynamic>;
-            } catch (_) {
-              settings = {};
-            }
-          }
-        }
-      } catch (_) {
-        settings = {};
-      }
+      Map<String, dynamic> settings = await _readSettingsMap();
       final lastRun = settings['lastRunDate'] as String?;
       if (lastRun == todayKey) {
         _dailyMigrationLastRunMem = todayKey;
@@ -1483,18 +1533,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await _promoteDueBacklogToToday(showToast: true);
 
       settings['lastRunDate'] = todayKey;
-      final enc = const JsonEncoder.withIndent('  ');
       try {
         await _loadToday();
-        final encoded = enc.convert(settings);
-        if (_useSembast) {
-          _sembastStorage.write(
-              _storage('simplepresent_settings.json'), encoded);
-        } else {
-          final settingsFile =
-              await _fileFor(_storage('simplepresent_settings.json'));
-          await settingsFile.writeAsString(encoded);
-        }
+        await _writeSettingsMap(settings);
       } catch (_) {}
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -3329,61 +3370,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _loadSettings() async {
     try {
-      Map<String, dynamic> data = {};
-      if (_useSembast) {
-        final txt =
-            _sembastStorage.read(_storage('simplepresent_settings.json'));
-        if (txt == null) return;
-        data = jsonDecode(txt) as Map<String, dynamic>;
-        // Clean up legacy keys that should no longer be persisted
-        var cleaned = false;
-        if (data.containsKey('window')) {
-          data.remove('window');
-          cleaned = true;
-        }
-        if (cleaned) {
-          try {
-            _sembastStorage.write(
-                _storage('simplepresent_settings.json'), jsonEncode(data));
-          } catch (_) {}
-        }
-      } else {
-        // Ensure legacy file in parent documents directory is migrated here
-        final parent = await getApplicationDocumentsDirectory();
-        final candidateName = _storage('simplepresent_settings.json');
-        try {
-          final legacy = File('${parent.path}/$candidateName');
-          if (await legacy.exists()) {
-            final dest = await _fileFor(candidateName);
-            try {
-              // prefer rename to preserve permissions; fallback to copy
-              await legacy.rename(dest.path);
-            } catch (_) {
-              try {
-                await legacy.copy(dest.path);
-                await legacy.delete();
-              } catch (_) {}
-            }
-          }
-        } catch (_) {}
+      final data = await _readSettingsMap();
+      if (data.isEmpty) return;
 
-        final f = await _fileFor(_storage('simplepresent_settings.json'));
-        if (!await f.exists()) return;
-        data = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
-        // Log where settings were loaded from and current storage override
-        unawaited(_debugLog(
-            'loaded settings from: ${f.path}; storagePathOverride=${_storagePathOverride ?? ''}'));
-        // Clean up legacy keys that should no longer be persisted
-        var cleaned = false;
-        if (data.containsKey('window')) {
-          data.remove('window');
-          cleaned = true;
-        }
-        if (cleaned) {
-          try {
-            await f.writeAsString(jsonEncode(data));
-          } catch (_) {}
-        }
+      // Clean up legacy keys that should no longer be persisted.
+      if (data.containsKey('window')) {
+        data.remove('window');
+        try {
+          await _writeSettingsMap(data);
+        } catch (_) {}
       }
       int readInt(String key, int fallback) {
         final v = data[key];
@@ -3610,7 +3605,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _saveSettingsWithGeom(Map<String, dynamic>? geom) async {
     try {
-      final f = await _fileFor(_storage('simplepresent_settings.json'));
       final out = <String, dynamic>{
         'tileHeight': _tileHeight,
         'idleMinutes': _idleMinutes,
@@ -3674,22 +3668,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       // Preserve lastRunDate if present in existing settings so daily-reset runs only once per day
       try {
-        if (_useSembast) {
-          final existingText =
-              _sembastStorage.read(_storage('simplepresent_settings.json'));
-          if (existingText != null) {
-            final existing = jsonDecode(existingText);
-            if (existing is Map && existing.containsKey('lastRunDate')) {
-              out['lastRunDate'] = existing['lastRunDate'];
-            }
-          }
-        } else {
-          if (await f.exists()) {
-            final existing = jsonDecode(await f.readAsString());
-            if (existing is Map && existing.containsKey('lastRunDate')) {
-              out['lastRunDate'] = existing['lastRunDate'];
-            }
-          }
+        final existing = await _readSettingsMap();
+        if (existing.containsKey('lastRunDate')) {
+          out['lastRunDate'] = existing['lastRunDate'];
         }
       } catch (_) {}
 
@@ -3697,13 +3678,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       // Persist current notification flags as lists so restarts don't re-notify
       out['notified15'] = _notified15.toList();
       out['notifiedDue'] = _notifiedDue.toList();
-      final encoder = const JsonEncoder.withIndent('  ');
-      final encoded = encoder.convert(out);
-      if (_useSembast) {
-        _sembastStorage.write(_storage('simplepresent_settings.json'), encoded);
-      } else {
-        await f.writeAsString(encoded);
-      }
+      await _writeSettingsMap(out);
       await _refreshAndroidTodayWidget();
     } catch (_) {}
   }
