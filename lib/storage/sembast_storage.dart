@@ -470,9 +470,12 @@ class SembastStorage {
       final opened = await _ensureSettingsDbOpen();
       if (!opened) return;
       final recs = await _rawStore.find(_settingsDb!);
+      _settingsCache.clear();
       for (final r in recs) {
         final key = r.key;
         final val = r.value;
+        // Sembast append log can contain multiple entries for a key.
+        // Iteration order is chronological, so later records must win.
         if (val is String) _settingsCache[key] = val;
       }
     } catch (_) {}

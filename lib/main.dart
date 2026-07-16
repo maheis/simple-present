@@ -1444,6 +1444,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       unawaited(_debugLog('daily migration started: $todayKey'));
       Map<String, dynamic> settings = await _readSettingsMap();
       final lastRun = settings['lastRunDate'] as String?;
+      unawaited(_debugLog(
+          'daily migration decision: today=$todayKey lastRun=${lastRun ?? ''} settingsKeys=${settings.keys.length}'));
       if (lastRun == todayKey) {
         _dailyMigrationLastRunMem = todayKey;
         unawaited(_debugLog(
@@ -1536,6 +1538,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       try {
         await _loadToday();
         await _writeSettingsMap(settings);
+        unawaited(_debugLog(
+            'daily migration wrote lastRunDate=$todayKey via settings store'));
       } catch (_) {}
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
