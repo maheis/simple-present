@@ -50,8 +50,9 @@
 - [x] settings doppeln sich!
 - [ ] unter windows wird nicht in die settings db gespeichert
 - [?] warum braucht windows firebase? was ist firebase? wofür brauche ich firebase? -> Komplett entfernt!
-- [ ] lastRunDate wird noch in der haupt db gespeichert!!
+- [x] lastRunDate wird noch in der haupt db gespeichert!!
 - [ ] .bak dateien nicht mehr erzeugen!
+- [?] dailymigration klappert!
 
 ## notes
 

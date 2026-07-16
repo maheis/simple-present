@@ -402,23 +402,6 @@ class SembastStorage {
         } catch (_) {}
       }
 
-      // Create file backups for safety
-      try {
-        final dbFile = File(_dbPath);
-        if (await dbFile.exists()) {
-          final copyPath =
-              '$_dbPath.bak.${DateTime.now().millisecondsSinceEpoch}';
-          await dbFile.copy(copyPath);
-        }
-        final settingsPath = p.join(_storageRoot, _settingsDbFileName);
-        final settingsFile = File(settingsPath);
-        if (await settingsFile.exists()) {
-          final copyPath =
-              '$settingsPath.bak.${DateTime.now().millisecondsSinceEpoch}';
-          await settingsFile.copy(copyPath);
-        }
-      } catch (_) {}
-
       // Ensure settings DB is open
       final opened = await _ensureSettingsDbOpen();
       if (!opened) return;
