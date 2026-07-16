@@ -3768,7 +3768,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _scheduledCheckTimer =
         Timer.periodic(const Duration(seconds: 30), (timer) async {
       if (!_initializationComplete) return;
-      await _promoteDueBacklogToToday(showToast: false);
+      final ranDailyMigration = await _performDailyMigrationIfNeeded();
+      if (!ranDailyMigration) {
+        await _promoteDueBacklogToToday(showToast: false);
+      }
       final now = DateTime.now();
       for (final t in _today) {
         // Do not remind for tasks without schedule or already completed
@@ -6404,6 +6407,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _startUrgentTimer();
     _startInactivityTimers();
     _startAutoSwitchTimer();
+    if (_initializationComplete) {
+      // Fallback trigger: if midnight timer or resume was missed,
+      // user activity still runs the daily migration check.
+      unawaited(_performDailyMigrationIfNeeded());
+    }
   }
 
   Color _scheduleIconColor(DateTime scheduledAt) {
