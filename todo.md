@@ -48,6 +48,11 @@
 - [x] qr-code scan füllt nicht mehr die URL
 - [x] today migration funktioniert nicht mehr sauber. today soll beim ersten start leer sein. alle aufgaben die done sind sollen in done verschoben werden, alle aufaben die offen  sind sollen ins backlog geschoben werden. alle aufgaben die auf heute oder in der vergangenheit liegen, sollen danach vom backlog ins today verschoben werden! 
 - [x] settings doppeln sich!
+- [ ] unter windows wird nicht in die settings db gespeichert
+- [ ] warum braucht windows firebase?
+- [ ] was ist firebase?
+- [ ] wofür brauche ich firebase?
+- [ ] lastRunDate wird noch in der haupt db gespeichert!!
 - [ ] 
 
 ## notes
