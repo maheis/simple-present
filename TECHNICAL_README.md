@@ -84,7 +84,7 @@ Die Settings-Datei speichert zusaetzlich unter anderem:
 
 ## Betriebsnotizen
 
-- lastRunDate wird in den Settings erhalten, damit Tagesmigration nur einmal pro Tag laeuft.
+- lastRunDate wird in der JSON-Settings-Datei erhalten, damit Tagesmigration nur einmal pro Tag laeuft.
 - Window-Position/Geometry wird nicht persistiert (absichtlich deaktiviert).
 
 ## Empfehlung fuer Debugging

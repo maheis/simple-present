@@ -805,14 +805,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   static const String _settingsStorageKey = 'settings';
   static const String _legacySettingsFileName = 'simplepresent_settings.json';
-  static const Set<String> _settingsInternalKeys = <String>{
-    'settings_cleanup_done',
-    'settings_cleanup_toast_shown',
-  };
-
-  bool _isInternalSettingsKey(String key) {
-    return key == _settingsStorageKey || _settingsInternalKeys.contains(key);
-  }
 
   Map<String, dynamic> _asSettingsMap(dynamic raw) {
     if (raw is Map) {
@@ -833,84 +825,97 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return <String, dynamic>{};
   }
 
+  Future<Map<String, dynamic>> _readLegacySettingsFromDbFile(File file,
+      {required bool allowPerKey}) async {
+    final perKey = <String, dynamic>{};
+    final composite = <String, dynamic>{};
+    try {
+      if (!await file.exists()) return <String, dynamic>{};
+      final lines = await file.readAsLines();
+      for (final line in lines) {
+        final text = line.trim();
+        if (text.isEmpty || !text.startsWith('{')) continue;
+        dynamic decoded;
+        try {
+          decoded = jsonDecode(text);
+        } catch (_) {
+          continue;
+        }
+        if (decoded is! Map) continue;
+        if ((decoded['store']?.toString() ?? '') != 'raw') continue;
+        final key = decoded['key']?.toString() ?? '';
+        if (key.isEmpty) continue;
+        final value = decoded['value'];
+        if (key == _settingsStorageKey) {
+          composite.addAll(_asSettingsMap(value));
+          continue;
+        }
+        if (key == _legacySettingsFileName) {
+          composite.addAll(_asSettingsMap(value));
+          continue;
+        }
+        if (!allowPerKey) continue;
+        if (value is! String) continue;
+        try {
+          perKey[key] = jsonDecode(value);
+        } catch (_) {
+          perKey[key] = value;
+        }
+      }
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+    final merged = <String, dynamic>{};
+    if (composite.isNotEmpty) merged.addAll(composite);
+    if (perKey.isNotEmpty) merged.addAll(perKey);
+    return merged;
+  }
+
+  Future<Map<String, dynamic>> _readLegacySettingsMap() async {
+    try {
+      final dir = await _appDir;
+      final settingsDb = File('${dir.path}/simplepresent_settings.db');
+      final settingsDbMap =
+          await _readLegacySettingsFromDbFile(settingsDb, allowPerKey: true);
+      if (settingsDbMap.isNotEmpty) return settingsDbMap;
+
+      final mainDb = File('${dir.path}/simplepresent.db');
+      final mainDbMap =
+          await _readLegacySettingsFromDbFile(mainDb, allowPerKey: false);
+      if (mainDbMap.isNotEmpty) return mainDbMap;
+    } catch (_) {}
+    return <String, dynamic>{};
+  }
+
+  Future<void> _cleanupLegacySettingsStore() async {
+    try {
+      final dir = await _appDir;
+      final settingsDb = File('${dir.path}/simplepresent_settings.db');
+      if (await settingsDb.exists()) {
+        await settingsDb.delete();
+      }
+    } catch (_) {}
+  }
+
   Future<Map<String, dynamic>> _readSettingsMap() async {
     try {
-      if (_useSembast) {
-        // Canonical path: one key per setting in dedicated settings DB.
-        final all = _sembastStorage.readAllSettings();
-        final perKey = <String, dynamic>{};
-        for (final entry in all.entries) {
-          if (_isInternalSettingsKey(entry.key)) continue;
-          perKey[entry.key] = entry.value;
-        }
-
-        // Legacy path inside settings DB: single composite key `settings`.
-        final legacyComposite =
-            _asSettingsMap(_sembastStorage.readSetting(_settingsStorageKey));
-
-        final merged = <String, dynamic>{};
-        if (legacyComposite.isNotEmpty) merged.addAll(legacyComposite);
-        if (perKey.isNotEmpty) merged.addAll(perKey);
-        if (merged.isNotEmpty) {
-          // Migrate away from legacy composite storage on read.
-          if (legacyComposite.isNotEmpty ||
-              all.containsKey(_settingsStorageKey)) {
-            await _writeSettingsMap(merged);
-          }
-          return merged;
-        }
-
-        // Legacy path 1: main DB raw blob under old filename key.
-        final legacyBlob =
-            _sembastStorage.read(_storage(_legacySettingsFileName));
-        final legacyMap = _asSettingsMap(legacyBlob);
-        if (legacyMap.isNotEmpty) {
-          await _writeSettingsMap(legacyMap);
-          _sembastStorage.deleteRaw(_storage(_legacySettingsFileName));
-          return legacyMap;
-        }
-      }
-
-      // Legacy path 2: JSON file on disk.
       final file = await _fileFor(_storage(_legacySettingsFileName));
-      if (!await file.exists()) return <String, dynamic>{};
-      final fileMap = _asSettingsMap(await file.readAsString());
-      if (fileMap.isNotEmpty && _useSembast) {
-        await _writeSettingsMap(fileMap);
-        try {
-          await file.delete();
-        } catch (_) {}
+      if (await file.exists()) {
+        return _asSettingsMap(await file.readAsString());
       }
-      return fileMap;
+
+      final legacyMap = await _readLegacySettingsMap();
+      if (legacyMap.isNotEmpty) {
+        await _writeSettingsMap(legacyMap);
+        await _cleanupLegacySettingsStore();
+      }
+      return legacyMap;
     } catch (_) {
       return <String, dynamic>{};
     }
   }
 
   Future<void> _writeSettingsMap(Map<String, dynamic> data) async {
-    if (_useSembast) {
-      final existing = _sembastStorage.readAllSettings();
-
-      // Persist one explicit key per setting.
-      for (final entry in data.entries) {
-        if (entry.key.trim().isEmpty) continue;
-        _sembastStorage.writeSetting(entry.key, entry.value);
-      }
-
-      // Remove old composite key and legacy raw JSON key.
-      _sembastStorage.deleteRaw(_settingsStorageKey);
-      _sembastStorage.deleteRaw(_storage(_legacySettingsFileName));
-
-      // Remove stale per-key settings that are no longer present.
-      final keepKeys = <String>{...data.keys, ..._settingsInternalKeys};
-      for (final key in existing.keys) {
-        if (key.trim().isEmpty) continue;
-        if (key == _settingsStorageKey) continue;
-        if (keepKeys.contains(key)) continue;
-        _sembastStorage.deleteRaw(key);
-      }
-      return;
-    }
     final file = await _fileFor(_storage(_legacySettingsFileName));
     final encoded = const JsonEncoder.withIndent('  ').convert(data);
     await file.writeAsString(encoded);
@@ -939,14 +944,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _appendRawLogEntry(String name, String entry) async {
     try {
-      if (_useSembast) {
-        final existing = _sembastStorage.read(name) ?? '';
-        final newVal = existing + entry;
-        _sembastStorage.write(name, newVal);
-      } else {
-        final file = await _fileFor(name);
-        await file.writeAsString(entry, mode: FileMode.append);
-      }
+      final file = await _fileFor(name);
+      await file.writeAsString(entry, mode: FileMode.append);
     } catch (_) {}
   }
 
@@ -954,16 +953,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       String text = '';
       try {
-        if (_useSembast) {
-          text =
-              _sembastStorage.read(_storage('simplepresent_notes.txt')) ?? '';
-        } else {
-          final file = await _fileFor(_storage('simplepresent_notes.txt'));
-          if (await file.exists()) {
-            try {
-              text = await file.readAsString();
-            } catch (_) {}
-          }
+        final file = await _fileFor(_storage('simplepresent_notes.txt'));
+        if (await file.exists()) {
+          try {
+            text = await file.readAsString();
+          } catch (_) {}
         }
       } catch (_) {
         text = '';
@@ -976,14 +970,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           onWillPop: () async {
             try {
               if (controller.text != original) {
-                if (_useSembast) {
-                  _sembastStorage.write(
-                      _storage('simplepresent_notes.txt'), controller.text);
-                } else {
-                  final file =
-                      await _fileFor(_storage('simplepresent_notes.txt'));
-                  await file.writeAsString(controller.text);
-                }
+                final file =
+                    await _fileFor(_storage('simplepresent_notes.txt'));
+                await file.writeAsString(controller.text);
                 unawaited(_syncPushNotes(controller.text));
               }
             } catch (_) {}
@@ -1081,17 +1070,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       await _sembastStorage.init(debugMode: kDebugMode);
     } catch (_) {}
-    // Notify user if a one-time settings cleanup just ran in storage.
-    try {
-      final cleaned = _sembastStorage.readSetting('settings_cleanup_done');
-      final shown = _sembastStorage.readSetting('settings_cleanup_toast_shown');
-      if (cleaned == true && shown != true) {
-        _showTopToast('Settings deduplicated and cleaned up');
-        try {
-          _sembastStorage.writeSetting('settings_cleanup_toast_shown', true);
-        } catch (_) {}
-      }
-    } catch (_) {}
+    unawaited(_cleanupLegacySettingsStore());
     // Legacy migration removed: files are expected to live under
     // the app-specific `simplepresent/` subfolder. No automatic
     // migration is performed.
@@ -1481,7 +1460,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       unawaited(_debugLog('daily migration started: $todayKey'));
       Map<String, dynamic> settings = await _readSettingsMap();
-      final lastRun = settings['lastRunDate'] as String?;
+      final rawLastRun = settings['lastRunDate'];
+      final lastRun = _normalizeLastRunDate(rawLastRun);
+      if (rawLastRun != null && lastRun == null) {
+        settings.remove('lastRunDate');
+        unawaited(_debugLog(
+            'daily migration ignored invalid lastRunDate=${rawLastRun.toString()}'));
+      }
       unawaited(_debugLog(
           'daily migration decision: today=$todayKey lastRun=${lastRun ?? ''} settingsKeys=${settings.keys.length}'));
       // Only skip via in-memory guard when persistent state also says "today".
@@ -1605,6 +1590,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } finally {
       _dailyMigrationBusy = false;
     }
+  }
+
+  String? _normalizeLastRunDate(dynamic rawValue) {
+    if (rawValue == null) return null;
+    final text = rawValue.toString().trim();
+    if (text.isEmpty) return null;
+    if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(text)) return text;
+    final parsed = DateTime.tryParse(text);
+    if (parsed != null) {
+      return DateFormat('yyyy-MM-dd').format(parsed.toLocal());
+    }
+    return null;
   }
 
   Future<int> _promoteDueBacklogToToday({bool showToast = false}) async {
@@ -3223,24 +3220,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           if (kind == 'notes') {
             final incomingText = (payload['text'] ?? '').toString();
             try {
-              if (_useSembast) {
-                // No reliable filesystem mtime for DB blobs; always replace
-                // if payload is newer according to server timestamp.
-                _sembastStorage.write(
-                    _storage('simplepresent_notes.txt'), incomingText);
-                if (mounted) _showTopToast('notes updated from cloud');
-              } else {
-                final notesFile =
-                    await _fileFor(_storage('simplepresent_notes.txt'));
-                final localModified = await (await notesFile.exists())
-                    ? (await notesFile.lastModified()).millisecondsSinceEpoch
-                    : 0;
-                if (item.modifiedAt > localModified) {
-                  try {
-                    await notesFile.writeAsString(incomingText);
-                    if (mounted) _showTopToast('notes updated from cloud');
-                  } catch (_) {}
-                }
+              final notesFile =
+                  await _fileFor(_storage('simplepresent_notes.txt'));
+              final localModified = await (await notesFile.exists())
+                  ? (await notesFile.lastModified()).millisecondsSinceEpoch
+                  : 0;
+              if (item.modifiedAt > localModified ||
+                  (localModified == 0 && incomingText.isNotEmpty)) {
+                try {
+                  await notesFile.writeAsString(incomingText);
+                  if (mounted) _showTopToast('notes updated from cloud');
+                } catch (_) {}
               }
             } catch (_) {}
             continue;
@@ -11125,8 +11115,8 @@ class _RedoLogPageState extends State<RedoLogPage> {
   Future<void> _appendRawLogEntry(String name, String entry) async {
     try {
       if (_storageReady) {
-        final existing = _sembastStorage.read(name) ?? '';
-        _sembastStorage.write(name, existing + entry);
+        final f = await _fileForName(name);
+        await f.writeAsString(entry, mode: FileMode.append);
       } else {
         final f = await _fileForName(name);
         await f.writeAsString(entry, mode: FileMode.append);
@@ -11154,22 +11144,16 @@ class _RedoLogPageState extends State<RedoLogPage> {
     });
     try {
       final lines = <String>[];
-      if (_storageReady) {
-        final text =
-            _sembastStorage.read(_storageName('simplepresent_redo.log')) ?? '';
-        if (text.isNotEmpty) lines.addAll(text.split('\n'));
-      } else {
-        final f = await _fileForName(_storageName('simplepresent_redo.log'));
-        if (!await f.exists()) {
-          setState(() {
-            _entries = [];
-            _loading = false;
-          });
-          return;
-        }
-        final fileLines = await f.readAsLines();
-        lines.addAll(fileLines);
+      final f = await _fileForName(_storageName('simplepresent_redo.log'));
+      if (!await f.exists()) {
+        setState(() {
+          _entries = [];
+          _loading = false;
+        });
+        return;
       }
+      final fileLines = await f.readAsLines();
+      lines.addAll(fileLines);
       final recent =
           lines.length > 500 ? lines.sublist(lines.length - 500) : lines;
       final parsed = <Map<String, dynamic>>[];
@@ -11330,14 +11314,9 @@ class _RedoLogPageState extends State<RedoLogPage> {
   Future<void> _copyAll() async {
     try {
       String text = '';
-      if (_storageReady) {
-        text =
-            _sembastStorage.read(_storageName('simplepresent_redo.log')) ?? '';
-      } else {
-        final f = await _fileForName(_storageName('simplepresent_redo.log'));
-        if (!await f.exists()) return;
-        text = await f.readAsString();
-      }
+      final f = await _fileForName(_storageName('simplepresent_redo.log'));
+      if (!await f.exists()) return;
+      text = await f.readAsString();
       if (text.isEmpty) return;
       await Clipboard.setData(ClipboardData(text: text));
       if (mounted) _showTopToastLocal('Copied redo log to clipboard');

@@ -13,10 +13,6 @@ class SembastStorage {
   late final String _storageRoot;
   late final String _dbPath;
   Database? _db;
-  Database? _settingsDb;
-  static const String _settingsDbFileName = 'simplepresent_settings.db';
-  static const String _settingsKey = 'settings';
-  static const String _legacySettingsBlobKey = 'simplepresent_settings.json';
 
   // Stores: 'lists' -> map filename -> List<dynamic>
   final _listsStore = StoreRef<String, Object?>('lists');
@@ -28,7 +24,6 @@ class SembastStorage {
   // In-memory caches to keep APIs synchronous where the app expects it.
   final Map<String, List<Map<String, dynamic>>> _listsCache = {};
   final Map<String, String> _rawCache = {};
-  final Map<String, String> _settingsCache = {};
   final Map<String, List<Map<String, dynamic>>> _timeCache = {};
 
   String _canonicalKey(String key) {
@@ -132,9 +127,6 @@ class SembastStorage {
     _dbPath = p.join(_storageRoot, 'simplepresent.db');
     _db = await databaseFactoryIo.openDatabase(_dbPath);
 
-    // Open dedicated settings DB and load settings cache.
-    await _loadSettingsDbCache();
-
     // Load lists
     try {
       final recs = await _listsStore.find(_db!);
@@ -162,46 +154,17 @@ class SembastStorage {
 
     // Normalize and deduplicate setting keys across caches.
     try {
-      // Build canonicalized maps preferring the dedicated settings DB values.
-      final Map<String, String> canonicalSettings = {};
-      for (final e in _settingsCache.entries) {
-        final k = _canonicalKey(e.key);
-        canonicalSettings[k] = e.value;
-      }
       final Map<String, String> canonicalRaw = {};
       for (final e in _rawCache.entries) {
         final k = _canonicalKey(e.key);
-        // Only add raw entry if not already present in settings DB cache
-        if (!canonicalSettings.containsKey(k)) {
-          // prefer existing canonicalRaw value if duplicate variants exist
-          canonicalRaw.putIfAbsent(k, () => e.value);
-        }
+        canonicalRaw.putIfAbsent(k, () => e.value);
       }
 
       // Replace caches with canonicalized keys
-      _settingsCache.clear();
-      _settingsCache.addAll(canonicalSettings);
       _rawCache.clear();
       _rawCache.addAll(canonicalRaw);
-
-      // If we have a dedicated settings DB, remove any stale copies from
-      // the main DB to avoid duplicate entries across DB files.
-      if (_settingsDb != null && _db != null) {
-        for (final key in canonicalSettings.keys) {
-          try {
-            await _rawStore.record(key).delete(_db!);
-          } catch (_) {}
-        }
-      }
     } catch (_) {}
 
-    // Run a one-time cleanup that consolidates settings into the dedicated
-    // settings DB and removes duplicates from the main DB. This makes the
-    // normalization persistent across restarts. We guard with a flag so it
-    // only runs once.
-    try {
-      await _cleanupDuplicateSettingsIfNeeded();
-    } catch (_) {}
     // Load time entries
     try {
       final recs = await _timeStore.find(_db!);
@@ -269,76 +232,22 @@ class SembastStorage {
 
   /// Delete a raw value from the storage (both cache and persistent store).
   void deleteRaw(String name) {
+    unawaited(deleteRawAsync(name));
+  }
+
+  Future<void> deleteRawAsync(String name) async {
     for (final key in _keyFallbacks(name)) {
       _rawCache.remove(key);
-      _settingsCache.remove(key);
-      unawaited(() async {
-        try {
-          await _rawStore.record(key).delete(_db!);
-        } catch (_) {}
-      }());
-      if (_settingsDb != null) {
-        unawaited(() async {
-          try {
-            await _rawStore.record(key).delete(_settingsDb!);
-          } catch (_) {}
-        }());
-      }
-    }
-  }
-
-  /// Read a single setting (JSON-decoded if possible) stored under [key].
-  dynamic readSetting(String key) {
-    final k = _canonicalKey(key);
-    final val = _settingsCache[k];
-    if (val == null) return null;
-    try {
-      return jsonDecode(val);
-    } catch (_) {
-      return val;
-    }
-  }
-
-  /// Write a setting value under [key]. The value is JSON-encoded.
-  void writeSetting(String key, dynamic value) {
-    final k = _canonicalKey(key);
-    final encoded = jsonEncode(value);
-    _settingsCache[k] = encoded;
-    unawaited(() async {
       try {
-        final opened = await _ensureSettingsDbOpen();
-        if (!opened) return;
-        // Persist into dedicated settings DB.
-        await _rawStore.record(k).put(_settingsDb!, encoded);
-        // Remove any stale copy from the main DB to avoid duplicates.
-        try {
-          await _rawStore.record(k).delete(_db!);
-        } catch (_) {}
+        await _rawStore.record(key).delete(_db!);
       } catch (_) {}
-    }());
-  }
-
-  /// Read all settings from the dedicated settings DB cache.
-  Map<String, dynamic> readAllSettings() {
-    final out = <String, dynamic>{};
-    // Read only from dedicated settings cache.
-    for (final entry in _settingsCache.entries) {
-      try {
-        out[entry.key] = jsonDecode(entry.value);
-      } catch (_) {
-        out[entry.key] = entry.value;
-      }
     }
-    return out;
   }
 
   void dispose() {
     unawaited(() async {
       try {
         await _db?.close();
-        try {
-          await _settingsDb?.close();
-        } catch (_) {}
       } catch (_) {}
     }());
   }
@@ -388,79 +297,5 @@ class SembastStorage {
     } catch (_) {
       return const [];
     }
-  }
-
-  Future<void> _cleanupDuplicateSettingsIfNeeded() async {
-    try {
-      const flagKey = 'settings_cleanup_done';
-      // If already marked done in either cache, skip
-      if (_settingsCache.containsKey(flagKey) ||
-          _rawCache.containsKey(flagKey)) {
-        try {
-          final v = readSetting(flagKey);
-          if (v == true) return;
-        } catch (_) {}
-      }
-
-      // Ensure settings DB is open
-      final opened = await _ensureSettingsDbOpen();
-      if (!opened) return;
-
-      // Consolidate canonical setting keys from caches only.
-      // Do not migrate arbitrary raw data (notes/logs) into settings DB.
-      final Map<String, String> canonical = {};
-      for (final e in _settingsCache.entries) canonical[e.key] = e.value;
-      const candidates = <String>{
-        _settingsKey,
-        _legacySettingsBlobKey,
-        'settings_cleanup_done',
-        'settings_cleanup_toast_shown',
-      };
-      for (final k in candidates) {
-        final v = _rawCache[k];
-        if (v != null) canonical.putIfAbsent(k, () => v);
-      }
-
-      for (final entry in canonical.entries) {
-        try {
-          await _rawStore.record(entry.key).put(_settingsDb!, entry.value);
-        } catch (_) {}
-        try {
-          await _rawStore.record(entry.key).delete(_db!);
-        } catch (_) {}
-      }
-
-      // Mark cleanup as done
-      try {
-        writeSetting(flagKey, true);
-      } catch (_) {}
-    } catch (_) {}
-  }
-
-  Future<bool> _ensureSettingsDbOpen() async {
-    if (_settingsDb != null) return true;
-    try {
-      _settingsDb = await databaseFactoryIo
-          .openDatabase(p.join(_storageRoot, _settingsDbFileName));
-    } catch (_) {
-      _settingsDb = null;
-    }
-    return _settingsDb != null;
-  }
-
-  Future<void> _loadSettingsDbCache() async {
-    try {
-      final opened = await _ensureSettingsDbOpen();
-      if (!opened) return;
-      final recs = await _rawStore.find(_settingsDb!);
-      _settingsCache.clear();
-      for (final r in recs) {
-        final key = r.key;
-        final val = r.value;
-        // Sembast append log can contain multiple entries for a key.
-        // Iteration order is chronological, so later records must win.
-        if (val is String) _settingsCache[key] = val;
-      }
-    } catch (_) {}
   }
 }
