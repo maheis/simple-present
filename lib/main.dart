@@ -805,6 +805,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   static const String _settingsStorageKey = 'settings';
   static const String _legacySettingsFileName = 'simplepresent_settings.json';
+  static const Set<String> _settingsInternalKeys = <String>{
+    'settings_cleanup_done',
+    'settings_cleanup_toast_shown',
+  };
+
+  bool _isInternalSettingsKey(String key) {
+    return key == _settingsStorageKey || _settingsInternalKeys.contains(key);
+  }
 
   Map<String, dynamic> _asSettingsMap(dynamic raw) {
     if (raw is Map) {
@@ -828,18 +836,36 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<Map<String, dynamic>> _readSettingsMap() async {
     try {
       if (_useSembast) {
-        // Canonical path: dedicated settings DB key.
-        final canonical = _asSettingsMap(
-          _sembastStorage.readSetting(_settingsStorageKey),
-        );
-        if (canonical.isNotEmpty) return canonical;
+        // Canonical path: one key per setting in dedicated settings DB.
+        final all = _sembastStorage.readAllSettings();
+        final perKey = <String, dynamic>{};
+        for (final entry in all.entries) {
+          if (_isInternalSettingsKey(entry.key)) continue;
+          perKey[entry.key] = entry.value;
+        }
+
+        // Legacy path inside settings DB: single composite key `settings`.
+        final legacyComposite =
+            _asSettingsMap(_sembastStorage.readSetting(_settingsStorageKey));
+
+        final merged = <String, dynamic>{};
+        if (legacyComposite.isNotEmpty) merged.addAll(legacyComposite);
+        if (perKey.isNotEmpty) merged.addAll(perKey);
+        if (merged.isNotEmpty) {
+          // Migrate away from legacy composite storage on read.
+          if (legacyComposite.isNotEmpty ||
+              all.containsKey(_settingsStorageKey)) {
+            await _writeSettingsMap(merged);
+          }
+          return merged;
+        }
 
         // Legacy path 1: main DB raw blob under old filename key.
         final legacyBlob =
             _sembastStorage.read(_storage(_legacySettingsFileName));
         final legacyMap = _asSettingsMap(legacyBlob);
         if (legacyMap.isNotEmpty) {
-          _sembastStorage.writeSetting(_settingsStorageKey, legacyMap);
+          await _writeSettingsMap(legacyMap);
           _sembastStorage.deleteRaw(_storage(_legacySettingsFileName));
           return legacyMap;
         }
@@ -850,7 +876,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (!await file.exists()) return <String, dynamic>{};
       final fileMap = _asSettingsMap(await file.readAsString());
       if (fileMap.isNotEmpty && _useSembast) {
-        _sembastStorage.writeSetting(_settingsStorageKey, fileMap);
+        await _writeSettingsMap(fileMap);
         try {
           await file.delete();
         } catch (_) {}
@@ -863,9 +889,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _writeSettingsMap(Map<String, dynamic> data) async {
     if (_useSembast) {
-      _sembastStorage.writeSetting(_settingsStorageKey, data);
-      // Remove stale legacy raw key from main DB if it still exists.
+      final existing = _sembastStorage.readAllSettings();
+
+      // Persist one explicit key per setting.
+      for (final entry in data.entries) {
+        if (entry.key.trim().isEmpty) continue;
+        _sembastStorage.writeSetting(entry.key, entry.value);
+      }
+
+      // Remove old composite key and legacy raw JSON key.
+      _sembastStorage.deleteRaw(_settingsStorageKey);
       _sembastStorage.deleteRaw(_storage(_legacySettingsFileName));
+
+      // Remove stale per-key settings that are no longer present.
+      final keepKeys = <String>{...data.keys, ..._settingsInternalKeys};
+      for (final key in existing.keys) {
+        if (key.trim().isEmpty) continue;
+        if (key == _settingsStorageKey) continue;
+        if (keepKeys.contains(key)) continue;
+        _sembastStorage.deleteRaw(key);
+      }
       return;
     }
     final file = await _fileFor(_storage(_legacySettingsFileName));
