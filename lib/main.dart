@@ -9439,7 +9439,28 @@ class _SettingsPageState extends State<SettingsPage> {
           return;
         }
       }
-      final uri = Uri.parse(raw);
+      // Clean up common scanner artifacts (newlines, carriage returns)
+      var cleaned = raw.trim().replaceAll('\r', '').replaceAll('\n', '').trim();
+
+      // If scanner returned a plain http(s) URL, import it as `cloudServerUrl`.
+      if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
+        setState(() {
+          cloudServerUrl = cleaned;
+          _cloudStatus = 'server url imported ($sourceLabel).';
+        });
+        return;
+      }
+
+      // If the scanned text contains an embedded simplepresent:// URI, extract it.
+      final spIndex = cleaned.indexOf('simplepresent://');
+      if (spIndex >= 0 && spIndex < cleaned.length) {
+        // Take until whitespace if additional text follows.
+        final tail = cleaned.substring(spIndex);
+        final endIdx = tail.indexOf(RegExp(r'\s'));
+        cleaned = endIdx >= 0 ? tail.substring(0, endIdx) : tail;
+      }
+
+      final uri = Uri.parse(cleaned);
       if (uri.scheme != 'simplepresent' || uri.host != 'pair') {
         setState(() => _cloudStatus = 'invalid pairing link ($sourceLabel).');
         return;
