@@ -374,22 +374,26 @@ static void my_application_activate(GApplication *application)
   }
 
 #ifdef GDK_WINDOWING_X11
-  /* Realize the window so a GdkWindow / X11 Window may exist for class hinting.
-   * At runtime the session may be Wayland; guard with GDK_IS_X11_WINDOW to
-   * avoid calling X11 helpers on non-X11 windows. Now the icon is already set. */
-  gtk_widget_realize(GTK_WIDGET(window));
-  GdkWindow *gdk_win = gtk_widget_get_window(GTK_WIDGET(window));
-  if (gdk_win && GDK_IS_X11_WINDOW(gdk_win))
+  /* Only realize early on X11, where we actually need a native window handle
+   * for WM class hints. On Wayland this early realize can interfere with the
+   * normal Flutter/GTK view mapping path. */
+  GdkScreen *x11_screen = gtk_window_get_screen(window);
+  if (GDK_IS_X11_SCREEN(x11_screen))
   {
-    Display *dpy = GDK_WINDOW_XDISPLAY(gdk_win);
-    Window xid = GDK_WINDOW_XID(gdk_win);
-    XClassHint *ch = XAllocClassHint();
-    if (ch)
+    gtk_widget_realize(GTK_WIDGET(window));
+    GdkWindow *gdk_win = gtk_widget_get_window(GTK_WIDGET(window));
+    if (gdk_win && GDK_IS_X11_WINDOW(gdk_win))
     {
-      ch->res_name = (char *)"simplepresent";
-      ch->res_class = (char *)"SimplePresent";
-      XSetClassHint(dpy, xid, ch);
-      XFree(ch);
+      Display *dpy = GDK_WINDOW_XDISPLAY(gdk_win);
+      Window xid = GDK_WINDOW_XID(gdk_win);
+      XClassHint *ch = XAllocClassHint();
+      if (ch)
+      {
+        ch->res_name = (char *)"simplepresent";
+        ch->res_class = (char *)"SimplePresent";
+        XSetClassHint(dpy, xid, ch);
+        XFree(ch);
+      }
     }
   }
 #endif
@@ -408,7 +412,8 @@ static void my_application_activate(GApplication *application)
 
   // Show the window when Flutter renders.
   // Requires the view to be realized so we can start rendering.
-  g_signal_connect_swapped(view, "first-frame", G_CALLBACK(first_frame_cb), self);
+  g_signal_connect_swapped(view, "first-frame", G_CALLBACK(first_frame_cb),
+                           self);
   gtk_widget_realize(GTK_WIDGET(view));
 
   // Store global pointer for method handlers

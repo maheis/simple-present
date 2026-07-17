@@ -6,7 +6,6 @@ import 'package:simple_present/sync/cloud_sync_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart';
-import 'package:intl/date_symbol_data_local.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
@@ -22,6 +21,11 @@ import 'package:file_selector/file_selector.dart' as fs;
 const _noChange = Object();
 
 const String kClientVersion = '0.1.0';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const SimplePresentApp());
+}
 
 String _suggestedCloudDeviceName() {
   if (Platform.isAndroid) return 'android';
@@ -39,6 +43,28 @@ String _normalizeCloudDeviceName(String? raw) {
     return 'android';
   }
   return value;
+}
+
+bool _isClientOlderThanServer(String clientVersion, String serverVersion) {
+  List<int> parseParts(String version) {
+    final cleaned = version.trim().replaceFirst(RegExp(r'^[^0-9]+'), '');
+    return cleaned
+        .split(RegExp(r'[^0-9]+'))
+        .where((part) => part.isNotEmpty)
+        .map((part) => int.tryParse(part) ?? 0)
+        .toList();
+  }
+
+  final clientParts = parseParts(clientVersion);
+  final serverParts = parseParts(serverVersion);
+  final maxLen = math.max(clientParts.length, serverParts.length);
+  for (var i = 0; i < maxLen; i++) {
+    final clientPart = i < clientParts.length ? clientParts[i] : 0;
+    final serverPart = i < serverParts.length ? serverParts[i] : 0;
+    if (clientPart < serverPart) return true;
+    if (clientPart > serverPart) return false;
+  }
+  return false;
 }
 
 // Global mouse entropy buffer used across pages for phrase suggestion.
@@ -65,13 +91,11 @@ class TimeEntry {
   final int stopwatchSeconds;
   final int workMinutes;
 
-  /// Total rounded-up 15-min blocks from stopwatch + manual minutes.
   int get totalMinutes {
-    const blockSec = 15 * 60;
-    final blocks = stopwatchSeconds > 0
-        ? ((stopwatchSeconds + blockSec - 1) ~/ blockSec)
-        : 0;
-    return blocks * 15 + workMinutes;
+    final roundedStopwatchMinutes = stopwatchSeconds <= 0
+        ? 0
+        : ((stopwatchSeconds + (15 * 60) - 1) ~/ (15 * 60)) * 15;
+    return roundedStopwatchMinutes + workMinutes;
   }
 
   String get statusLabel {
@@ -81,50 +105,6 @@ class TimeEntry {
   }
 }
 
-List<int>? _parseVersionParts(String raw) {
-  var normalized = raw.trim();
-  if (normalized.isEmpty) return null;
-  if (normalized.startsWith('v') || normalized.startsWith('V')) {
-    normalized = normalized.substring(1);
-  }
-  final core = normalized.split('-').first;
-  final parts = core.split('.');
-  if (parts.isEmpty) return null;
-  final out = <int>[];
-  for (final p in parts) {
-    final v = int.tryParse(p);
-    if (v == null) return null;
-    out.add(v);
-  }
-  return out;
-}
-
-int _compareVersions(String a, String b) {
-  final left = _parseVersionParts(a);
-  final right = _parseVersionParts(b);
-  if (left == null || right == null) return 0;
-
-  final maxLen = math.max(left.length, right.length);
-  for (var i = 0; i < maxLen; i++) {
-    final lv = i < left.length ? left[i] : 0;
-    final rv = i < right.length ? right[i] : 0;
-    if (lv < rv) return -1;
-    if (lv > rv) return 1;
-  }
-  return 0;
-}
-
-bool _isClientOlderThanServer(String clientVersion, String serverVersion) {
-  return _compareVersions(clientVersion, serverVersion) < 0;
-}
-
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await initializeDateFormatting('de_DE');
-  runApp(const SimplePresentApp());
-}
-
-// Top-level debug logger used by multiple widgets. It writes to
 // `<Documents>/simplepresent/simplepresent_debug.log` (or the
 // debug variant when in debug mode). This is intentionally simple so
 // different widgets can call it without needing an instance.
@@ -1887,6 +1867,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _storageWriteChain;
   }
 
+  Future<void> _saveToday() async {
+    await _saveList(_currentFile, _today);
+  }
+
   /// Export all lists (today, backlog, done, trash) to a single JSON file at [path].
   /// If the file exists it will be overwritten.
   Future<void> exportAllListsToJsonFile(String path) async {
@@ -2126,8 +2110,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (ctx) => WillPopScope(
-          onWillPop: () async => false,
+        builder: (ctx) => PopScope<void>(
+          canPop: false,
           child: AlertDialog(
             title: const Text('importing'),
             content: Row(
@@ -2161,7 +2145,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _loadList(_currentFile, _today);
     // If today is unexpectedly empty but a backup exists, restore it.
     try {
-      if ((_today.isEmpty)) {
+      if (_today.isEmpty) {
         final backupFile = await _fileFor('simplepresent_today.backup.json');
         if (await backupFile.exists()) {
           try {
@@ -2171,21 +2155,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               _today.clear();
               _today.addAll(data.map(TaskItem.fromJson));
               unawaited(_debugLog('restored today list from backup'));
-              // Persist restored state to main today file.
               await _saveList(_storage('simplepresent_today.json'), _today);
-              // Remove backup after successful restore.
               await backupFile.delete();
             }
           } catch (_) {}
         }
       }
     } catch (_) {}
-    // Apply list-specific ordering only for display when opening a list.
+
     try {
       if (_currentFile == _storage('simplepresent_backlog.json')) {
-        // Backlog: sort by scheduled date/time (earliest first).
-        // Tasks without a schedule stay after scheduled tasks.
-        // For equal keys, preserve original order to avoid visual jumping.
         final indexed = <MapEntry<int, TaskItem>>[];
         for (var i = 0; i < _today.length; i++) {
           indexed.add(MapEntry(i, _today[i]));
@@ -2207,48 +2186,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _today
           ..clear()
           ..addAll(indexed.map((e) => e.value));
-      } else if (_currentFile == _storage('simplepresent_done.json')) {
-        // Sort done list by completion timestamp (newest first). Tasks without
-        // `completedAt` are placed at the end, preserving relative order where
-        // timestamps are equal.
-        try {
-          _today.sort((a, b) {
-            final da = a.completedAt;
-            final db = b.completedAt;
-            if (da == null && db == null) return 0;
-            if (da == null) return 1; // a after b
-            if (db == null) return -1; // a before b
-            return db.compareTo(da); // newest first
-          });
-        } catch (_) {}
       }
     } catch (_) {}
-    setState(() {});
-    // Ensure header counters are up to date
+
     unawaited(_updateListCounts());
     try {
       _lastPersistedToday.clear();
       for (final t in _today) {
         _lastPersistedToday[t.id] = t.toJson();
       }
-    } catch (_) {}
-  }
-
-  Future<void> _saveToday() async {
-    try {
-      // Persist the currently loaded list (`_today` holds the in-memory
-      // representation of whatever view is active). Use `_currentFile` so
-      // saving operations write back to the correct file (today/backlog/done).
-      await _saveList(_currentFile, _today);
-      unawaited(_updateListCounts());
-
-      // Update the snapshot after a successful save to keep last persisted
-      // map in sync. Individual edit/create/delete actions are logged when
-      // finalized elsewhere.
-      try {
-        _lastPersistedToday.clear();
-        for (final t in _today) _lastPersistedToday[t.id] = t.toJson();
-      } catch (_) {}
     } catch (_) {}
   }
 
@@ -2262,7 +2208,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   void _queueCloudTimeEntrySync(TaskItem task) {
     if (!_cloudSyncConfigured || _applyingCloudState) return;
-
     final date = DateFormat('yyyy-MM-dd').format(DateTime.now());
     _cloudPendingTimeEntrySync['$date:${task.id}'] = task;
     _flushPendingCloudTimeEntrySync();
@@ -5023,71 +4968,68 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   ),
                 ),
                 if (selected == 'monthly')
-                  Column(
-                    children: [
-                      Row(
-                        children: [
-                          Radio<String>(
-                              value: 'dom',
-                              groupValue: monthlyMode,
-                              onChanged: (v) =>
-                                  setState2(() => monthlyMode = v ?? 'dom')),
-                          const SizedBox(width: 6),
-                          const Text('Day of month'),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            width: 80,
-                            child: TextFormField(
-                              initialValue: '$dom',
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(isDense: true),
-                              onChanged: (val) => setState2(
-                                  () => dom = int.tryParse(val) ?? dom),
+                  RadioGroup<String>(
+                    groupValue: monthlyMode,
+                    onChanged: (v) => setState2(() => monthlyMode = v ?? 'dom'),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            const Radio<String>(value: 'dom'),
+                            const SizedBox(width: 6),
+                            const Text('Day of month'),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 80,
+                              child: TextFormField(
+                                initialValue: '$dom',
+                                keyboardType: TextInputType.number,
+                                decoration:
+                                    const InputDecoration(isDense: true),
+                                onChanged: (val) => setState2(
+                                    () => dom = int.tryParse(val) ?? dom),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Radio<String>(
-                              value: 'weekday',
-                              groupValue: monthlyMode,
-                              onChanged: (v) => setState2(
-                                  () => monthlyMode = v ?? 'weekday')),
-                          const SizedBox(width: 6),
-                          const Text('Weekday rule'),
-                          const SizedBox(width: 8),
-                          DropdownButton<String>(
-                              value: weekdayMode,
-                              items: const [
-                                DropdownMenuItem(
-                                    value: 'first', child: Text('first')),
-                                DropdownMenuItem(
-                                    value: 'last', child: Text('last'))
-                              ],
-                              onChanged: (v) =>
-                                  setState2(() => weekdayMode = v ?? 'first')),
-                          const SizedBox(width: 8),
-                          DropdownButton<int>(
-                              value: weekday,
-                              items: List.generate(7, (i) => i + 1)
-                                  .map((d) => DropdownMenuItem(
-                                      value: d,
-                                      child: Text([
-                                        'Mon',
-                                        'Tue',
-                                        'Wed',
-                                        'Thu',
-                                        'Fri',
-                                        'Sat',
-                                        'Sun'
-                                      ][d - 1])))
-                                  .toList(),
-                              onChanged: (v) => setState2(
-                                  () => weekday = v ?? DateTime.now().weekday)),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            const Radio<String>(value: 'weekday'),
+                            const SizedBox(width: 6),
+                            const Text('Weekday rule'),
+                            const SizedBox(width: 8),
+                            DropdownButton<String>(
+                                value: weekdayMode,
+                                items: const [
+                                  DropdownMenuItem(
+                                      value: 'first', child: Text('first')),
+                                  DropdownMenuItem(
+                                      value: 'last', child: Text('last'))
+                                ],
+                                onChanged: (v) => setState2(
+                                    () => weekdayMode = v ?? 'first')),
+                            const SizedBox(width: 8),
+                            DropdownButton<int>(
+                                value: weekday,
+                                items: List.generate(7, (i) => i + 1)
+                                    .map((d) => DropdownMenuItem(
+                                        value: d,
+                                        child: Text([
+                                          'Mon',
+                                          'Tue',
+                                          'Wed',
+                                          'Thu',
+                                          'Fri',
+                                          'Sat',
+                                          'Sun'
+                                        ][d - 1])))
+                                    .toList(),
+                                onChanged: (v) => setState2(() =>
+                                    weekday = v ?? DateTime.now().weekday)),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ListTile(
                   title: const Text('Yearly'),
