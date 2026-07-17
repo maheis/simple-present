@@ -652,6 +652,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _countDone = 0;
   bool _initializationComplete = false;
   Future<void> _storageWriteChain = Future.value();
+  String? _lastRunDate;
 
   // Optional override for storage path (set via settings 'storagePath')
   String? _storagePathOverride;
@@ -717,6 +718,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       if (!_initializationComplete) return;
+      unawaited(_runDailyMigrationIfNeeded());
       unawaited(_promoteDueBacklogToToday(showToast: false));
     }
   }
@@ -941,6 +943,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {}
     await _loadSettings();
     await _ensureInitialFiles();
+    await _runDailyMigrationIfNeeded();
 
     // Start auto-export timers and perform export on-start if configured
     try {
@@ -1380,6 +1383,97 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return 0;
     } finally {
       _autoPromoteDueBacklogBusy = false;
+    }
+  }
+
+  String _dayKey(DateTime value) {
+    return DateFormat('yyyy-MM-dd').format(value);
+  }
+
+  String? _normalizeLastRunDate(dynamic raw) {
+    if (raw == null) return null;
+    final text = raw.toString().trim();
+    if (text.isEmpty) return null;
+    final direct = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+    if (direct.hasMatch(text)) return text;
+
+    final parsed = DateTime.tryParse(text);
+    if (parsed != null) return _dayKey(parsed.toLocal());
+
+    final millis = int.tryParse(text);
+    if (millis != null) {
+      try {
+        return _dayKey(DateTime.fromMillisecondsSinceEpoch(millis));
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  Future<void> _runDailyMigrationIfNeeded() async {
+    final todayFile = _storage('simplepresent_today.json');
+    final backlogFile = _storage('simplepresent_backlog.json');
+    final doneFile = _storage('simplepresent_done.json');
+    final todayKey = _dayKey(DateTime.now());
+    if (_lastRunDate == todayKey) return;
+
+    try {
+      final todayList = <TaskItem>[];
+      final backlogList = <TaskItem>[];
+      final doneList = <TaskItem>[];
+      await Future.wait([
+        _loadList(todayFile, todayList),
+        _loadList(backlogFile, backlogList),
+        _loadList(doneFile, doneList),
+      ]);
+
+      if (todayList.isNotEmpty) {
+        final backlogIds = backlogList.map((t) => t.id).toSet();
+        final doneIds = doneList.map((t) => t.id).toSet();
+        final toBacklog = <TaskItem>[];
+        final toDone = <TaskItem>[];
+
+        for (final t in todayList) {
+          if (t.done) {
+            if (!doneIds.contains(t.id)) {
+              toDone.add(t.copyWith(inProgress: false, inProgressAt: null));
+              doneIds.add(t.id);
+            }
+            continue;
+          }
+
+          if (!backlogIds.contains(t.id)) {
+            toBacklog.add(t.copyWith(
+              inProgress: false,
+              inProgressAt: null,
+              stopwatchRunning: false,
+              stopwatchStartedAt: null,
+            ));
+            backlogIds.add(t.id);
+          }
+        }
+
+        if (toBacklog.isNotEmpty) {
+          backlogList.insertAll(0, toBacklog);
+          await _saveList(backlogFile, backlogList);
+        }
+        if (toDone.isNotEmpty) {
+          doneList.insertAll(0, toDone);
+          await _saveList(doneFile, doneList);
+        }
+        await _saveList(todayFile, const <TaskItem>[]);
+
+        unawaited(_debugLog(
+            'daily migration: moved_open=${toBacklog.length} moved_done=${toDone.length}'));
+      } else {
+        unawaited(_debugLog('daily migration: today already empty'));
+      }
+    } catch (e, st) {
+      unawaited(_debugLog('daily migration failed: $e\n$st'));
+    } finally {
+      _lastRunDate = todayKey;
+      try {
+        await _saveSettings();
+      } catch (_) {}
     }
   }
 
@@ -3160,6 +3254,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
         // Optional debug write logging
         _debugWriteLog = readBool('debugWriteLog', _debugWriteLog);
+        _lastRunDate = _normalizeLastRunDate(data['lastRunDate']);
         // If debug logging is enabled in settings, create an initial entry
         // so the logfile appears immediately for debugging verification.
         try {
@@ -3283,6 +3378,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'autoExportTimes': _autoExportTimes,
         'autoExportMaxBackups': _autoExportMaxBackups,
         'lastAutoExportChecksum': _lastAutoExportChecksum,
+        'lastRunDate': _lastRunDate ?? '',
       };
 
       // Do not capture or persist window geometry or position.
