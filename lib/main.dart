@@ -139,6 +139,22 @@ Future<void> exportTodayAndRefresh(List<TaskItem> tasks) async {
       } catch (_) {}
     }
 
+    // Also write an aggregated JSON file into the Flutter support directory
+    // so the Android native widget can read a single `simplepresent_widget.json`.
+    try {
+      final supportDir = await getApplicationSupportDirectory();
+      final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
+      final aggDir = Directory('${supportDir.path}/$folderName');
+      if (!await aggDir.exists()) await aggDir.create(recursive: true);
+      final agg = {
+        'exportedAt': DateTime.now().toIso8601String(),
+        'fontFamily': 'OpenDyslexic',
+        'tasks': tasks.map((t) => t.toJson()).toList(),
+      };
+      final aggFile = File('${aggDir.path}/simplepresent_widget.json');
+      await aggFile
+          .writeAsString(const JsonEncoder.withIndent('  ').convert(agg));
+    } catch (_) {}
     // Try to notify native layer on Android to refresh widgets.
     try {
       if (Platform.isAndroid) {
