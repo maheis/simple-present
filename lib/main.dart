@@ -1419,12 +1419,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (mounted) setState(() {});
   }
 
-  Color _interpolateCountColor(int count, int max) {
-    if (max <= 0) return Colors.green;
-    final t = (count / max).clamp(0.0, 1.0);
-    return Color.lerp(Colors.green, Colors.red, t) ?? Colors.green;
-  }
-
   Future<void> _purgeOldDoneTasksIfEnabled() async {
     if (!_autoPurgeDoneEnabled || _doneRetentionDays <= 0) return;
     await _purgeOldDoneTasks(_doneRetentionDays);
@@ -1893,15 +1887,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _storageWriteChain;
   }
 
-  Future<void> _recordRestoreEvent(String reason, int restoredCount) async {
-    try {
-      final now = DateTime.now().toIso8601String();
-      final entry = '$now | restored=$restoredCount | reason=$reason\n';
-      await _appendRawLogEntry('simplepresent_restore_events.log', entry);
-      unawaited(_debugLog('restore event logged: $entry'));
-    } catch (_) {}
-  }
-
   /// Export all lists (today, backlog, done, trash) to a single JSON file at [path].
   /// If the file exists it will be overwritten.
   Future<void> exportAllListsToJsonFile(String path) async {
@@ -2109,7 +2094,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _importViaChooser({bool merge = false}) async {
+  Future<void> _importViaChooser() async {
     try {
       final typeGroup = fs.XTypeGroup(label: 'json', extensions: ['json']);
       final xfile = await fs.openFile(acceptedTypeGroups: [typeGroup]);
@@ -4386,7 +4371,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             beforeSnapshot = _lastPersistedToday[taskId];
           }
           // apply the done/undone change to the task
-          final t = _today[idx];
           final now = val == true ? DateTime.now() : null;
           if (val == true) {
             // stop any running stopwatch to avoid further time accumulation
@@ -8895,7 +8879,6 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool _initialAutoExportOnStart;
   late int _initialAutoExportIntervalMinutes;
   late String _initialAutoExportTimesCsv;
-  late int _initialAutoExportMaxBackups;
   late List<Map<String, dynamic>> _inactivityRemindersLocal;
 
   @override
@@ -9028,7 +9011,6 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialAutoExportOnStart = autoExportOnStart;
     _initialAutoExportIntervalMinutes = autoExportIntervalMinutes;
     _initialAutoExportTimesCsv = autoExportTimesCsv;
-    _initialAutoExportMaxBackups = autoExportMaxBackups;
     _fetchServerVersionInSettings();
     unawaited(_refreshCloudAccountStatus());
     // Initialize local inactivity reminders from parent-provided initial map
