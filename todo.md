@@ -1,15 +1,32 @@
 # ToDo
 
+- [x] sync button macht immer noch nicht 100%
+- [x] aufgaben durcheinander
+  - [-] es kommt zu vielen dopplungen von aufgaben
+  - [-] today war auf einmal komplett leer!
+  - [-] aufgaben werden nicht automatisch aus dem backlog geholt wenn sie auf heute liegen!
+  - [-] verschieben zwischen listen (insbesondere durch status änderungen!)
+- [x] fertige aufgaben werden nicht mehr automatisch aus dem today entfernt
+- [x] settings in eine eigene sembast-db
+- [x] funktionen heißen immer noch alle sqlite... 
+- [x] clean done
+- [x] android: widget funktioniert seit umstellung auf sembast nicht mehr bzw. zeigt nichts mehr an!
+- [x] aufgaben die ich im backlog auf heute oder in vergangenheit lege, sollen in today gemoved werden!
+- [x] default backup strategie: 90 Backups, alle 5 Minuten und beim Start
+- [x] cliens hängen häufiger im start loading fest, ich glaube tritt nur bei cloud sync clients auf!
+- [x] qr-code scan füllt nicht mehr die URL
+- [x] today migration funktioniert nicht mehr sauber. today soll beim ersten start leer sein. alle aufgaben die done sind sollen in done verschoben werden, alle aufaben die offen  sind sollen ins backlog geschoben werden. alle aufgaben die auf heute oder in der vergangenheit liegen, sollen danach vom backlog ins today verschoben werden! 
+- [x] settings doppeln sich!
+- [x] settings wieder auf json zurueckgestellt
+- [x] warum braucht windows firebase? was ist firebase? wofür brauche ich firebase? -> Komplett entfernt!
+- [x] lastRunDate wird noch in der haupt db gespeichert!!
+- [x] .bak dateien nicht mehr erzeugen!
+- [x] dailymigration klappert!
+- [x] cloud sync (merken welche ids etc) aus den settings ruasnehmen und in die haupt db verschieben!
 - [?] ausführliches sync testen! kommt ständig zu fehlern, die nicht reproduzierbar sind! 
       z.b. move von backlog zu today wird nicht synchronisiert, sachen die ins backlog gehen, bleiben in today...
       dopplung von aufgaben...
-- [?] sync button macht immer noch nicht 100%
 - [?] android hintergrund synchronisation (push) implementieren
-- [?] aufgaben durcheinander
-  - [ ] es kommt zu vielen dopplungen von aufgaben
-  - [ ] today war auf einmal komplett leer!
-  - [ ] aufgaben werden nicht automatisch aus dem backlog geholt wenn sie auf heute liegen!
-  - [ ] verschieben zwischen listen (insbesondere durch status änderungen!)
 - [?] android verliert manchmal den text focus beim editieren und springt runter in "neue aufgaben"-feld
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Windows Store Veröffentlichung (.notes/WINDOWS_APP_STORE.md)
@@ -36,24 +53,8 @@
 - [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
 - [ ] refresh widget - bei aktualisierung von today in der app!
-- [x] fertige aufgaben werden nicht mehr automatisch aus dem today entfernt
+- [?] qr-code nimmt url nicht mit!
 - [x] aufgaben von yesterday legen nach erledigung eine neue today aufgabe an. follow up soll auch bei vergangenen aufgaben wie today behandelt werden, also follow up vom heutigem tag aus generiert werden!
-- [x] settings in eine eigene sembast-db
-- [x] funktionen heißen immer noch alle sqlite... 
-- [x] clean done
-- [x] android: widget funktioniert seit umstellung auf sembast nicht mehr bzw. zeigt nichts mehr an!
-- [x] aufgaben die ich im backlog auf heute oder in vergangenheit lege, sollen in today gemoved werden!
-- [x] default backup strategie: 90 Backups, alle 5 Minuten und beim Start
-- [x] cliens hängen häufiger im start loading fest, ich glaube tritt nur bei cloud sync clients auf!
-- [x] qr-code scan füllt nicht mehr die URL
-- [x] today migration funktioniert nicht mehr sauber. today soll beim ersten start leer sein. alle aufgaben die done sind sollen in done verschoben werden, alle aufaben die offen  sind sollen ins backlog geschoben werden. alle aufgaben die auf heute oder in der vergangenheit liegen, sollen danach vom backlog ins today verschoben werden! 
-- [x] settings doppeln sich!
-- [x] settings wieder auf json zurueckgestellt
-- [x] warum braucht windows firebase? was ist firebase? wofür brauche ich firebase? -> Komplett entfernt!
-- [x] lastRunDate wird noch in der haupt db gespeichert!!
-- [x] .bak dateien nicht mehr erzeugen!
-- [x] dailymigration klappert!
-- [x] cloud sync (merken welche ids etc) aus den settings ruasnehmen und in die haupt db verschieben!
 
 ## notes
 

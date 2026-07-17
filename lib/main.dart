@@ -1678,7 +1678,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       final rec = task.recurrence;
       if (rec != null && rec.isNotEmpty) {
-        final base = task.scheduledAt ?? DateTime.now();
+        // Base date for computing next recurrence:
+        // If the task was scheduled for today, use that as base so follow-ups
+        // preserve the intended schedule within the same day. If the task's
+        // scheduled date is in the past (e.g. yesterday), use now so the
+        // follow-up is generated relative to the current day.
+        DateTime base;
+        if (task.scheduledAt == null) {
+          base = DateTime.now();
+        } else if (_isSameDay(task.scheduledAt!, DateTime.now())) {
+          base = task.scheduledAt!;
+        } else {
+          base = DateTime.now();
+        }
         final next = _computeNextRecurrence(base, rec);
         if (next != null) {
           // Only ask user if askRepeatDateOnRecreation is enabled for this task
@@ -11726,7 +11738,8 @@ class _QrScannerPageState extends State<_QrScannerPage> {
           if (_handled) return;
           final barcodes = capture.barcodes;
           for (final barcode in barcodes) {
-            final value = barcode.rawValue;
+            final raw = barcode.displayValue ?? barcode.rawValue;
+            final value = raw?.trim().replaceAll('\n', '');
             if (value != null && value.isNotEmpty) {
               _handled = true;
               Navigator.of(context).pop(value);
