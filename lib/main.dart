@@ -943,6 +943,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {}
     await _loadSettings();
     await _ensureInitialFiles();
+    await _loadCloudKnownIdsFromDb();
     await _runDailyMigrationIfNeeded();
 
     // Start auto-export timers and perform export on-start if configured
@@ -2526,6 +2527,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       knownIds
         ..clear()
         ..addAll(currentIds);
+      await _saveCloudKnownIdsToDb();
       // Note: do NOT update _cloudLastSyncModifiedAt here.
       // Only _syncPullFromCloud advances this cursor so we never accidentally
       // skip changes from other devices that happened before our push.
@@ -2994,6 +2996,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _cloudKnownDoneIds
           ..clear()
           ..addAll(done.map((t) => t.id));
+        await _saveCloudKnownIdsToDb();
         try {
           await _saveSettings();
         } catch (_) {}
@@ -3235,18 +3238,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (cloudSyncLastError is String) {
           _cloudSyncLastError = cloudSyncLastError;
         }
-        final knownToday = data['cloudKnownTodayIds'];
-        if (knownToday is List) {
-          _cloudKnownTodayIds = knownToday.map((e) => e.toString()).toSet();
-        }
-        final knownBacklog = data['cloudKnownBacklogIds'];
-        if (knownBacklog is List) {
-          _cloudKnownBacklogIds = knownBacklog.map((e) => e.toString()).toSet();
-        }
-        final knownDone = data['cloudKnownDoneIds'];
-        if (knownDone is List) {
-          _cloudKnownDoneIds = knownDone.map((e) => e.toString()).toSet();
-        }
         // Optional storage path override
         final storagePath = data['storagePath'];
         if (storagePath is String && storagePath.isNotEmpty) {
@@ -3357,9 +3348,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'cloudLastSyncSuccessAt': _cloudLastSyncSuccessAt,
         'cloudSyncFailed': _cloudSyncFailed,
         'cloudSyncLastError': _cloudSyncLastError,
-        'cloudKnownTodayIds': _cloudKnownTodayIds.toList(),
-        'cloudKnownBacklogIds': _cloudKnownBacklogIds.toList(),
-        'cloudKnownDoneIds': _cloudKnownDoneIds.toList(),
         'scheduledReminderSoundEnabled': _scheduledReminderSoundEnabled,
         'reminderWindowFrom': _reminderWindowFrom,
         'reminderWindowTo': _reminderWindowTo,
@@ -3387,6 +3375,45 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       out['notifiedDue'] = _notifiedDue.toList();
       await _writeSettingsMap(out);
       await _refreshAndroidTodayWidget();
+    } catch (_) {}
+  }
+
+  Set<String> _decodeCloudKnownIdsRaw(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return <String>{};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded.map((e) => e.toString()).toSet();
+      }
+    } catch (_) {}
+    return <String>{};
+  }
+
+  Future<void> _loadCloudKnownIdsFromDb() async {
+    if (!_useSembast) return;
+    try {
+      _cloudKnownTodayIds =
+          _decodeCloudKnownIdsRaw(_sembastStorage.read('cloudKnownTodayIds'));
+      _cloudKnownBacklogIds =
+          _decodeCloudKnownIdsRaw(_sembastStorage.read('cloudKnownBacklogIds'));
+      _cloudKnownDoneIds =
+          _decodeCloudKnownIdsRaw(_sembastStorage.read('cloudKnownDoneIds'));
+    } catch (_) {
+      _cloudKnownTodayIds = <String>{};
+      _cloudKnownBacklogIds = <String>{};
+      _cloudKnownDoneIds = <String>{};
+    }
+  }
+
+  Future<void> _saveCloudKnownIdsToDb() async {
+    if (!_useSembast) return;
+    try {
+      _sembastStorage.write(
+          'cloudKnownTodayIds', jsonEncode(_cloudKnownTodayIds.toList()));
+      _sembastStorage.write(
+          'cloudKnownBacklogIds', jsonEncode(_cloudKnownBacklogIds.toList()));
+      _sembastStorage.write(
+          'cloudKnownDoneIds', jsonEncode(_cloudKnownDoneIds.toList()));
     } catch (_) {}
   }
 
