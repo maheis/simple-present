@@ -81,7 +81,7 @@ class CloudSyncClient {
     HttpClient? httpClient,
   }) : _http = httpClient ?? HttpClient() {
     // Configure certificate verification for HTTPS connections.
-    // 
+    //
     // Default behavior (allowInsecureCertificates=false):
     //   - On Android: Trusts system CA certs and user-installed CAs (if configured
     //     in network_security_config.xml). However, dart:io HttpClient may not
@@ -101,7 +101,7 @@ class CloudSyncClient {
       final uri = Uri.tryParse(serverBaseUrl);
       final expectedHost = uri?.host ?? '';
       final expectedPort = uri?.hasPort == true ? uri!.port : 443;
-      
+
       if (allowInsecureCertificates) {
         _http.badCertificateCallback = (cert, host, port) {
           // Only accept certificates for the explicitly configured server
@@ -190,7 +190,7 @@ class CloudSyncClient {
     'socket',
   ];
 
-  /// Suggest a pairing phrase. By default this returns 9 words (legacy).
+  /// Suggest a pairing phrase. By default this returns 9 words.
   /// If [alphaNumeric] is true, returns a phrase of [groupCount] groups
   /// containing [groupLen] random alphanumeric characters (separated by spaces).
   /// Optionally provide [extraEntropy] bytes (e.g. from pointer movement) to bias randomness.
@@ -306,7 +306,8 @@ class CloudSyncClient {
         secretKey: secretKey,
       );
     } catch (_) {
-      throw CloudSyncException('Decryption failed (wrong phrase or corrupted data).');
+      throw CloudSyncException(
+          'Decryption failed (wrong phrase or corrupted data).');
     }
 
     final decoded = jsonDecode(utf8.decode(clearBytes));
@@ -355,7 +356,8 @@ class CloudSyncClient {
     required String phrase,
     required String pin,
   }) async {
-    final challengeResponse = await _postJson('/pair/challenge', <String, dynamic>{
+    final challengeResponse =
+        await _postJson('/pair/challenge', <String, dynamic>{
       'account_id': accountId,
     });
 
@@ -555,7 +557,8 @@ class CloudSyncClient {
     );
   }
 
-  Future<List<Map<String, dynamic>>> listDevices({required String token}) async {
+  Future<List<Map<String, dynamic>>> listDevices(
+      {required String token}) async {
     final resp = await _getJsonAuthorized('/devices', bearerToken: token);
     final devicesRaw = resp['devices'];
     if (devicesRaw is! List) return <Map<String, dynamic>>[];
@@ -565,8 +568,12 @@ class CloudSyncClient {
     }).toList();
   }
 
-  Future<void> revokeDevice({required String token, required String deviceId}) async {
-    await _postJsonAuthorized('/devices/' + Uri.encodeComponent(deviceId) + '/revoke', <String, dynamic>{}, bearerToken: token);
+  Future<void> revokeDevice(
+      {required String token, required String deviceId}) async {
+    await _postJsonAuthorized(
+        '/devices/' + Uri.encodeComponent(deviceId) + '/revoke',
+        <String, dynamic>{},
+        bearerToken: token);
   }
 
   Future<CloudStatePullResult?> pullLatestState({

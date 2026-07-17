@@ -394,40 +394,22 @@ class TaskItem {
   }
 
   static TaskItem fromJson(dynamic json) {
-    // Backward compatible with old string-only storage.
-    if (json is String) {
-      // generate id for legacy entries
-      final genId =
-          '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
-      return TaskItem(id: genId, text: json, done: false);
-    }
     final map = Map<String, dynamic>.from(json as Map);
-    final String id = (map['id'] ?? map['uid'] ?? '').toString();
+    final String id = (map['id'] ?? '').toString();
     final String useId = id.isNotEmpty
         ? id
         : '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
     return TaskItem(
       id: useId,
       text: (map['text'] ?? '').toString(),
-      done: map['done'] == true, // Ensured proper boolean mapping
+      done: map['done'] == true,
       important: map['important'] == true,
-      inProgress: map['inProgress'] == true || map['in_arbeit'] == true,
-      // support both new english keys and older german/variant keys
-      createdAt: _parseDate(map['created_at'] ?? map['createdAt']),
-      scheduledAt: _parseDate(map['scheduled_at'] ??
-          map['scheduledAt'] ??
-          map['termin'] ??
-          map['due_at']),
-      completedAt: _parseDate(map['completed_at'] ??
-          map['erledigt_am'] ??
-          map['done_at'] ??
-          map['doneAt']),
-      inProgressAt: _parseDate(map['in_progress_at'] ??
-          map['in_arbeit_am'] ??
-          map['inArbeitAt'] ??
-          map['in_progress_at']),
-      importantAt: _parseDate(
-          map['important_at'] ?? map['wichtig_am'] ?? map['important_at']),
+      inProgress: map['inProgress'] == true,
+      createdAt: _parseDate(map['created_at']),
+      scheduledAt: _parseDate(map['scheduled_at']),
+      completedAt: _parseDate(map['completed_at']),
+      inProgressAt: _parseDate(map['in_progress_at']),
+      importantAt: _parseDate(map['important_at']),
       notes: (map['notes'] ?? map['note'] ?? '').toString(),
       subtasks: () {
         final raw = map['subtasks'] ?? map['steps'] ?? const [];
@@ -576,7 +558,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Timer? _scheduledCheckTimer;
   Timer? _windowWatcherTimer;
   Timer? _autoSwitchTimer;
-  Timer? _dailyMigrationTimer;
   // Timestamp when the app started; used to avoid firing scheduled reminders
   // for tasks that became due before the app was started.
   final DateTime _appStartedAt = DateTime.now();
@@ -597,7 +578,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   String _listDirBase(String filename) {
     var name = filename;
-    if (name.startsWith('debug_')) name = name.substring('debug_'.length);
     if (name.startsWith('simplepresent_'))
       name = name.substring('simplepresent_'.length);
     if (name.endsWith('.json')) name = name.substring(0, name.length - 5);
@@ -644,8 +624,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String _cloudSyncLastError = '';
   int _cloudArchiveLastWarnedDays = -1;
   Timer? _cloudPullTimer;
-  bool _dailyMigrationBusy = false;
-  String? _dailyMigrationLastRunMem;
   bool _autoPromoteDueBacklogBusy = false;
   bool _cloudSyncBusy = false;
   bool _applyingCloudState = false;
@@ -759,9 +737,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       if (!_initializationComplete) return;
-      // When the app gains focus after being in background, ensure daily
-      // migration runs if we passed midnight while the app was inactive.
-      unawaited(_performDailyMigrationIfNeeded());
+      unawaited(_promoteDueBacklogToToday(showToast: false));
     }
   }
 
@@ -803,8 +779,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return File('${dir.path}/$name');
   }
 
-  static const String _settingsStorageKey = 'settings';
-  static const String _legacySettingsFileName = 'simplepresent_settings.json';
+  static const String _settingsFileName = 'simplepresent_settings.json';
 
   Map<String, dynamic> _asSettingsMap(dynamic raw) {
     if (raw is Map) {
@@ -825,105 +800,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return <String, dynamic>{};
   }
 
-  Future<Map<String, dynamic>> _readLegacySettingsFromDbFile(File file,
-      {required bool allowPerKey}) async {
-    final perKey = <String, dynamic>{};
-    final composite = <String, dynamic>{};
-    try {
-      if (!await file.exists()) return <String, dynamic>{};
-      final lines = await file.readAsLines();
-      for (final line in lines) {
-        final text = line.trim();
-        if (text.isEmpty || !text.startsWith('{')) continue;
-        dynamic decoded;
-        try {
-          decoded = jsonDecode(text);
-        } catch (_) {
-          continue;
-        }
-        if (decoded is! Map) continue;
-        if ((decoded['store']?.toString() ?? '') != 'raw') continue;
-        final key = decoded['key']?.toString() ?? '';
-        if (key.isEmpty) continue;
-        final value = decoded['value'];
-        if (key == _settingsStorageKey) {
-          composite.addAll(_asSettingsMap(value));
-          continue;
-        }
-        if (key == _legacySettingsFileName) {
-          composite.addAll(_asSettingsMap(value));
-          continue;
-        }
-        if (!allowPerKey) continue;
-        if (value is! String) continue;
-        try {
-          perKey[key] = jsonDecode(value);
-        } catch (_) {
-          perKey[key] = value;
-        }
-      }
-    } catch (_) {
-      return <String, dynamic>{};
-    }
-    final merged = <String, dynamic>{};
-    if (composite.isNotEmpty) merged.addAll(composite);
-    if (perKey.isNotEmpty) merged.addAll(perKey);
-    return merged;
-  }
-
-  Future<Map<String, dynamic>> _readLegacySettingsMap() async {
-    try {
-      final dir = await _appDir;
-      final settingsDb = File('${dir.path}/simplepresent_settings.db');
-      final settingsDbMap =
-          await _readLegacySettingsFromDbFile(settingsDb, allowPerKey: true);
-      if (settingsDbMap.isNotEmpty) return settingsDbMap;
-
-      final mainDb = File('${dir.path}/simplepresent.db');
-      final mainDbMap =
-          await _readLegacySettingsFromDbFile(mainDb, allowPerKey: false);
-      if (mainDbMap.isNotEmpty) return mainDbMap;
-    } catch (_) {}
-    return <String, dynamic>{};
-  }
-
-  Future<void> _cleanupLegacySettingsStore() async {
-    try {
-      final dir = await _appDir;
-      final settingsDb = File('${dir.path}/simplepresent_settings.db');
-      if (await settingsDb.exists()) {
-        await settingsDb.delete();
-      }
-    } catch (_) {}
-  }
-
   Future<Map<String, dynamic>> _readSettingsMap() async {
     try {
-      final file = await _fileFor(_storage(_legacySettingsFileName));
-      if (await file.exists()) {
-        return _asSettingsMap(await file.readAsString());
-      }
-
-      final legacyMap = await _readLegacySettingsMap();
-      if (legacyMap.isNotEmpty) {
-        await _writeSettingsMap(legacyMap);
-        await _cleanupLegacySettingsStore();
-      }
-      return legacyMap;
+      final file = await _fileFor(_storage(_settingsFileName));
+      if (!await file.exists()) return <String, dynamic>{};
+      return _asSettingsMap(await file.readAsString());
     } catch (_) {
       return <String, dynamic>{};
     }
   }
 
   Future<void> _writeSettingsMap(Map<String, dynamic> data) async {
-    final file = await _fileFor(_storage(_legacySettingsFileName));
+    final file = await _fileFor(_storage(_settingsFileName));
     final encoded = const JsonEncoder.withIndent('  ').convert(data);
     await file.writeAsString(encoded);
   }
-
-  // Legacy migration logic removed. Files should already live under
-  // the `simplepresent` application subfolder; no automatic migration
-  // from the documents root is performed.
 
   Future<void> _appendRedoLog(String action,
       {String? taskId, Map<String, dynamic>? details}) async {
@@ -1064,16 +955,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     const minLoadingDuration = Duration(milliseconds: 1800);
     // ensure current file respects debug mode
     _currentFile = _storage('simplepresent_today.json');
-    // JSON file storage only.
-    // Use Sembast-backed storage for new installs (no automatic migration).
     _useSembast = true;
     try {
       await _sembastStorage.init(debugMode: kDebugMode);
     } catch (_) {}
-    unawaited(_cleanupLegacySettingsStore());
-    // Legacy migration removed: files are expected to live under
-    // the app-specific `simplepresent/` subfolder. No automatic
-    // migration is performed.
     await _loadSettings();
     await _ensureInitialFiles();
 
@@ -1136,21 +1021,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
     } catch (_) {}
 
-    // Ensure daily migration runs now if needed, and schedule a timer for
-    // the next midnight so it also runs when the app remains open overnight.
-    var ranDailyMigration = false;
-    try {
-      ranDailyMigration = await _performDailyMigrationIfNeeded();
-      _scheduleDailyMigrationTimer();
-    } catch (_) {}
-
     // Start cloud pull in background so startup is never blocked by network.
     unawaited(_syncPullFromCloud());
-    // If daily migration already ran in this startup path, it already includes
-    // backlog due -> today promotion. Avoid a second immediate promotion pass.
-    if (!ranDailyMigration) {
-      await _promoteDueBacklogToToday(showToast: true);
-    }
+    await _promoteDueBacklogToToday(showToast: true);
     await _loadToday();
     // Request Android 13+ notification permission on startup via native channel.
     unawaited(_requestAndroidNotificationPermission());
@@ -1449,161 +1322,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
-  Future<bool> _performDailyMigrationIfNeeded() async {
-    if (_dailyMigrationBusy) {
-      unawaited(_debugLog('daily migration skipped: busy'));
-      return false;
-    }
-    final todayKey = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    _dailyMigrationBusy = true;
-    var didRun = false;
-    try {
-      unawaited(_debugLog('daily migration started: $todayKey'));
-      Map<String, dynamic> settings = await _readSettingsMap();
-      final rawLastRun = settings['lastRunDate'];
-      final lastRun = _normalizeLastRunDate(rawLastRun);
-      if (rawLastRun != null && lastRun == null) {
-        settings.remove('lastRunDate');
-        unawaited(_debugLog(
-            'daily migration ignored invalid lastRunDate=${rawLastRun.toString()}'));
-      }
-      unawaited(_debugLog(
-          'daily migration decision: today=$todayKey lastRun=${lastRun ?? ''} settingsKeys=${settings.keys.length}'));
-      // Only skip via in-memory guard when persistent state also says "today".
-      // This allows reruns after manual fixes where lastRunDate is set back.
-      if (_dailyMigrationLastRunMem == todayKey && lastRun == todayKey) {
-        unawaited(_debugLog(
-            'daily migration skipped: in-memory+settings already ran ($todayKey)'));
-        return false;
-      }
-      if (lastRun == todayKey) {
-        _dailyMigrationLastRunMem = todayKey;
-        unawaited(_debugLog(
-            'daily migration skipped: settings already ran ($todayKey)'));
-        return false;
-      }
-
-      // Run this migration at most once per app session/day, even if writing
-      // settings fails later. This prevents repeated today->backlog clears.
-      _dailyMigrationLastRunMem = todayKey;
-      didRun = true;
-
-      // On first run we want Today to start empty: move existing Today
-      // items into Backlog or Done as appropriate, then continue with
-      // normal backlog->today promotion. For subsequent runs keep Today
-      // untouched to avoid surprising UI changes.
-      final List<TaskItem> movedToDone = [];
-      int movedToBacklogCount = 0;
-      final bool firstRun = lastRun == null;
-
-      if (firstRun) {
-        try {
-          final todayList = <TaskItem>[];
-          final backlogList = <TaskItem>[];
-          final doneList = <TaskItem>[];
-          await Future.wait([
-            _loadList(_storage('simplepresent_today.json'), todayList),
-            _loadList(_storage('simplepresent_backlog.json'), backlogList),
-            _loadList(_storage('simplepresent_done.json'), doneList),
-          ]);
-
-          if (todayList.isNotEmpty) {
-            final moveToDone = todayList.where((t) => t.done).toList();
-            final moveToBacklog = todayList.where((t) => !t.done).toList();
-
-            if (moveToBacklog.isNotEmpty) {
-              backlogList.addAll(moveToBacklog
-                  .map((t) => t.copyWith(done: false, inProgress: false)));
-              movedToBacklogCount += moveToBacklog.length;
-            }
-            if (moveToDone.isNotEmpty) {
-              doneList.insertAll(0, moveToDone);
-              movedToDone.addAll(moveToDone);
-            }
-
-            // Clear Today now that its items have been reassigned.
-            todayList.clear();
-
-            await Future.wait([
-              _saveList(_storage('simplepresent_backlog.json'), backlogList,
-                  triggerCloudSync: false),
-              _saveList(_storage('simplepresent_done.json'), doneList,
-                  triggerCloudSync: false),
-              _saveList(_storage('simplepresent_today.json'), todayList,
-                  triggerCloudSync: false),
-            ]);
-            unawaited(_debugLog(
-                'daily migration first-run: movedToBacklog=$movedToBacklogCount, movedToDone=${movedToDone.length}'));
-          }
-        } catch (_) {}
-      }
-
-      // Move tasks that are already marked done from Backlog to Done.
-      try {
-        final backlogList = <TaskItem>[];
-        await _loadList(_storage('simplepresent_backlog.json'), backlogList);
-        final doneFromBacklog = backlogList.where((t) => t.done).toList();
-        if (doneFromBacklog.isNotEmpty) {
-          backlogList.removeWhere((t) => t.done);
-          final doneList = <TaskItem>[];
-          await _loadList(_storage('simplepresent_done.json'), doneList);
-          doneList.insertAll(0, doneFromBacklog);
-          // record counts for UI notification
-          movedToDone.addAll(doneFromBacklog);
-          await Future.wait([
-            _saveList(_storage('simplepresent_backlog.json'), backlogList,
-                triggerCloudSync: false),
-            _saveList(_storage('simplepresent_done.json'), doneList,
-                triggerCloudSync: false),
-          ]);
-          unawaited(_debugLog(
-              'daily migration backlog cleanup: movedDoneFromBacklog=${doneFromBacklog.length}'));
-        }
-      } catch (_) {}
-
-      // Promote backlog tasks that are due (today or overdue) into Today.
-      await _promoteDueBacklogToToday(showToast: true);
-
-      settings['lastRunDate'] = todayKey;
-      try {
-        await _loadToday();
-        await _writeSettingsMap(settings);
-        unawaited(_debugLog(
-            'daily migration wrote lastRunDate=$todayKey via settings store'));
-      } catch (_) {}
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final movedDoneCount = movedToDone.length;
-        if (movedToBacklogCount > 0 || movedDoneCount > 0) {
-          final parts = <String>[];
-          if (movedToBacklogCount > 0)
-            parts.add('$movedToBacklogCount moved to Backlog');
-          if (movedDoneCount > 0) parts.add('$movedDoneCount moved to Done');
-          _showTopToast(parts.join(', '));
-        }
-      });
-      unawaited(_debugLog(
-          'daily migration finished: movedToBacklog=$movedToBacklogCount, movedToDone=${movedToDone.length}'));
-      return true;
-    } catch (_) {
-      return didRun;
-    } finally {
-      _dailyMigrationBusy = false;
-    }
-  }
-
-  String? _normalizeLastRunDate(dynamic rawValue) {
-    if (rawValue == null) return null;
-    final text = rawValue.toString().trim();
-    if (text.isEmpty) return null;
-    if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(text)) return text;
-    final parsed = DateTime.tryParse(text);
-    if (parsed != null) {
-      return DateFormat('yyyy-MM-dd').format(parsed.toLocal());
-    }
-    return null;
-  }
-
   Future<int> _promoteDueBacklogToToday({bool showToast = false}) async {
     if (_autoPromoteDueBacklogBusy) {
       unawaited(_debugLog('promote due backlog skipped: busy'));
@@ -1683,22 +1401,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } finally {
       _autoPromoteDueBacklogBusy = false;
     }
-  }
-
-  void _scheduleDailyMigrationTimer() {
-    try {
-      _dailyMigrationTimer?.cancel();
-      final now = DateTime.now();
-      final nextMidnight =
-          DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
-      final duration =
-          nextMidnight.difference(now) + const Duration(seconds: 1);
-      _dailyMigrationTimer = Timer(duration, () async {
-        await _performDailyMigrationIfNeeded();
-        // schedule next one
-        _scheduleDailyMigrationTimer();
-      });
-    } catch (_) {}
   }
 
   Future<void> _updateListCounts() async {
@@ -2573,30 +2275,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _cloudWordPhrase.trim().isNotEmpty;
   }
 
-  Future<void> _applyCloudStatePayload(Map<String, dynamic> payload) async {
-    final rawToday = payload['today'];
-    final rawBacklog = payload['backlog'];
-    final rawDone = payload['done'];
-    if (rawToday is! List || rawBacklog is! List || rawDone is! List) {
-      return;
-    }
-
-    final today = rawToday.map(TaskItem.fromJson).toList();
-    final backlog = rawBacklog.map(TaskItem.fromJson).toList();
-    final done = rawDone.map(TaskItem.fromJson).toList();
-
-    _applyingCloudState = true;
-    try {
-      // Apply server authoritative state via queued replace per-list so
-      // that individual task operations remain atomic and visible in logs.
-      await _queueReplaceList(_storage('simplepresent_today.json'), today);
-      await _queueReplaceList(_storage('simplepresent_backlog.json'), backlog);
-      await _queueReplaceList(_storage('simplepresent_done.json'), done);
-      await _loadToday();
-      await _finalizeAllEdits();
-    } catch (_) {}
-  }
-
   void _queueCloudTimeEntrySync(TaskItem task) {
     if (!_cloudSyncConfigured || _applyingCloudState) return;
 
@@ -3174,7 +2852,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       _applyingCloudState = true;
       var maxModifiedAt = _cloudLastSyncModifiedAt;
-      var appliedLegacyFullState = false;
       try {
         for (final item in pulledItems) {
           if (item.modifiedAt > maxModifiedAt) maxModifiedAt = item.modifiedAt;
@@ -3205,15 +2882,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             );
           } else {
             payload = item.payload;
-          }
-
-          // Backward compatibility with previous full-state payload format.
-          if (payload.containsKey('today') &&
-              payload.containsKey('backlog') &&
-              payload.containsKey('done')) {
-            await _applyCloudStatePayload(payload);
-            appliedLegacyFullState = true;
-            break;
           }
 
           final kind = (payload['kind'] ?? '').toString();
@@ -3288,31 +2956,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _knownIdSetForList(listName).add(task.id);
         }
 
-        if (!appliedLegacyFullState) {
-          // Apply incremental cloud changes as queued replaces so each task
-          // operation remains atomic and appears in logs.
-          await _queueReplaceList(_storage('simplepresent_today.json'), today);
-          await _queueReplaceList(
-              _storage('simplepresent_backlog.json'), backlog);
-          await _queueReplaceList(_storage('simplepresent_done.json'), done);
-          await _loadToday();
-          // Update known ID sets to reflect server state we just applied.
-          // This prevents new clients from later pushing their local ordering
-          // as changes (which causes every client to 'move' items on first open).
-          _cloudKnownTodayIds
-            ..clear()
-            ..addAll(today.map((t) => t.id));
-          _cloudKnownBacklogIds
-            ..clear()
-            ..addAll(backlog.map((t) => t.id));
-          _cloudKnownDoneIds
-            ..clear()
-            ..addAll(done.map((t) => t.id));
-          // Persist updated known-id lists so subsequent pushes are no-ops
-          try {
-            await _saveSettings();
-          } catch (_) {}
-        }
+        await _queueReplaceList(_storage('simplepresent_today.json'), today);
+        await _queueReplaceList(
+            _storage('simplepresent_backlog.json'), backlog);
+        await _queueReplaceList(_storage('simplepresent_done.json'), done);
+        await _loadToday();
+        _cloudKnownTodayIds
+          ..clear()
+          ..addAll(today.map((t) => t.id));
+        _cloudKnownBacklogIds
+          ..clear()
+          ..addAll(backlog.map((t) => t.id));
+        _cloudKnownDoneIds
+          ..clear()
+          ..addAll(done.map((t) => t.id));
+        try {
+          await _saveSettings();
+        } catch (_) {}
       } finally {
         _applyingCloudState = false;
       }
@@ -3412,13 +3072,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final data = await _readSettingsMap();
       if (data.isEmpty) return;
 
-      // Clean up legacy keys that should no longer be persisted.
-      if (data.containsKey('window')) {
-        data.remove('window');
-        try {
-          await _writeSettingsMap(data);
-        } catch (_) {}
-      }
       int readInt(String key, int fallback) {
         final v = data[key];
         if (v is int) return v;
@@ -3599,9 +3252,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               return <String, dynamic>{};
             }).toList();
           }
-        } else {
-          // discard legacy fixed reminder settings by default (user must re-add)
-          _inactivityReminders = <Map<String, dynamic>>[];
         }
       });
       // Do not restore persisted window geometry or position; OS/window manager
@@ -3705,14 +3355,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'lastAutoExportChecksum': _lastAutoExportChecksum,
       };
 
-      // Preserve lastRunDate if present in existing settings so daily-reset runs only once per day
-      try {
-        final existing = await _readSettingsMap();
-        if (existing.containsKey('lastRunDate')) {
-          out['lastRunDate'] = existing['lastRunDate'];
-        }
-      } catch (_) {}
-
       // Do not capture or persist window geometry or position.
       // Persist current notification flags as lists so restarts don't re-notify
       out['notified15'] = _notified15.toList();
@@ -3731,8 +3373,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       unawaited(_finalizeAllEdits());
     } catch (_) {}
-    _dailyMigrationTimer?.cancel();
-
     try {
       HardwareKeyboard.instance.removeHandler(_hardwareKeyHandler);
     } catch (_) {}
@@ -3803,10 +3443,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _scheduledCheckTimer =
         Timer.periodic(const Duration(seconds: 30), (timer) async {
       if (!_initializationComplete) return;
-      final ranDailyMigration = await _performDailyMigrationIfNeeded();
-      if (!ranDailyMigration) {
-        await _promoteDueBacklogToToday(showToast: false);
-      }
+      await _promoteDueBacklogToToday(showToast: false);
       final now = DateTime.now();
       for (final t in _today) {
         // Do not remind for tasks without schedule or already completed
@@ -4889,7 +4526,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             if (val == true) {
               // Only move the task into Done (and create the next recurrence)
               // when the task was in Backlog. Tasks completed while viewing
-              // Today should remain in Today (daily migration handles archiving).
+              // Today should remain in Today.
               if (_showingBacklog ||
                   _currentFile == _storage('simplepresent_backlog.json')) {
                 // movedTask is current _today[idx] (we set done above)
@@ -6435,7 +6072,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // reset dynamic fired flags
     _inactivityFired =
         List<bool>.generate(_inactivityReminders.length, (_) => false);
-    // start timers: legacy timers kept for compatibility but dynamic reminders take precedence
+    // Start the built-in inactivity timers and the dynamic reminder timers.
     _startIdleTimer();
     _startAttentionTimer();
     _startReminderTimer();
@@ -6443,9 +6080,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _startInactivityTimers();
     _startAutoSwitchTimer();
     if (_initializationComplete) {
-      // Fallback trigger: if midnight timer or resume was missed,
-      // user activity still runs the daily migration check.
-      unawaited(_performDailyMigrationIfNeeded());
+      unawaited(_promoteDueBacklogToToday(showToast: false));
     }
   }
 
@@ -7096,7 +6731,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         child: FutureBuilder<void>(
           future: _initFuture,
           builder: (context, snap) {
-            // Show loading screen while initializing (syncing lists and migrating tasks)
+            // Show loading screen while initializing and syncing lists.
             if (snap.connectionState == ConnectionState.waiting) {
               return _buildFancyLoadingScreen(context);
             }

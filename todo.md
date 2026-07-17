@@ -53,6 +53,7 @@
 - [x] lastRunDate wird noch in der haupt db gespeichert!!
 - [x] .bak dateien nicht mehr erzeugen!
 - [ ] dailymigration klappert!
+- [ ] cloud sync (merken welche ids etc) aus den settings ruasnehmen und in die haupt db verschieben!
 
 ## notes
 

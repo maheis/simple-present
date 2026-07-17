@@ -1,14 +1,12 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sembast/sembast_io.dart';
 
-/// A simple Sembast-backed storage that exposes the same minimal API the
-/// app expects from the original file-based `SembastStorage` class. It keeps
-/// an in-memory cache so read methods remain synchronous for compatibility.
+/// A simple Sembast-backed storage for task lists, raw blobs, and time entries.
+/// It keeps an in-memory cache so read methods remain synchronous.
 class SembastStorage {
   late final String _storageRoot;
   late final String _dbPath;
@@ -27,92 +25,7 @@ class SembastStorage {
   final Map<String, List<Map<String, dynamic>>> _timeCache = {};
 
   String _canonicalKey(String key) {
-    var k = key.trim();
-    if (k.startsWith('debug_')) k = k.substring('debug_'.length);
-    return k;
-  }
-
-  List<String> _keyFallbacks(String key) {
-    final canonical = _canonicalKey(key);
-    // Read both canonical and legacy debug_-prefixed keys for compatibility.
-    return <String>[canonical, 'debug_$canonical'];
-  }
-
-  String _listBaseName(String key) {
-    var k = key.trim().toLowerCase();
-    if (k.startsWith('debug_')) k = k.substring('debug_'.length);
-    if (k.contains('/')) {
-      final parts = k.split('/');
-      k = parts.isNotEmpty ? parts.last : k;
-    }
-    if (k.endsWith('.json')) k = k.substring(0, k.length - 5);
-    if (k.startsWith('simplepresent_'))
-      k = k.substring('simplepresent_'.length);
-    return k;
-  }
-
-  String? _resolveListCacheKey(String requested) {
-    for (final key in _keyFallbacks(requested)) {
-      if (_listsCache.containsKey(key)) return key;
-    }
-
-    final wantedBase = _listBaseName(requested);
-    if (wantedBase.isEmpty) return null;
-    for (final key in _listsCache.keys) {
-      if (_listBaseName(key) == wantedBase) return key;
-    }
-    return null;
-  }
-
-  List<Map<String, dynamic>>? _readListFromDbFileFallback(String requested) {
-    try {
-      final dbFile = File(_dbPath);
-      if (!dbFile.existsSync()) return null;
-
-      final wantedKeys = <String>{..._keyFallbacks(requested)};
-      final wantedBase = _listBaseName(requested);
-
-      String? matchedKey;
-      List<Map<String, dynamic>>? matchedList;
-
-      for (final line in dbFile.readAsLinesSync()) {
-        final t = line.trim();
-        if (t.isEmpty || !t.startsWith('{')) continue;
-
-        dynamic decoded;
-        try {
-          decoded = jsonDecode(t);
-        } catch (_) {
-          continue;
-        }
-        if (decoded is! Map) continue;
-
-        final store = decoded['store']?.toString() ?? '';
-        if (store != 'lists') continue;
-
-        final key = decoded['key']?.toString() ?? '';
-        if (key.isEmpty) continue;
-
-        final keyMatches = wantedKeys.contains(key) ||
-            (wantedBase.isNotEmpty && _listBaseName(key) == wantedBase);
-        if (!keyMatches) continue;
-
-        final value = decoded['value'];
-        if (value is! List) continue;
-
-        matchedKey = key;
-        matchedList = value
-            .whereType<Map>()
-            .map((m) => Map<String, dynamic>.from(m))
-            .toList();
-      }
-
-      if (matchedKey != null && matchedList != null) {
-        _listsCache[matchedKey] = matchedList;
-        return matchedList;
-      }
-    } catch (_) {}
-    return null;
+    return key.trim();
   }
 
   Future<void> init({required bool debugMode}) async {
@@ -151,20 +64,6 @@ class SembastStorage {
         if (val is String) _rawCache[key] = val;
       }
     } catch (_) {}
-
-    // Normalize and deduplicate setting keys across caches.
-    try {
-      final Map<String, String> canonicalRaw = {};
-      for (final e in _rawCache.entries) {
-        final k = _canonicalKey(e.key);
-        canonicalRaw.putIfAbsent(k, () => e.value);
-      }
-
-      // Replace caches with canonicalized keys
-      _rawCache.clear();
-      _rawCache.addAll(canonicalRaw);
-    } catch (_) {}
-
     // Load time entries
     try {
       final recs = await _timeStore.find(_db!);
@@ -182,9 +81,8 @@ class SembastStorage {
   }
 
   List<Map<String, dynamic>> readTaskList(String listName) {
-    final resolvedKey = _resolveListCacheKey(listName);
-    var list = resolvedKey == null ? null : _listsCache[resolvedKey];
-    list ??= _readListFromDbFileFallback(listName);
+    final key = _canonicalKey(listName);
+    final list = _listsCache[key];
     if (list == null) return const [];
     // Return a defensive copy
     return List<Map<String, dynamic>>.from(
@@ -205,15 +103,11 @@ class SembastStorage {
   }
 
   bool taskListExists(String listName) {
-    return _resolveListCacheKey(listName) != null;
+    return _listsCache.containsKey(_canonicalKey(listName));
   }
 
   String? read(String name) {
-    for (final key in _keyFallbacks(name)) {
-      final val = _rawCache[key];
-      if (val != null) return val;
-    }
-    return null;
+    return _rawCache[_canonicalKey(name)];
   }
 
   void write(String name, String content) {
@@ -227,7 +121,7 @@ class SembastStorage {
   }
 
   bool exists(String name) {
-    return _keyFallbacks(name).any(_rawCache.containsKey);
+    return _rawCache.containsKey(_canonicalKey(name));
   }
 
   /// Delete a raw value from the storage (both cache and persistent store).
@@ -236,12 +130,11 @@ class SembastStorage {
   }
 
   Future<void> deleteRawAsync(String name) async {
-    for (final key in _keyFallbacks(name)) {
-      _rawCache.remove(key);
-      try {
-        await _rawStore.record(key).delete(_db!);
-      } catch (_) {}
-    }
+    final key = _canonicalKey(name);
+    _rawCache.remove(key);
+    try {
+      await _rawStore.record(key).delete(_db!);
+    } catch (_) {}
   }
 
   void dispose() {
