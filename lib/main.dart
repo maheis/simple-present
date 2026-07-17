@@ -1433,11 +1433,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return false;
     }
     final todayKey = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    if (_dailyMigrationLastRunMem == todayKey) {
-      unawaited(_debugLog(
-          'daily migration skipped: in-memory already ran ($todayKey)'));
-      return false;
-    }
     _dailyMigrationBusy = true;
     var didRun = false;
     try {
@@ -1446,6 +1441,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final lastRun = settings['lastRunDate'] as String?;
       unawaited(_debugLog(
           'daily migration decision: today=$todayKey lastRun=${lastRun ?? ''} settingsKeys=${settings.keys.length}'));
+      // Only skip via in-memory guard when persistent state also says "today".
+      // This allows reruns after manual fixes where lastRunDate is set back.
+      if (_dailyMigrationLastRunMem == todayKey && lastRun == todayKey) {
+        unawaited(_debugLog(
+            'daily migration skipped: in-memory+settings already ran ($todayKey)'));
+        return false;
+      }
       if (lastRun == todayKey) {
         _dailyMigrationLastRunMem = todayKey;
         unawaited(_debugLog(
