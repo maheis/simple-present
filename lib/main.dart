@@ -126,9 +126,11 @@ Future<void> _debugLog(String msg) async {
 /// storage is Sembast-based. It writes one JSON file per task into the
 /// application documents directory under `simplepresent_widget/` and
 /// invokes an Android platform method `refresh` if available.
-Future<void> exportTodayAndRefresh(List<TaskItem> tasks) async {
+Future<void> exportTodayAndRefresh(List<TaskItem> tasks,
+    {String fontFamily = 'OpenDyslexic'}) async {
   try {
     final dir = await getApplicationDocumentsDirectory();
+    final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
     final folder = Directory('${dir.path}/simplepresent_widget');
     if (!await folder.exists()) await folder.create(recursive: true);
 
@@ -139,16 +141,14 @@ Future<void> exportTodayAndRefresh(List<TaskItem> tasks) async {
       } catch (_) {}
     }
 
-    // Also write an aggregated JSON file into the Flutter support directory
+    // Also write an aggregated JSON file into the Flutter documents directory
     // so the Android native widget can read a single `simplepresent_widget.json`.
     try {
-      final supportDir = await getApplicationSupportDirectory();
-      final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
-      final aggDir = Directory('${supportDir.path}/$folderName');
+      final aggDir = Directory('${dir.path}/$folderName');
       if (!await aggDir.exists()) await aggDir.create(recursive: true);
       final agg = {
         'exportedAt': DateTime.now().toIso8601String(),
-        'fontFamily': 'OpenDyslexic',
+        'fontFamily': fontFamily,
         'tasks': tasks.map((t) => t.toJson()).toList(),
       };
       final aggFile = File('${aggDir.path}/simplepresent_widget.json');
@@ -158,8 +158,8 @@ Future<void> exportTodayAndRefresh(List<TaskItem> tasks) async {
     // Try to notify native layer on Android to refresh widgets.
     try {
       if (Platform.isAndroid) {
-        const MethodChannel('simple_present/widget')
-            .invokeMethod<void>('refresh');
+        const MethodChannel('simple_present/window')
+            .invokeMethod<void>('refreshTodayWidget');
       }
     } catch (_) {}
   } catch (_) {}
@@ -1981,7 +1981,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
         unawaited(_debugLog('saveList completed: $filename'));
         if (_listDirBase(filename) == 'today') {
-          unawaited(_refreshAndroidTodayWidget());
+          unawaited(exportTodayAndRefresh(
+            source.where((task) => !task.done).toList(),
+            fontFamily: _fontFamily,
+          ));
         }
       } catch (e, st) {
         unawaited(_debugLog('saveList failed: $filename error=$e\n$st'));
@@ -2319,6 +2322,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _lastPersistedToday[t.id] = t.toJson();
       }
     } catch (_) {}
+
+    if (_currentFile == _storage('simplepresent_today.json')) {
+      unawaited(exportTodayAndRefresh(
+        _today.where((task) => !task.done).toList(),
+        fontFamily: _fontFamily,
+      ));
+    }
   }
 
   bool get _cloudSyncConfigured {
