@@ -9339,6 +9339,14 @@ class _SettingsPageState extends State<SettingsPage> {
         : trimmed;
   }
 
+  void _setCloudServerUrl(String value) {
+    cloudServerUrl = value;
+    _cloudServerUrlController.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+  }
+
   Future<void> _suggestPhrase() async {
     setState(() {
       // Use alphanumeric group phrase by default for stronger randomness.
@@ -9471,7 +9479,7 @@ class _SettingsPageState extends State<SettingsPage> {
       // If scanner returned a plain http(s) URL, import it as `cloudServerUrl`.
       if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
         setState(() {
-          cloudServerUrl = cleaned;
+          _setCloudServerUrl(cleaned);
           _cloudStatus = 'server url imported ($sourceLabel).';
         });
         return;
@@ -9500,7 +9508,7 @@ class _SettingsPageState extends State<SettingsPage> {
         return;
       }
       setState(() {
-        cloudServerUrl = server;
+        _setCloudServerUrl(server);
         cloudAccountId = account;
         cloudWordPhrase = phrase;
         _cloudStatus =

@@ -56,7 +56,7 @@
 - [ ] aufgaben reihenfolge optimisieren
 - [?] qr-code nimmt url nicht mit!
 - [x] aufgaben von yesterday legen nach erledigung eine neue today aufgabe an. follow up soll auch bei vergangenen aufgaben wie today behandelt werden, also follow up vom heutigem tag aus generiert werden!
-- [?] widget funktioniert wieder nicht!
+- [x] widget funktioniert wieder nicht!
 
 ## notes
 
