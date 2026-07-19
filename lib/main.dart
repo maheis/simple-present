@@ -6310,6 +6310,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       try {
         _showTopToast('trash emptied');
       } catch (_) {}
+      // Refresh counts and UI after emptying trash
+      try {
+        await _updateListCounts();
+      } catch (_) {}
+      if (_showingTrash) {
+        try {
+          await _loadToday();
+        } catch (_) {}
+      }
     } catch (_) {
       try {
         _showTopToast('failed to empty trash');
