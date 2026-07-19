@@ -6326,6 +6326,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _emptyDone() async {
+    try {
+      await _serializedFileOp('simplepresent_done.json', () async {
+        await _saveList('simplepresent_done.json', <TaskItem>[]);
+      });
+      try {
+        _showTopToast('done emptied');
+      } catch (_) {}
+      // Refresh counts and UI after emptying done list
+      try {
+        await _updateListCounts();
+      } catch (_) {}
+      if (_showingDone) {
+        try {
+          await _loadToday();
+        } catch (_) {}
+      }
+    } catch (_) {
+      try {
+        _showTopToast('failed to empty done list');
+      } catch (_) {}
+    }
+  }
+
   void _registerActivity() {
     // Reset idle timer on user activity
     try {
@@ -7221,6 +7245,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                   await _switchFile(true);
                                                 } else if (v == 'trash') {
                                                   await _switchToTrash();
+                                                } else if (v == 'empty_done') {
+                                                  await _emptyDone();
                                                 } else if (v == 'empty_trash') {
                                                   await _emptyTrash();
                                                 }
@@ -7304,6 +7330,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                       const Text('trash')
                                                     ])));
                                                 // 'Next' removed by request
+                                                if (_showingDone) {
+                                                  items.add(PopupMenuItem(
+                                                      value: 'empty_done',
+                                                      child: Row(children: [
+                                                        Icon(
+                                                            Icons
+                                                                .delete_forever,
+                                                            color: Colors
+                                                                .redAccent),
+                                                        const SizedBox(
+                                                            width: 8),
+                                                        const Text('empty done')
+                                                      ])));
+                                                }
                                                 if (_showingTrash) {
                                                   items.add(PopupMenuItem(
                                                       value: 'empty_trash',
