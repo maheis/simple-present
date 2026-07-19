@@ -538,6 +538,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<Timer?> _inactivityTimers = <Timer?>[];
   List<bool> _inactivityFired = <bool>[];
   bool _swipeEnabled = true;
+  // Use a trash file for user-initiated deletions instead of permanent remove
+  bool _useTrash = true;
+  bool _showingTrash = false;
+  int _countTrash = 0;
   // Reminder window (HH:MM) — only remind within this time window when enabled
   String _reminderWindowFrom = '09:00';
   String _reminderWindowTo = '17:00';
@@ -610,6 +614,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // Auto-clean settings for Done list
   bool _autoPurgeDoneEnabled = false;
   int _doneRetentionDays = 30;
+  // Auto-clean settings for Trash
+  bool _autoPurgeTrashEnabled = false;
+  int _trashRetentionDays = 30;
   // Color-scaling thresholds (configurable in settings)
   int _maxTasksToday = 25;
   int _maxTasksBacklog = 50;
@@ -638,6 +645,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Set<String> _cloudKnownTodayIds = <String>{};
   Set<String> _cloudKnownBacklogIds = <String>{};
   Set<String> _cloudKnownDoneIds = <String>{};
+  Set<String> _cloudKnownTrashIds = <String>{};
 
   Duration get _idleDuration => Duration(minutes: _idleMinutes.clamp(1, 720));
   Duration get _attentionDuration =>
@@ -1032,6 +1040,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     unawaited(_requestAndroidNotificationPermission());
     // Run cleanup of old Done tasks if enabled
     unawaited(_purgeOldDoneTasksIfEnabled());
+    unawaited(_purgeOldTrashIfEnabled());
     unawaited(_fetchServerVersion());
     _startCloudPullTimer();
     // Start dynamic inactivity timers according to loaded settings
@@ -1512,6 +1521,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       tmp.clear();
       await _loadList(_storage('simplepresent_done.json'), tmp);
       _countDone = tmp.length;
+      tmp.clear();
+      await _loadList(_storage('simplepresent_trash.json'), tmp);
+      _countTrash = tmp.length;
     } catch (_) {}
     if (mounted) setState(() {});
   }
@@ -1521,6 +1533,44 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _purgeOldDoneTasks(_doneRetentionDays);
   }
 
+  Future<void> _purgeOldTrashIfEnabled() async {
+    if (!_autoPurgeTrashEnabled || _trashRetentionDays <= 0) return;
+    await _purgeOldTrash(_trashRetentionDays);
+  }
+
+  Future<void> _purgeOldTrash(int days) async {
+    try {
+      final List<TaskItem> trashList = [];
+      await _loadList(_storage('simplepresent_trash.json'), trashList);
+      if (trashList.isEmpty) return;
+      final now = DateTime.now();
+      final cutoff = now.subtract(Duration(days: days));
+
+      // Determine items with deletedAt marker in notes
+      final removed = <TaskItem>[];
+      for (final t in trashList) {
+        final notes = t.notes ?? '';
+        final m = RegExp(r'\[deletedAt:([^\]]+)\]').firstMatch(notes);
+        if (m != null) {
+          final parsed = DateTime.tryParse(m.group(1)!);
+          if (parsed != null && parsed.isBefore(cutoff)) {
+            removed.add(t);
+          }
+        }
+      }
+
+      final removedCount = removed.length;
+      if (removedCount > 0) {
+        for (final t in removed) {
+          await _queueRemoveFromList('simplepresent_trash.json', t.id);
+        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showTopToast('purged $removedCount old trash item(s)');
+        });
+      }
+    } catch (_) {}
+  }
+
   Future<void> _purgeOldDoneTasks(int days) async {
     try {
       final List<TaskItem> doneList = [];
@@ -1528,13 +1578,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (doneList.isEmpty) return;
       final now = DateTime.now();
       final cutoff = now.subtract(Duration(days: days));
-      final before = doneList.length;
+
       final remaining = doneList.where((t) {
         final c = t.completedAt;
         if (c == null) return true; // preserve items without timestamp
         return !c.isBefore(cutoff);
       }).toList();
-      final removed = before - remaining.length;
+      final removed = doneList.length - remaining.length;
       if (removed > 0) {
         // Remove each outdated task via per-task queue to ensure atomic removal
         final removedTasks = doneList.where((t) {
@@ -1616,6 +1666,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       });
     } catch (_) {}
   }
+
+  // (removed unused helper _deleteTaskById during cleanup)
 
   // Serialized file-op chaining to avoid concurrent read/write races on the
   // same list file. Operations for the same filename are executed sequentially.
@@ -2594,6 +2646,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return 'backlog';
     if (lower.contains('simplepresent_done') || lower.contains('/done'))
       return 'done';
+    if (lower.contains('simplepresent_trash') || lower.contains('/trash'))
+      return 'trash';
     return null;
   }
 
@@ -2605,6 +2659,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return _cloudKnownBacklogIds;
       case 'done':
         return _cloudKnownDoneIds;
+      case 'trash':
+        return _cloudKnownTrashIds;
       default:
         return <String>{};
     }
@@ -2612,7 +2668,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// Returns all known list names except [listName].
   List<String> _allListNamesExcept(String listName) {
-    return ['today', 'backlog', 'done'].where((n) => n != listName).toList();
+    return ['today', 'backlog', 'done', 'trash']
+        .where((n) => n != listName)
+        .toList();
   }
 
   // Cloud syncing of redo-log entries has been removed.
@@ -3080,6 +3138,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _switchFile(bool showDone) async {
     _showingDone = showDone;
     _showingBacklog = false;
+    _showingTrash = false;
     _currentFile = showDone
         ? _storage('simplepresent_done.json')
         : _storage('simplepresent_today.json');
@@ -3106,7 +3165,32 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _switchToBacklog() async {
     _showingBacklog = true;
     _showingDone = false;
+    _showingTrash = false;
     _currentFile = _storage('simplepresent_backlog.json');
+    // clear expanded/edit state
+    _expanded.clear();
+    for (final id in _editControllers.keys) {
+      try {
+        _autosaveTimers[id]?.cancel();
+      } catch (_) {}
+    }
+    _autosaveTimers.clear();
+    for (final c in _editControllers.values) {
+      c.dispose();
+    }
+    _editControllers.clear();
+    for (final c in _notesControllers.values) {
+      c.dispose();
+    }
+    _notesControllers.clear();
+    await _loadToday();
+  }
+
+  Future<void> _switchToTrash() async {
+    _showingBacklog = false;
+    _showingDone = false;
+    _showingTrash = true;
+    _currentFile = _storage('simplepresent_trash.json');
     // clear expanded/edit state
     _expanded.clear();
     for (final id in _editControllers.keys) {
@@ -3215,6 +3299,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _swipeEnabled = readBool('swipeEnabled', _swipeEnabled);
         _autoPurgeDoneEnabled =
             readBool('autoPurgeDoneEnabled', _autoPurgeDoneEnabled);
+        _autoPurgeTrashEnabled =
+            readBool('autoPurgeTrashEnabled', _autoPurgeTrashEnabled);
+        _useTrash = readBool('useTrash', _useTrash);
         // Automatic export (backups)
         _autoExportOnStart = readBool('autoExportOnStart', _autoExportOnStart);
         _autoExportIntervalMinutes =
@@ -3228,6 +3315,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _autoExportMaxBackups =
             readInt('autoExportMaxBackups', _autoExportMaxBackups);
         _doneRetentionDays = readInt('doneRetentionDays', _doneRetentionDays);
+        _trashRetentionDays =
+            readInt('trashRetentionDays', _trashRetentionDays);
         // Restore persisted UI text scale factor if present
         _uiTextScaleFactor = _clampUiTextScaleFactor(
             readDouble('uiTextScaleFactor', _uiTextScaleFactor));
@@ -3397,6 +3486,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'reminderWindowTo': _reminderWindowTo,
         'inactivityReminders': _inactivityReminders,
         'autoPurgeDoneEnabled': _autoPurgeDoneEnabled,
+        'autoPurgeTrashEnabled': _autoPurgeTrashEnabled,
+        'trashRetentionDays': _trashRetentionDays,
         'doneRetentionDays': _doneRetentionDays,
         'maxTasksToday': _maxTasksToday,
         'maxTasksBacklog': _maxTasksBacklog,
@@ -3411,6 +3502,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'autoExportMaxBackups': _autoExportMaxBackups,
         'lastAutoExportChecksum': _lastAutoExportChecksum,
         'lastRunDate': _lastRunDate ?? '',
+        'useTrash': _useTrash,
       };
 
       // Do not capture or persist window geometry or position.
@@ -3442,10 +3534,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _decodeCloudKnownIdsRaw(_sembastStorage.read('cloudKnownBacklogIds'));
       _cloudKnownDoneIds =
           _decodeCloudKnownIdsRaw(_sembastStorage.read('cloudKnownDoneIds'));
+      _cloudKnownTrashIds =
+          _decodeCloudKnownIdsRaw(_sembastStorage.read('cloudKnownTrashIds'));
     } catch (_) {
       _cloudKnownTodayIds = <String>{};
       _cloudKnownBacklogIds = <String>{};
       _cloudKnownDoneIds = <String>{};
+      _cloudKnownTrashIds = <String>{};
     }
   }
 
@@ -3458,6 +3553,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           'cloudKnownBacklogIds', jsonEncode(_cloudKnownBacklogIds.toList()));
       _sembastStorage.write(
           'cloudKnownDoneIds', jsonEncode(_cloudKnownDoneIds.toList()));
+      _sembastStorage.write(
+          'cloudKnownTrashIds', jsonEncode(_cloudKnownTrashIds.toList()));
     } catch (_) {}
   }
 
@@ -3987,6 +4084,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             'reminderWindowFrom': _reminderWindowFrom,
             'reminderWindowTo': _reminderWindowTo,
             'autoPurgeDoneEnabled': _autoPurgeDoneEnabled,
+            'autoPurgeTrashEnabled': _autoPurgeTrashEnabled,
+            'trashRetentionDays': _trashRetentionDays,
+            'useTrash': _useTrash,
             'doneRetentionDays': _doneRetentionDays,
             'maxTasksToday': _maxTasksToday,
             'maxTasksBacklog': _maxTasksBacklog,
@@ -6156,6 +6256,67 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+  // (removed unused helper _moveToTrashByIndex during cleanup)
+
+  // Restore an item from the trash (the currently loaded `_today` list is
+  // expected to be the trash list when using this helper). Restores into
+  // the backlog by default.
+  Future<void> _restoreFromTrashByIndex(int index) async {
+    try {
+      if (index < 0 || index >= _today.length) return;
+      final item = _today[index];
+
+      // Remove from trash file via per-task queue so spinner shows on task
+      await _queueTaskAction(item.id, () async {
+        if (!mounted) return;
+        setState(() {
+          _today.removeAt(index);
+          _expanded.clear();
+        });
+        await _saveToday();
+      });
+
+      // Restore: clear deleted marker from notes if present
+      var restoredNotes = item.notes ?? '';
+      restoredNotes = restoredNotes
+          .replaceAll(RegExp(r'\n?\[deletedAt:[^\]]+\]'), '')
+          .trim();
+      var toStore =
+          item.copyWith(notes: restoredNotes, done: false, inProgress: false);
+
+      // Append to backlog by default
+      await _queueAppendToList('simplepresent_backlog.json', toStore,
+          insertTop: true);
+
+      unawaited(_appendRedoLog('restore_from_trash',
+          taskId: toStore.id, details: {'to': 'backlog'}));
+
+      try {
+        _showTopToast('task restored from trash');
+      } catch (_) {}
+    } catch (_) {
+      try {
+        _showTopToast('failed to restore task from trash');
+      } catch (_) {}
+    }
+    _registerActivity();
+  }
+
+  Future<void> _emptyTrash() async {
+    try {
+      await _serializedFileOp('simplepresent_trash.json', () async {
+        await _saveList('simplepresent_trash.json', <TaskItem>[]);
+      });
+      try {
+        _showTopToast('trash emptied');
+      } catch (_) {}
+    } catch (_) {
+      try {
+        _showTopToast('failed to empty trash');
+      } catch (_) {}
+    }
+  }
+
   void _registerActivity() {
     // Reset idle timer on user activity
     try {
@@ -6967,7 +7128,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                     : Text(
                                                         _showingBacklog
                                                             ? 'backlog'
-                                                            : 'today',
+                                                            : (_showingTrash
+                                                                ? 'trash'
+                                                                : 'today'),
                                                         style: const TextStyle(
                                                                 fontSize: 24,
                                                                 fontWeight:
@@ -6987,7 +7150,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                         ? _countBacklog
                                                         : (_showingDone
                                                             ? _countDone
-                                                            : _countToday))
+                                                            : (_showingTrash
+                                                                ? _countTrash
+                                                                : _countToday)))
                                                     .toString(),
                                                 style: const TextStyle(
                                                     fontSize: 14,
@@ -7045,6 +7210,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                   }
                                                 } else if (v == 'done') {
                                                   await _switchFile(true);
+                                                } else if (v == 'trash') {
+                                                  await _switchToTrash();
+                                                } else if (v == 'empty_trash') {
+                                                  await _emptyTrash();
                                                 }
                                               },
                                               itemBuilder: (ctx) {
@@ -7118,7 +7287,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                       const SizedBox(width: 8),
                                                       const Text('done')
                                                     ])));
+                                                items.add(PopupMenuItem(
+                                                    value: 'trash',
+                                                    child: Row(children: [
+                                                      Icon(Icons.delete),
+                                                      const SizedBox(width: 8),
+                                                      const Text('trash')
+                                                    ])));
                                                 // 'Next' removed by request
+                                                if (_showingTrash) {
+                                                  items.add(PopupMenuItem(
+                                                      value: 'empty_trash',
+                                                      child: Row(children: [
+                                                        Icon(
+                                                            Icons
+                                                                .delete_forever,
+                                                            color: Colors
+                                                                .redAccent),
+                                                        const SizedBox(
+                                                            width: 8),
+                                                        const Text(
+                                                            'empty trash')
+                                                      ])));
+                                                }
                                                 return items;
                                               },
                                             ),
@@ -7570,28 +7761,32 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                     padding:
                                                         const EdgeInsets.only(
                                                             right: 12),
-                                                    child: (_today[i]
-                                                                .inProgress &&
-                                                            !_today[i].done)
-                                                        ? Text(
-                                                            'open',
-                                                            style: TextStyle(
-                                                              decoration:
-                                                                  TextDecoration
-                                                                      .none,
-                                                              color: Theme.of(
-                                                                      context)
-                                                                  .colorScheme
-                                                                  .onSurface,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600,
-                                                            ),
-                                                          )
-                                                        : const Icon(
-                                                            Icons.delete,
-                                                            color:
-                                                                Colors.white),
+                                                    child: (_showingTrash
+                                                        ? const Icon(
+                                                            Icons.restore,
+                                                            color: Colors.white)
+                                                        : (_today[i].inProgress &&
+                                                                !_today[i].done)
+                                                            ? Text(
+                                                                'open',
+                                                                style:
+                                                                    TextStyle(
+                                                                  decoration:
+                                                                      TextDecoration
+                                                                          .none,
+                                                                  color: Theme.of(
+                                                                          context)
+                                                                      .colorScheme
+                                                                      .onSurface,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                ),
+                                                              )
+                                                            : const Icon(
+                                                                Icons.delete,
+                                                                color: Colors
+                                                                    .white)),
                                                   ),
                                                   confirmDismiss:
                                                       (direction) async {
@@ -7696,8 +7891,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                           : DismissDirection
                                                               .endToStart)
                                                       : DismissDirection.none,
-                                                  onDismissed: (_) =>
-                                                      _removeFromToday(i),
+                                                  onDismissed: (_) => (_showingTrash
+                                                      ? _restoreFromTrashByIndex(
+                                                          i)
+                                                      : _removeFromToday(i)),
                                                   child: Column(
                                                     children: [
                                                       Card(
@@ -8786,10 +8983,12 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool cloudSyncFailed;
   late String cloudSyncLastError;
   late bool autoPurgeDoneEnabled;
+  late bool autoPurgeTrashEnabled;
   late bool autoExportOnStart;
   late int autoExportIntervalMinutes;
   late String autoExportTimesCsv;
   late int autoExportMaxBackups;
+  late int trashRetentionDays;
   // local toast state for SettingsPage
   OverlayEntry? _toastEntryLocal;
   Timer? _toastTimerLocal;
@@ -8997,6 +9196,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late int _initialDoneRetentionDays;
   late int _initialMaxTasksToday;
   late int _initialMaxTasksBacklog;
+  late bool _initialAutoPurgeTrashEnabled;
+  late int _initialTrashRetentionDays;
   late bool _initialAutoExportOnStart;
   late int _initialAutoExportIntervalMinutes;
   late String _initialAutoExportTimesCsv;
@@ -9075,6 +9276,7 @@ class _SettingsPageState extends State<SettingsPage> {
     cloudPIN = readString('cloudPIN', '');
     cloudAllowInsecureTls = readBool('cloudAllowInsecureTls', false);
     autoPurgeDoneEnabled = readBool('autoPurgeDoneEnabled', false);
+    autoPurgeTrashEnabled = readBool('autoPurgeTrashEnabled', false);
     autoExportOnStart = readBool('autoExportOnStart', false);
     autoExportIntervalMinutes = readInt('autoExportIntervalMinutes', 0);
     final aet = widget.initial['autoExportTimes'];
@@ -9085,6 +9287,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
     autoExportMaxBackups = readInt('autoExportMaxBackups', 14);
     doneRetentionDays = readInt('doneRetentionDays', 30).clamp(1, 365);
+    trashRetentionDays = readInt('trashRetentionDays', 30).clamp(1, 365);
     maxTasksToday = readInt('maxTasksToday', 25).clamp(1, 9999);
     maxTasksBacklog = readInt('maxTasksBacklog', 50).clamp(1, 9999);
     cloudLastSyncSuccessAt = readInt('cloudLastSyncSuccessAt', 0);
@@ -9127,6 +9330,8 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialCloudAllowInsecureTls = cloudAllowInsecureTls;
     _initialAutoPurgeDoneEnabled = autoPurgeDoneEnabled;
     _initialDoneRetentionDays = doneRetentionDays;
+    _initialAutoPurgeTrashEnabled = autoPurgeTrashEnabled;
+    _initialTrashRetentionDays = trashRetentionDays;
     _initialMaxTasksToday = maxTasksToday;
     _initialMaxTasksBacklog = maxTasksBacklog;
     _initialAutoExportOnStart = autoExportOnStart;
@@ -9276,6 +9481,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 'reminderWindowTo': reminderWindowTo,
                 'autoPurgeDoneEnabled': false,
                 'doneRetentionDays': 30,
+                'autoPurgeTrashEnabled': false,
+                'trashRetentionDays': 30,
                 'inactivityReminders': _inactivityRemindersLocal,
                 'maxTasksToday': maxTasksToday,
                 'maxTasksBacklog': maxTasksBacklog,
@@ -9338,6 +9545,8 @@ class _SettingsPageState extends State<SettingsPage> {
         cloudAllowInsecureTls != _initialCloudAllowInsecureTls ||
         autoPurgeDoneEnabled != _initialAutoPurgeDoneEnabled ||
         doneRetentionDays != _initialDoneRetentionDays ||
+        autoPurgeTrashEnabled != _initialAutoPurgeTrashEnabled ||
+        trashRetentionDays != _initialTrashRetentionDays ||
         maxTasksToday != _initialMaxTasksToday ||
         maxTasksBacklog != _initialMaxTasksBacklog ||
         reminderWindowFrom != _initialReminderWindowFrom ||
@@ -9826,6 +10035,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       'inactivityReminders': _inactivityRemindersLocal,
                       'autoPurgeDoneEnabled': autoPurgeDoneEnabled,
                       'doneRetentionDays': doneRetentionDays,
+                      'autoPurgeTrashEnabled': autoPurgeTrashEnabled,
+                      'trashRetentionDays': trashRetentionDays,
+                      'useTrash': true,
                       'maxTasksToday': maxTasksToday,
                       'maxTasksBacklog': maxTasksBacklog,
                       // Automatic export settings
@@ -10478,6 +10690,38 @@ class _SettingsPageState extends State<SettingsPage> {
                             if (parsed != null)
                               setState(() =>
                                   doneRetentionDays = parsed.clamp(1, 365));
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  value: autoPurgeTrashEnabled,
+                  title: const Text('auto-delete old trash items'),
+                  subtitle:
+                      const Text('permanently delete trash older than x days.'),
+                  onChanged: (v) => setState(() => autoPurgeTrashEnabled = v),
+                ),
+                if (autoPurgeTrashEnabled) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Text('days:'),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: 100,
+                        child: TextFormField(
+                          initialValue: trashRetentionDays.toString(),
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                              isDense: true, border: OutlineInputBorder()),
+                          onChanged: (v) {
+                            final parsed = int.tryParse(v);
+                            if (parsed != null)
+                              setState(() =>
+                                  trashRetentionDays = parsed.clamp(1, 365));
                           },
                         ),
                       ),
