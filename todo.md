@@ -31,14 +31,14 @@
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Windows Store Veröffentlichung (.notes/WINDOWS_APP_STORE.md)
 - [ ] Worklog an Aufgaben...
-- [ ] erinnerungen deaktiveren können (z.b. bei aktiver app?)
+- [-] erinnerungen deaktiveren können (z.b. bei aktiver app?) - erinnerung ist wichtig!
 - [ ] Web Applikation
 - [ ] Reihenfolge auch über andere Gruppen hinaus und dann optisch einsortieren
 - [ ] Abhängigkeiten Reduzieren
   - [x] sqlite3.dll
   - [ ] mehr?
   - [ ] Aufräumen (ois)
-- [ ] sync: erster sync muss schneller, es muss beim öffnen geprüft werden bevor der client selbst aktionen ausführt. sonst kann es zu chaos kommen! (aufgaben die anm handy in heute lagen nd schon erledigt waren, wurden beim anderen in backlog verschoben und da liegengelassen...) 
+- [x] sync: erster sync muss schneller, es muss beim öffnen geprüft werden bevor der client selbst aktionen ausführt. sonst kann es zu chaos kommen! (aufgaben die anm handy in heute lagen nd schon erledigt waren, wurden beim anderen in backlog verschoben und da liegengelassen...) 
 - [ ] sync: self signed certs prüfen (ca-chain) 
 - [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben! (primärgerät-definieren?)
 - [ ] papierkorb:
@@ -52,7 +52,7 @@
       jetzt ist das icon wieder vermatscht, glaube muss transparentes icon mit gößerem transparenten rand sein, damit es rund passt
 - [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
-- [ ] refresh widget - bei aktualisierung von today in der app!
+- [x] refresh widget - bei aktualisierung von today in der app!
 - [ ] aufgaben reihenfolge optimisieren
 - [?] qr-code nimmt url nicht mit!
 - [x] aufgaben von yesterday legen nach erledigung eine neue today aufgabe an. follow up soll auch bei vergangenen aufgaben wie today behandelt werden, also follow up vom heutigem tag aus generiert werden!
