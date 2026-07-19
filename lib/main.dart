@@ -716,6 +716,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         if (!Platform.isAndroid) _requestInputFocusIfIdle();
+        // Trigger a reorder on startup to emit debug classification logs so
+        // we can inspect the ordering and scheduled date handling.
+        _scheduleDelayedReorder();
       }
     });
 
@@ -1039,6 +1042,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await Future.delayed(minLoadingDuration - elapsed);
     }
     _initializationComplete = true;
+    // Trigger reorder now that lists are loaded so debug output reflects
+    // actual task data (today/backlog/done). This helps diagnose ordering.
+    _scheduleDelayedReorder();
     await _processPendingNotificationTaskActions();
     await _processPendingWidgetOpenTasks();
   }
@@ -4788,18 +4794,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     bucketInProgressNoSchedule.sort(_cmpInProgressStart);
     bucketInProgressScheduledFuture.sort(_cmpInProgressStart);
 
-    // Sort scheduled buckets chronologically: past newest first, dueWithin1h ascending, future ascending
-    bucketScheduledPast.sort((a, b) => (b.scheduledAt ??
-            DateTime.fromMillisecondsSinceEpoch(0))
-        .compareTo(a.scheduledAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
-    bucketDueIn1h.sort((a, b) => (a.scheduledAt ??
-            DateTime.fromMillisecondsSinceEpoch(0))
-        .compareTo(b.scheduledAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
-    bucketScheduledFuture.sort((a, b) => (a.scheduledAt ??
+    // Combine all scheduled-related buckets and sort chronologically so that
+    // scheduled tasks (past, soon, future) are strictly ordered by datetime.
+    final bucketScheduledAll = <TaskItem>[]
+      ..addAll(bucketScheduledPast)
+      ..addAll(bucketDueIn1h)
+      ..addAll(bucketScheduledFuture);
+    bucketScheduledAll.sort((a, b) => (a.scheduledAt ??
             DateTime.fromMillisecondsSinceEpoch(0))
         .compareTo(b.scheduledAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
 
-    // Compose final order per requested sequence
+    // Compose final order per requested sequence. Keep in-progress and
+    // important buckets first, then all scheduled tasks chronologically,
+    // then unscheduled rest, then done.
     final newOrder = <TaskItem>[];
     newOrder.addAll(bucketImportantInProgress); // in arbeit - wichtig
     newOrder.addAll(
@@ -4808,10 +4815,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     newOrder.addAll(
         bucketInProgressScheduledFuture); // in arbeit - uhrzeit in der zukunft
     newOrder.addAll(bucketImportant); // wichtig
-    newOrder.addAll(bucketScheduledPast); // uhrzeit in vergangenheit
-    newOrder.addAll(bucketDueIn1h); // uhrzeit in naher zukunft
-    newOrder.addAll(bucketRest); // rest
-    newOrder.addAll(bucketScheduledFuture); // uhrzeit in der zukunft rest
+    newOrder.addAll(bucketScheduledAll); // alle geplanten: chronologisch
+    newOrder.addAll(bucketRest); // rest (unscheduled)
     newOrder.addAll(bucketDone);
 
     // As a safety net, ensure any tasks currently marked inProgress are
@@ -4831,12 +4836,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       buf.writeln('Now: $now');
       for (var i = 0; i < finalOrder.length; i++) {
         final t = finalOrder[i];
+        final sched = t.scheduledAt;
+        final schedLocal =
+            sched == null ? 'null' : sched.toLocal().toIso8601String();
+        final schedKey = sched == null
+            ? 'null'
+            : DateFormat('yyyy-MM-dd').format(sched.toLocal());
         buf.writeln(
-            '#$i: "${t.text}" id=${t.id} done=${t.done} inProgress=${t.inProgress} important=${t.important} scheduled=${t.scheduledAt} inProgressAt=${t.inProgressAt}');
+            '#$i: "${t.text}" id=${t.id} done=${t.done} inProgress=${t.inProgress} important=${t.important} scheduled=$schedLocal scheduledKey=$schedKey inProgressAt=${t.inProgressAt}');
       }
       buf.writeln('--- end debug ---');
       // Print asynchronously to avoid blocking UI
       unawaited(Future(() => print(buf.toString())));
+      // Also write debug log to file for later inspection
+      unawaited(_debugLog(buf.toString()));
+      // Also write to a temporary file for easy access during debugging.
+      try {
+        unawaited(File('/tmp/simplepresent_reorder_debug.log')
+            .writeAsString(buf.toString(), mode: FileMode.append));
+      } catch (_) {}
     }
 
     setState(() {

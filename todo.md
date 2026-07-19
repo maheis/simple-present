@@ -53,7 +53,7 @@
 - [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
 - [x] refresh widget - bei aktualisierung von today in der app!
-- [ ] aufgaben reihenfolge optimisieren
+- [x] aufgaben reihenfolge optimisieren
 - [?] qr-code nimmt url nicht mit!
 - [x] aufgaben von yesterday legen nach erledigung eine neue today aufgabe an. follow up soll auch bei vergangenen aufgaben wie today behandelt werden, also follow up vom heutigem tag aus generiert werden!
 - [x] widget funktioniert wieder nicht!
