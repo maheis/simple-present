@@ -26,6 +26,10 @@ if [ ! -f "$BIN" ]; then
 fi
 
 echo "Installing binary to ${INSTALL_BIN}"
+if [ -f "$INSTALL_BIN" ]; then
+  echo "Found existing binary at ${INSTALL_BIN} -> backing up"
+  mv "$INSTALL_BIN" "${INSTALL_BIN}.bak.$(date +%s)" || true
+fi
 install -m 0755 "$BIN" "$INSTALL_BIN"
 
 echo "Creating user/group 'simplepresent' if missing"
@@ -48,10 +52,21 @@ else
 fi
 
 echo "Installing systemd unit to ${SYSTEMD_TARGET}"
+if [ -f "$SYSTEMD_TARGET" ] || systemctl list-unit-files --type=service | grep -q "^simplepresent-server.service" 2>/dev/null; then
+  echo "Detected existing systemd unit for simplepresent-server. Stopping and disabling service."
+  systemctl stop simplepresent-server.service 2>/dev/null || true
+  systemctl disable simplepresent-server.service 2>/dev/null || true
+  if [ -f "$SYSTEMD_TARGET" ]; then
+    echo "Backing up existing unit to ${SYSTEMD_TARGET}.bak.$(date +%s)"
+    mv "$SYSTEMD_TARGET" "${SYSTEMD_TARGET}.bak.$(date +%s)" || true
+  fi
+fi
 install -m 0644 "$SYSTEMD_UNIT" "$SYSTEMD_TARGET"
 
 echo "Reloading systemd and enabling service"
 systemctl daemon-reload
 systemctl enable --now simplepresent-server.service
+
+echo "If this was an update, previous binary/unit were backed up with .bak.<ts> suffix. Config at ${ETC_CONFIG} and data at ${DATA_DIR} are preserved."
 
 echo "Install complete. Check 'journalctl -u simplepresent-server -f' for logs."

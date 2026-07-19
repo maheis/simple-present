@@ -44,7 +44,7 @@
 - [ ] papierkorb:
         schiebt sync in den papierkorb?
         papierkorb sichtbar machen (um wiederherstellen zu können)
-- [ ] install server soll updaten können
+- [x] install server soll updaten können
 - [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
       notification funktioniert mit weißen icon.[text](about:blank#blocked)
       kleines app icon in der taks auswahl und benachrichtigung klappt auch
