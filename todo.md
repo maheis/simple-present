@@ -57,8 +57,8 @@
       jetzt ist das icon wieder vermatscht, glaube muss transparentes icon mit gößerem transparenten rand sein, damit es rund passt
 - [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
-- [ ] icon trash
-- [ ] schrift im widget kleiner
+- [x] icon trash
+- [x] schrift im widget kleiner
 - [x] trash / done eintrag im menü ausblenden, wenn die liste jeweilige liste geöffnet ist!
 
 ## notes

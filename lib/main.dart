@@ -7107,7 +7107,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                       ? 'assets/icons/color_transparent_backlog.png'
                                                       : (_showingDone
                                                           ? 'assets/icons/color_transparent_done.png'
-                                                          : 'assets/icons/color_transparent_today.png'),
+                                                          : (_showingTrash
+                                                              ? 'assets/icons/color_transparent_trash.png'
+                                                              : 'assets/icons/color_transparent_today.png')),
                                                   width: 28,
                                                   height: 28,
                                                 ),
@@ -7329,7 +7331,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                   items.add(PopupMenuItem(
                                                       value: 'trash',
                                                       child: Row(children: [
-                                                        Icon(Icons.delete),
+                                                        Image.asset(
+                                                            'assets/icons/white_transparent_trash.png',
+                                                            width: 18,
+                                                            height: 18),
                                                         const SizedBox(
                                                             width: 8),
                                                         const Text('trash')
@@ -7340,11 +7345,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                   items.add(PopupMenuItem(
                                                       value: 'empty_done',
                                                       child: Row(children: [
-                                                        Icon(
-                                                            Icons
-                                                                .delete_forever,
-                                                            color: Colors
-                                                                .redAccent),
+                                                        Image.asset(
+                                                            'assets/icons/red_transparent_done.png',
+                                                            width: 18,
+                                                            height: 18),
                                                         const SizedBox(
                                                             width: 8),
                                                         const Text('empty done')
@@ -7354,11 +7358,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                   items.add(PopupMenuItem(
                                                       value: 'empty_trash',
                                                       child: Row(children: [
-                                                        Icon(
-                                                            Icons
-                                                                .delete_forever,
-                                                            color: Colors
-                                                                .redAccent),
+                                                        Image.asset(
+                                                            'assets/icons/red_transparent_trash.png',
+                                                            width: 18,
+                                                            height: 18),
                                                         const SizedBox(
                                                             width: 8),
                                                         const Text(
