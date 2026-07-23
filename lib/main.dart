@@ -129,6 +129,9 @@ Future<void> _debugLog(String msg) async {
 Future<void> exportTodayAndRefresh(List<TaskItem> tasks,
     {String fontFamily = 'OpenDyslexic'}) async {
   try {
+    // Only Android needs these JSON exports for the native widget.
+    // Prevent desktop (and other platforms) from creating these files.
+    if (!Platform.isAndroid) return;
     final dir = await getApplicationDocumentsDirectory();
     final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
     final folder = Directory('${dir.path}/simplepresent_widget');

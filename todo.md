@@ -33,7 +33,7 @@
 - [x] aufgaben reihenfolge optimisieren
 - [x] aufgaben von yesterday legen nach erledigung eine neue today aufgabe an. follow up soll auch bei vergangenen aufgaben wie today behandelt werden, also follow up vom heutigem tag aus generiert werden!
 - [x] widget funktioniert wieder nicht!
-- [?] qr-code nimmt url nicht mit!
+- [x] qr-code nimmt url nicht mit!
 - [?] ausführliches sync testen! kommt ständig zu fehlern, die nicht reproduzierbar sind! 
       z.b. move von backlog zu today wird nicht synchronisiert, sachen die ins backlog gehen, bleiben in today...
       dopplung von aufgaben...
@@ -60,6 +60,10 @@
 - [x] icon trash
 - [x] schrift im widget kleiner
 - [x] trash / done eintrag im menü ausblenden, wenn die liste jeweilige liste geöffnet ist!
+- [x] desktop-app erzeugt widget json-files, ist aber unnötig, soll nur android tun!
+- [ ] widget nur einzeilig, hinten raus mit ... wenn zu lang
+- [ ] in arbeit sichtbarerer!
+
 
 ## notes
 
