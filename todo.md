@@ -61,7 +61,7 @@
 - [x] schrift im widget kleiner
 - [x] trash / done eintrag im menü ausblenden, wenn die liste jeweilige liste geöffnet ist!
 - [x] desktop-app erzeugt widget json-files, ist aber unnötig, soll nur android tun!
-- [ ] widget nur einzeilig, hinten raus mit ... wenn zu lang
+- [x] widget nur einzeilig, hinten raus mit ... wenn zu lang
 - [ ] in arbeit sichtbarerer!
 
 

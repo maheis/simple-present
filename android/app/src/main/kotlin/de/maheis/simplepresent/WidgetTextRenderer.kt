@@ -9,6 +9,7 @@ import android.graphics.Typeface
 import android.os.Build
 import android.text.Layout
 import android.text.StaticLayout
+import android.text.TextUtils
 import android.text.TextPaint
 import androidx.core.content.res.ResourcesCompat
 
@@ -39,12 +40,16 @@ object WidgetTextRenderer {
                 .setAlignment(Layout.Alignment.ALIGN_NORMAL)
                 .setIncludePad(false)
                 .setLineSpacing(0f, 1f)
-                .setMaxLines(2)
+                // single-line widget text with ellipsis at end
+                .setMaxLines(1)
+                .setEllipsize(TextUtils.TruncateAt.END)
                 .build()
         } else {
             @Suppress("DEPRECATION")
+            // For older APIs, pre-ellipsize the text to one line width
+            val display = TextUtils.ellipsize(text, paint, width.toFloat(), TextUtils.TruncateAt.END).toString()
             StaticLayout(
-                text,
+                display,
                 paint,
                 width,
                 Layout.Alignment.ALIGN_NORMAL,
