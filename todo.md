@@ -37,7 +37,7 @@
 - [?] ausführliches sync testen! kommt ständig zu fehlern, die nicht reproduzierbar sind! 
       z.b. move von backlog zu today wird nicht synchronisiert, sachen die ins backlog gehen, bleiben in today...
       dopplung von aufgaben...
-- [?] android hintergrund synchronisation (push) implementieren
+- [ ] android hintergrund synchronisation (push) implementieren
 - [?] android verliert manchmal den text focus beim editieren und springt runter in "neue aufgaben"-feld
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Windows Store Veröffentlichung (.notes/WINDOWS_APP_STORE.md)
