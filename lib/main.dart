@@ -7312,23 +7312,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                       const SizedBox(width: 8),
                                                       const Text('import')
                                                     ])));
-                                                items.add(PopupMenuItem(
-                                                    value: 'done',
-                                                    child: Row(children: [
-                                                      Image.asset(
-                                                          'assets/icons/white_transparent_done.png',
-                                                          width: 18,
-                                                          height: 18),
-                                                      const SizedBox(width: 8),
-                                                      const Text('done')
-                                                    ])));
-                                                items.add(PopupMenuItem(
-                                                    value: 'trash',
-                                                    child: Row(children: [
-                                                      Icon(Icons.delete),
-                                                      const SizedBox(width: 8),
-                                                      const Text('trash')
-                                                    ])));
+                                                if (!_showingDone) {
+                                                  items.add(PopupMenuItem(
+                                                      value: 'done',
+                                                      child: Row(children: [
+                                                        Image.asset(
+                                                            'assets/icons/white_transparent_done.png',
+                                                            width: 18,
+                                                            height: 18),
+                                                        const SizedBox(
+                                                            width: 8),
+                                                        const Text('done')
+                                                      ])));
+                                                }
+                                                if (!_showingTrash) {
+                                                  items.add(PopupMenuItem(
+                                                      value: 'trash',
+                                                      child: Row(children: [
+                                                        Icon(Icons.delete),
+                                                        const SizedBox(
+                                                            width: 8),
+                                                        const Text('trash')
+                                                      ])));
+                                                }
                                                 // 'Next' removed by request
                                                 if (_showingDone) {
                                                   items.add(PopupMenuItem(
