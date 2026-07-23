@@ -62,15 +62,21 @@ private class TodayWidgetFactory(
         } else {
             task.text
         }
+        val itemTextColor = if (task.inProgress) {
+            // light mint green for in-progress tasks
+            Color.parseColor("#9EEB9E")
+        } else {
+            Color.parseColor("#E6F5F0")
+        }
         views.setImageViewBitmap(
             R.id.widget_task_text,
-                WidgetTextRenderer.renderTextBitmap(
+            WidgetTextRenderer.renderTextBitmap(
                 context = context,
                 text = text,
                 fontResId = fontResIdForFamily(fontFamily, bold = false),
                 // Reduce item font size for widget
-                textSizeSp = 9f,
-                textColor = Color.parseColor("#E6F5F0"),
+                textSizeSp = 11f,
+                textColor = itemTextColor,
                 maxWidthPx = textWidthPx,
                 bold = false,
             )

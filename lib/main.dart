@@ -8084,7 +8084,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                                 fontSize: _baseFontSize,
                                                                                 fontWeight: FontWeight.normal,
                                                                                 decoration: TextDecoration.none,
-                                                                                color: task.done ? _primaryTextColor.withAlpha((0.6 * 255).round()) : (task.important ? Colors.amber : _primaryTextColor),
+                                                                                color: task.done ? _primaryTextColor.withAlpha((0.6 * 255).round()) : (task.inProgress ? const Color(0xFF9EEB9E) : (task.important ? Colors.amber : _primaryTextColor)),
                                                                               ),
                                                                             ),
                                                                           ),
