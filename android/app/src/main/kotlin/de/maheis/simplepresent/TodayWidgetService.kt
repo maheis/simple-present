@@ -64,11 +64,12 @@ private class TodayWidgetFactory(
         }
         views.setImageViewBitmap(
             R.id.widget_task_text,
-            WidgetTextRenderer.renderTextBitmap(
+                WidgetTextRenderer.renderTextBitmap(
                 context = context,
                 text = text,
                 fontResId = fontResIdForFamily(fontFamily, bold = false),
-                textSizeSp = 13f,
+                // Reduce item font size for widget
+                textSizeSp = 9f,
                 textColor = Color.parseColor("#E6F5F0"),
                 maxWidthPx = textWidthPx,
                 bold = false,

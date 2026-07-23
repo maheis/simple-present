@@ -58,7 +58,7 @@
 - [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
 - [ ] icon trash
-- [ ] schrift widget kleiner
+- [ ] schrift im widget kleiner
 - [x] trash / done eintrag im menü ausblenden, wenn die liste jeweilige liste geöffnet ist!
 
 ## notes

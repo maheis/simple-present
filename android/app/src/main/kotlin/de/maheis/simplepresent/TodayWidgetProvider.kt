@@ -71,7 +71,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
                     context = context,
                     text = "today",
                     fontResId = fontResIdForFamily(family, bold = true),
-                    textSizeSp = 16f,
+                    // Smaller header font for widget
+                    textSizeSp = 12f,
                     textColor = Color.parseColor("#E6F5F0"),
                     maxWidthPx = textWidthPx,
                     bold = true,
@@ -83,7 +84,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
                     context = context,
                     text = "no tasks",
                     fontResId = fontResIdForFamily(family, bold = false),
-                    textSizeSp = 12f,
+                    // Slightly smaller empty text
+                    textSizeSp = 8f,
                     textColor = Color.parseColor("#A9C6BF"),
                     maxWidthPx = textWidthPx,
                     bold = false,
