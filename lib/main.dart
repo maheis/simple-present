@@ -9056,6 +9056,10 @@ class TaskWindowPage extends StatefulWidget {
   State<TaskWindowPage> createState() => _TaskWindowPageState();
 }
 
+class _CloseTaskWindowIntent extends Intent {
+  const _CloseTaskWindowIntent();
+}
+
 class _TaskWindowPageState extends State<TaskWindowPage> {
   final SembastStorage _storage = SembastStorage();
   late final TextEditingController _titleController;
@@ -9204,109 +9208,135 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
         if (didPop) return;
         await _closeWindow();
       },
-      child: Scaffold(
-        appBar: AppBar(
-          leadingWidth: 44,
-          titleSpacing: 0,
-          leading: Padding(
-            padding: const EdgeInsets.only(left: 12),
-            child: Center(
-              child: Image.asset(
-                'assets/icons/color_transparent_icon.png',
-                width: 24,
-                height: 24,
+      child: Shortcuts(
+        shortcuts: <ShortcutActivator, Intent>{
+          const SingleActivator(LogicalKeyboardKey.escape):
+              const _CloseTaskWindowIntent(),
+        },
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            _CloseTaskWindowIntent: CallbackAction<_CloseTaskWindowIntent>(
+              onInvoke: (_) {
+                if (!_saving) {
+                  unawaited(_closeWindow());
+                }
+                return null;
+              },
+            ),
+          },
+          child: Focus(
+            autofocus: true,
+            child: Scaffold(
+              appBar: AppBar(
+                leadingWidth: 44,
+                titleSpacing: 0,
+                leading: Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: Center(
+                    child: Image.asset(
+                      'assets/icons/color_transparent_icon.png',
+                      width: 24,
+                      height: 24,
+                    ),
+                  ),
+                ),
+                title: const SizedBox.shrink(),
+                actions: [
+                  TextButton(
+                    onPressed: _saving ? null : _closeWindow,
+                    child: const Text('close'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _saving ? null : _closeWindow,
+                    child: Text(_saving ? 'saving...' : 'save'),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+              ),
+              body: MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: TextScaler.linear(1.0)),
+                child: Theme(
+                  data: baseTheme,
+                  child: _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _task == null
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Text(
+                                  _status.isEmpty ? 'task not found' : _status,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            )
+                          : SingleChildScrollView(
+                              padding: const EdgeInsets.all(20),
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(maxWidth: 760),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      TextField(
+                                        controller: _titleController,
+                                        autofocus: true,
+                                        decoration: const InputDecoration(
+                                          labelText: 'title',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        onChanged: (_) => setState(() {}),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      TextField(
+                                        controller: _notesController,
+                                        minLines: 10,
+                                        maxLines: 16,
+                                        decoration: const InputDecoration(
+                                          labelText: 'notes',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        onChanged: (_) => setState(() {}),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: [
+                                          Chip(
+                                              label: Text(_task!.done
+                                                  ? 'done'
+                                                  : 'open')),
+                                          if (_task!.inProgress)
+                                            const Chip(
+                                                label: Text('in progress')),
+                                          if (_task!.important)
+                                            const Chip(
+                                                label: Text('important')),
+                                        ],
+                                      ),
+                                      if (_status.isNotEmpty) ...[
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          _status,
+                                          style: TextStyle(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                ),
               ),
             ),
-          ),
-          title: const SizedBox.shrink(),
-          actions: [
-            TextButton(
-              onPressed: _saving ? null : _closeWindow,
-              child: const Text('close'),
-            ),
-            const SizedBox(width: 8),
-            FilledButton(
-              onPressed: _saving ? null : _closeWindow,
-              child: Text(_saving ? 'saving...' : 'save'),
-            ),
-            const SizedBox(width: 12),
-          ],
-        ),
-        body: MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: TextScaler.linear(1.0)),
-          child: Theme(
-            data: baseTheme,
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _task == null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Text(
-                            _status.isEmpty ? 'task not found' : _status,
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      )
-                    : SingleChildScrollView(
-                        padding: const EdgeInsets.all(20),
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 760),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                TextField(
-                                  controller: _titleController,
-                                  autofocus: true,
-                                  decoration: const InputDecoration(
-                                    labelText: 'title',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  onChanged: (_) => setState(() {}),
-                                ),
-                                const SizedBox(height: 12),
-                                TextField(
-                                  controller: _notesController,
-                                  minLines: 10,
-                                  maxLines: 16,
-                                  decoration: const InputDecoration(
-                                    labelText: 'notes',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  onChanged: (_) => setState(() {}),
-                                ),
-                                const SizedBox(height: 12),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    Chip(
-                                        label: Text(
-                                            _task!.done ? 'done' : 'open')),
-                                    if (_task!.inProgress)
-                                      const Chip(label: Text('in progress')),
-                                    if (_task!.important)
-                                      const Chip(label: Text('important')),
-                                  ],
-                                ),
-                                if (_status.isNotEmpty) ...[
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    _status,
-                                    style: TextStyle(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
           ),
         ),
       ),
