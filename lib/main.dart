@@ -3333,8 +3333,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             readBool('urgentBringToFrontEnabled', _urgentBringToFrontEnabled);
         _swipeEnabled = readBool('swipeEnabled', _swipeEnabled);
         _openTasksInSeparateDesktopWindow = readBool(
-          'openTasksInSeparateDesktopWindow',
-          _openTasksInSeparateDesktopWindow);
+            'openTasksInSeparateDesktopWindow',
+            _openTasksInSeparateDesktopWindow);
         _autoPurgeDoneEnabled =
             readBool('autoPurgeDoneEnabled', _autoPurgeDoneEnabled);
         _autoPurgeTrashEnabled =
@@ -3504,8 +3504,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'urgentNotifyEnabled': _urgentNotifyEnabled,
         'urgentBringToFrontEnabled': _urgentBringToFrontEnabled,
         'swipeEnabled': _swipeEnabled,
-        'openTasksInSeparateDesktopWindow':
-          _openTasksInSeparateDesktopWindow,
+        'openTasksInSeparateDesktopWindow': _openTasksInSeparateDesktopWindow,
         'uiTextScaleFactor': _uiTextScaleFactor,
         'fontFamily': _fontFamily,
         'cloudServerUrl': _cloudServerUrl,
@@ -4108,7 +4107,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             'urgentBringToFrontEnabled': _urgentBringToFrontEnabled,
             'swipeEnabled': _swipeEnabled,
             'openTasksInSeparateDesktopWindow':
-              _openTasksInSeparateDesktopWindow,
+                _openTasksInSeparateDesktopWindow,
             'uiTextScaleFactor': _uiTextScaleFactor,
             'fontFamily': _fontFamily,
             'cloudServerUrl': _cloudServerUrl,
@@ -8036,8 +8035,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                   horizontal:
                                                                       12),
                                                           onTap: () =>
-                                                              _handleTaskTap(
-                                                                i),
+                                                              _handleTaskTap(i),
                                                           leading: _busyTaskIds
                                                                   .contains(
                                                                       task.id)
@@ -9136,7 +9134,8 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     });
     try {
       final rows = _storage.readTaskList(_sourceList);
-      final idx = rows.indexWhere((row) => (row['id'] ?? '').toString() == task.id);
+      final idx =
+          rows.indexWhere((row) => (row['id'] ?? '').toString() == task.id);
       if (idx == -1) {
         if (mounted) {
           setState(() {
@@ -9260,7 +9259,9 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
                                   spacing: 8,
                                   runSpacing: 8,
                                   children: [
-                                    Chip(label: Text(_task!.done ? 'done' : 'open')),
+                                    Chip(
+                                        label: Text(
+                                            _task!.done ? 'done' : 'open')),
                                     if (_task!.inProgress)
                                       const Chip(label: Text('in progress')),
                                     if (_task!.important)
@@ -9639,7 +9640,7 @@ class _SettingsPageState extends State<SettingsPage> {
     scheduledReminderSoundEnabled =
         readBool('scheduledReminderSoundEnabled', true);
     openTasksInSeparateDesktopWindow =
-      readBool('openTasksInSeparateDesktopWindow', false);
+        readBool('openTasksInSeparateDesktopWindow', false);
     reminderWindowFrom = readString('reminderWindowFrom', '09:00');
     reminderWindowTo = readString('reminderWindowTo', '17:00');
     textScaleFactor = readDouble('uiTextScaleFactor', 1.0).clamp(0.5, 1.6);
@@ -9696,8 +9697,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialUrgentBringToFrontEnabled = urgentBringToFrontEnabled;
     _initialSwipeEnabled = swipeEnabled;
     _initialScheduledReminderSoundEnabled = scheduledReminderSoundEnabled;
-    _initialOpenTasksInSeparateDesktopWindow =
-      openTasksInSeparateDesktopWindow;
+    _initialOpenTasksInSeparateDesktopWindow = openTasksInSeparateDesktopWindow;
     _initialReminderWindowFrom = reminderWindowFrom;
     _initialReminderWindowTo = reminderWindowTo;
     _initialTextScaleFactor = textScaleFactor;
@@ -9846,7 +9846,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 'urgentBringToFrontEnabled': urgentBringToFrontEnabled,
                 'swipeEnabled': swipeEnabled,
                 'openTasksInSeparateDesktopWindow':
-                  openTasksInSeparateDesktopWindow,
+                    openTasksInSeparateDesktopWindow,
                 'uiTextScaleFactor': textScaleFactor,
                 'fontFamily': fontFamily,
                 'cloudServerUrl': cloudServerUrl,
@@ -9914,7 +9914,7 @@ class _SettingsPageState extends State<SettingsPage> {
         scheduledReminderSoundEnabled !=
             _initialScheduledReminderSoundEnabled ||
         openTasksInSeparateDesktopWindow !=
-          _initialOpenTasksInSeparateDesktopWindow ||
+            _initialOpenTasksInSeparateDesktopWindow ||
         urgentFlashEnabled != _initialUrgentFlashEnabled ||
         urgentNotifyEnabled != _initialUrgentNotifyEnabled ||
         urgentBringToFrontEnabled != _initialUrgentBringToFrontEnabled ||
@@ -10406,7 +10406,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       'urgentNotifyEnabled': urgentNotifyEnabled,
                       'urgentBringToFrontEnabled': urgentBringToFrontEnabled,
                       'swipeEnabled': swipeEnabled,
-                        'openTasksInSeparateDesktopWindow':
+                      'openTasksInSeparateDesktopWindow':
                           openTasksInSeparateDesktopWindow,
                       'uiTextScaleFactor': textScaleFactor,
                       'scheduledReminderSoundEnabled':
@@ -10730,9 +10730,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   value: openTasksInSeparateDesktopWindow,
                   title: const Text('open desktop tasks in a separate window'),
                   subtitle: const Text(
-                    'on desktop, open a task in its own window instead of expanding it in the list.'),
+                      'on desktop, open a task in its own window instead of expanding it in the list.'),
                   onChanged: (v) =>
-                    setState(() => openTasksInSeparateDesktopWindow = v),
+                      setState(() => openTasksInSeparateDesktopWindow = v),
                 ),
                 const SizedBox(height: 8),
                 const Divider(),
