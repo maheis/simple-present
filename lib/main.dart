@@ -9065,6 +9065,8 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   late final TextEditingController _titleController;
   late final TextEditingController _notesController;
   late final TextEditingController _workMinutesController;
+  late final TextEditingController _newSubtaskController;
+  final Map<String, TextEditingController> _subtaskControllers = {};
   Timer? _ticker;
   TaskItem? _initialTask;
   TaskItem? _task;
@@ -9079,6 +9081,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     _titleController = TextEditingController();
     _notesController = TextEditingController();
     _workMinutesController = TextEditingController();
+    _newSubtaskController = TextEditingController();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted && (_task?.stopwatchRunning ?? false)) {
         setState(() {});
@@ -9092,6 +9095,10 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     _titleController.dispose();
     _notesController.dispose();
     _workMinutesController.dispose();
+    _newSubtaskController.dispose();
+    for (final controller in _subtaskControllers.values) {
+      controller.dispose();
+    }
     _ticker?.cancel();
     _storage.dispose();
     super.dispose();
@@ -9137,6 +9144,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       _notesController.text = found.task.notes ?? '';
       _workMinutesController.text =
           found.task.workMinutes > 0 ? found.task.workMinutes.toString() : '';
+      _syncSubtaskControllers(found.task.subtasks);
       setState(() => _loading = false);
     } catch (e) {
       if (!mounted) return;
@@ -9167,7 +9175,29 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     if (task == null) return;
     setState(() {
       _task = update(task);
+      if (_task != null) {
+        _syncSubtaskControllers(_task!.subtasks);
+      }
     });
+  }
+
+  void _syncSubtaskControllers(List<TaskStep> subtasks) {
+    final liveIds = subtasks.map((step) => step.id).toSet();
+    final staleIds =
+        _subtaskControllers.keys.where((id) => !liveIds.contains(id)).toList();
+    for (final staleId in staleIds) {
+      _subtaskControllers.remove(staleId)?.dispose();
+    }
+    for (final step in subtasks) {
+      _subtaskControllers.putIfAbsent(
+        step.id,
+        () => TextEditingController(text: step.text),
+      );
+    }
+  }
+
+  String _nextSubtaskId() {
+    return '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
   }
 
   int _elapsedSecondsFor(TaskItem task) {
@@ -9265,6 +9295,52 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     );
     if (!mounted) return;
     _updateTask((current) => current.copyWith(recurrence: value));
+  }
+
+  Future<void> _addSubtask() async {
+    final task = _task;
+    if (task == null) return;
+    final text = _newSubtaskController.text.trim();
+    if (text.isEmpty) return;
+    final step = TaskStep(id: _nextSubtaskId(), text: text, done: false);
+    _newSubtaskController.clear();
+    _updateTask((current) => current.copyWith(
+          subtasks: [...current.subtasks, step],
+        ));
+  }
+
+  void _updateSubtask(String subtaskId, {String? text, bool? done}) {
+    final task = _task;
+    if (task == null) return;
+    final updated = task.subtasks.map((step) {
+      if (step.id != subtaskId) return step;
+      return step.copyWith(
+        text: text ?? step.text,
+        done: done ?? step.done,
+      );
+    }).toList();
+    _updateTask((current) => current.copyWith(subtasks: updated));
+  }
+
+  void _removeSubtask(String subtaskId) {
+    final task = _task;
+    if (task == null) return;
+    final removed = _subtaskControllers.remove(subtaskId);
+    removed?.dispose();
+    _updateTask((current) => current.copyWith(
+          subtasks:
+              current.subtasks.where((step) => step.id != subtaskId).toList(),
+        ));
+  }
+
+  void _reorderSubtasks(int oldIndex, int newIndex) {
+    final task = _task;
+    if (task == null) return;
+    final items = [...task.subtasks];
+    if (oldIndex < newIndex) newIndex -= 1;
+    final item = items.removeAt(oldIndex);
+    items.insert(newIndex, item);
+    _updateTask((current) => current.copyWith(subtasks: items));
   }
 
   Future<void> _startStopwatch() async {
@@ -9586,6 +9662,89 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
                                         ],
                                       ),
                                       const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextField(
+                                              controller: _newSubtaskController,
+                                              decoration: const InputDecoration(
+                                                labelText: 'add subtask',
+                                                border: OutlineInputBorder(),
+                                              ),
+                                              onSubmitted: (_) => _addSubtask(),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          FilledButton(
+                                            onPressed: _addSubtask,
+                                            child: const Text('+'),
+                                          ),
+                                        ],
+                                      ),
+                                      if (_task!.subtasks.isNotEmpty) ...[
+                                        const SizedBox(height: 12),
+                                        ReorderableListView(
+                                          shrinkWrap: true,
+                                          physics:
+                                              const NeverScrollableScrollPhysics(),
+                                          buildDefaultDragHandles: false,
+                                          onReorder: _reorderSubtasks,
+                                          children: [
+                                            for (final step in _task!.subtasks)
+                                              Card(
+                                                key: ValueKey(
+                                                    'task-window-subtask-${step.id}'),
+                                                child: ListTile(
+                                                  leading: Checkbox(
+                                                    value: step.done,
+                                                    onChanged: (value) =>
+                                                        _updateSubtask(
+                                                      step.id,
+                                                      done: value ?? false,
+                                                    ),
+                                                  ),
+                                                  title: TextField(
+                                                    controller:
+                                                        _subtaskControllers[
+                                                            step.id],
+                                                    decoration:
+                                                        const InputDecoration(
+                                                      border: InputBorder.none,
+                                                      isDense: true,
+                                                    ),
+                                                    onChanged: (value) =>
+                                                        _updateSubtask(
+                                                      step.id,
+                                                      text: value,
+                                                    ),
+                                                  ),
+                                                  trailing: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      IconButton(
+                                                        tooltip:
+                                                            'delete subtask',
+                                                        icon: const Icon(
+                                                            Icons.close),
+                                                        onPressed: () =>
+                                                            _removeSubtask(
+                                                                step.id),
+                                                      ),
+                                                      ReorderableDragStartListener(
+                                                        index: _task!.subtasks
+                                                            .indexOf(step),
+                                                        child: const Icon(
+                                                            Icons.drag_handle),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
+                                      ],
                                       Wrap(
                                         spacing: 8,
                                         runSpacing: 8,
