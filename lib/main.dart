@@ -9201,7 +9201,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
             ),
             const SizedBox(width: 8),
             FilledButton(
-              onPressed: _saving ? null : _saveTask,
+              onPressed: _saving ? null : _closeWindow,
               child: Text(_saving ? 'saving...' : 'save'),
             ),
             const SizedBox(width: 12),
