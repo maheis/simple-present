@@ -4357,9 +4357,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _handleTaskTap(int index) {
+    final task = _today[index];
+    if (_busyTaskIds.contains(task.id) ||
+        _taskActionProcessing.contains(task.id)) {
+      return;
+    }
     if ((Platform.isLinux || Platform.isWindows || Platform.isMacOS) &&
         _openTasksInSeparateDesktopWindow) {
-      unawaited(_openTaskInDesktopWindow(_today[index]));
+      unawaited(_queueTaskAction(task.id, () async {
+        await _openTaskInDesktopWindow(task);
+        await Future<void>.delayed(const Duration(milliseconds: 900));
+      }));
       return;
     }
     _toggleExpanded(index);
