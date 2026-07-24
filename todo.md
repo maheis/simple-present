@@ -69,10 +69,6 @@
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
 - [ ] aufgaben nicht aufklappen auf dem desktop, sondern in einem eigenen fenster öffnen (optional in den settings konfigurierbar)
   - [ ] refresh liste nach close task window
-  - [ ] andere felder fehlen noch...
-  - [ ] farbige options wenn aktiv!
-  - [ ] subtasks nach oben
-  - [ ] move to backlog button fehlt
 
 ## notes
 
