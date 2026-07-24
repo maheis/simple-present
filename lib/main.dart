@@ -9133,6 +9133,8 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   bool _loading = true;
   bool _saving = false;
   String _status = '';
+  double _uiTextScaleFactor = 1.0;
+  String _fontFamily = 'OpenDyslexic';
 
   @override
   void initState() {
@@ -9146,6 +9148,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
         setState(() {});
       }
     });
+    unawaited(_loadAppearanceSettings());
     unawaited(_loadTask());
   }
 
@@ -9162,6 +9165,74 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     _audioPlayer.dispose();
     _storage.dispose();
     super.dispose();
+  }
+
+  Future<Directory> get _appDir async {
+    final dir = await getApplicationDocumentsDirectory();
+    final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
+    final sub = Directory('${dir.path}/$folderName');
+    try {
+      if (!await sub.exists()) await sub.create(recursive: true);
+    } catch (_) {}
+    return sub;
+  }
+
+  Future<File> _fileFor(String name) async {
+    final dir = await _appDir;
+    return File('${dir.path}/$name');
+  }
+
+  static const String _settingsFileName = 'simplepresent_settings.json';
+
+  Map<String, dynamic> _asSettingsMap(dynamic raw) {
+    if (raw is Map) {
+      try {
+        return Map<String, dynamic>.from(raw);
+      } catch (_) {
+        return <String, dynamic>{};
+      }
+    }
+    if (raw is String) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          return Map<String, dynamic>.from(decoded);
+        }
+      } catch (_) {}
+    }
+    return <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> _readSettingsMap() async {
+    try {
+      final file = await _fileFor(_settingsFileName);
+      if (!await file.exists()) return <String, dynamic>{};
+      return _asSettingsMap(await file.readAsString());
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  Future<void> _loadAppearanceSettings() async {
+    try {
+      final data = await _readSettingsMap();
+      if (data.isEmpty || !mounted) return;
+      double readDouble(String key, double fallback) {
+        final v = data[key];
+        if (v is num) return v.toDouble();
+        return double.tryParse(v?.toString() ?? '') ?? fallback;
+      }
+
+      setState(() {
+        _uiTextScaleFactor = readDouble('uiTextScaleFactor', _uiTextScaleFactor)
+            .clamp(0.5, 1.6)
+            .toDouble();
+        final font = data['fontFamily'];
+        if (font is String && font.isNotEmpty) {
+          _fontFamily = font;
+        }
+      });
+    } catch (_) {}
   }
 
   ({TaskItem task, String sourceList})? _findTask(String taskId) {
@@ -9662,10 +9733,15 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
                 ],
               ),
               body: MediaQuery(
-                data: MediaQuery.of(context)
-                    .copyWith(textScaler: TextScaler.linear(1.0)),
+                data: MediaQuery.of(context).copyWith(
+                    textScaler: TextScaler.linear(_uiTextScaleFactor)),
                 child: Theme(
-                  data: baseTheme,
+                  data: baseTheme.copyWith(
+                    textTheme:
+                        baseTheme.textTheme.apply(fontFamily: _fontFamily),
+                    primaryTextTheme: baseTheme.primaryTextTheme
+                        .apply(fontFamily: _fontFamily),
+                  ),
                   child: _loading
                       ? const Center(child: CircularProgressIndicator())
                       : _task == null
