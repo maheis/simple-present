@@ -4089,6 +4089,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             'autoPurgeDoneEnabled': _autoPurgeDoneEnabled,
             'autoPurgeTrashEnabled': _autoPurgeTrashEnabled,
             'trashRetentionDays': _trashRetentionDays,
+            // Automatic export (backups)
+            'autoExportOnStart': _autoExportOnStart,
+            'autoExportIntervalMinutes': _autoExportIntervalMinutes,
+            'autoExportTimes': _autoExportTimes,
+            'autoExportMaxBackups': _autoExportMaxBackups,
             'useTrash': _useTrash,
             'doneRetentionDays': _doneRetentionDays,
             'maxTasksToday': _maxTasksToday,
@@ -4160,6 +4165,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _autoPurgeDoneEnabled = result['autoPurgeDoneEnabled'] == true;
       _doneRetentionDays =
           clampMin(result['doneRetentionDays'], _doneRetentionDays);
+      _autoPurgeTrashEnabled = result['autoPurgeTrashEnabled'] == true;
+      _trashRetentionDays =
+          clampMin(result['trashRetentionDays'], _trashRetentionDays);
       _uiTextScaleFactor =
           clampTextScale(result['uiTextScaleFactor'], _uiTextScaleFactor);
       if (result['fontFamily'] is String &&
@@ -9540,10 +9548,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 'scheduledReminderSoundEnabled': scheduledReminderSoundEnabled,
                 'reminderWindowFrom': reminderWindowFrom,
                 'reminderWindowTo': reminderWindowTo,
-                'autoPurgeDoneEnabled': false,
-                'doneRetentionDays': 30,
-                'autoPurgeTrashEnabled': false,
-                'trashRetentionDays': 30,
+                'autoPurgeDoneEnabled': autoPurgeDoneEnabled,
+                'doneRetentionDays': doneRetentionDays,
+                'autoPurgeTrashEnabled': autoPurgeTrashEnabled,
+                'trashRetentionDays': trashRetentionDays,
                 'inactivityReminders': _inactivityRemindersLocal,
                 'maxTasksToday': maxTasksToday,
                 'maxTasksBacklog': maxTasksBacklog,
@@ -10109,6 +10117,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           .map((s) => s.trim())
                           .where((s) => s.isNotEmpty)
                           .toList(),
+                      'autoExportMaxBackups': autoExportMaxBackups,
                     });
                   },
                   child: Text(
