@@ -9064,6 +9064,9 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   final SembastStorage _storage = SembastStorage();
   late final TextEditingController _titleController;
   late final TextEditingController _notesController;
+  late final TextEditingController _workMinutesController;
+  Timer? _ticker;
+  TaskItem? _initialTask;
   TaskItem? _task;
   String _sourceList = 'simplepresent_today.json';
   bool _loading = true;
@@ -9075,6 +9078,12 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     super.initState();
     _titleController = TextEditingController();
     _notesController = TextEditingController();
+    _workMinutesController = TextEditingController();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && (_task?.stopwatchRunning ?? false)) {
+        setState(() {});
+      }
+    });
     unawaited(_loadTask());
   }
 
@@ -9082,6 +9091,8 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   void dispose() {
     _titleController.dispose();
     _notesController.dispose();
+    _workMinutesController.dispose();
+    _ticker?.cancel();
     _storage.dispose();
     super.dispose();
   }
@@ -9119,10 +9130,13 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
         });
         return;
       }
+      _initialTask = found.task;
       _task = found.task;
       _sourceList = found.sourceList;
       _titleController.text = found.task.text;
       _notesController.text = found.task.notes ?? '';
+      _workMinutesController.text =
+          found.task.workMinutes > 0 ? found.task.workMinutes.toString() : '';
       setState(() => _loading = false);
     } catch (e) {
       if (!mounted) return;
@@ -9133,15 +9147,168 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     }
   }
 
-  bool get _hasChanges {
+  int _parseWorkMinutes() {
+    return int.tryParse(_workMinutesController.text.trim()) ??
+        (_task?.workMinutes ?? 0);
+  }
+
+  TaskItem? get _effectiveTask {
     final task = _task;
-    if (task == null) return false;
-    return _titleController.text.trim() != task.text.trim() ||
-        _notesController.text != (task.notes ?? '');
+    if (task == null) return null;
+    return task.copyWith(
+      text: _titleController.text.trim(),
+      notes: _notesController.text,
+      workMinutes: _parseWorkMinutes(),
+    );
+  }
+
+  void _updateTask(TaskItem Function(TaskItem current) update) {
+    final task = _task;
+    if (task == null) return;
+    setState(() {
+      _task = update(task);
+    });
+  }
+
+  int _elapsedSecondsFor(TaskItem task) {
+    var acc = task.stopwatchAccumulatedSeconds;
+    if (task.stopwatchRunning && task.stopwatchStartedAt != null) {
+      acc += DateTime.now().difference(task.stopwatchStartedAt!).inSeconds;
+    }
+    return acc;
+  }
+
+  void _setDone(bool value) {
+    _updateTask((task) => task.copyWith(
+          done: value,
+          inProgress: value ? false : task.inProgress,
+          completedAt: value ? DateTime.now() : null,
+          inProgressAt: value ? null : task.inProgressAt,
+          stopwatchRunning: value ? false : task.stopwatchRunning,
+          stopwatchStartedAt: value ? null : task.stopwatchStartedAt,
+        ));
+  }
+
+  void _setInProgress(bool value) {
+    _updateTask((task) => task.copyWith(
+          inProgress: value,
+          done: value ? false : task.done,
+          inProgressAt: value ? (task.inProgressAt ?? DateTime.now()) : null,
+        ));
+  }
+
+  void _setImportant(bool value) {
+    _updateTask((task) => task.copyWith(
+          important: value,
+          importantAt: value ? DateTime.now() : null,
+        ));
+  }
+
+  Future<void> _pickSchedule() async {
+    final task = _task;
+    if (task == null) return;
+    final now = DateTime.now();
+    final initial = task.scheduledAt ?? now;
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: initial.hour, minute: initial.minute),
+    );
+    if (time == null || !mounted) return;
+    _updateTask((current) => current.copyWith(
+          scheduledAt: DateTime(
+            date.year,
+            date.month,
+            date.day,
+            time.hour,
+            time.minute,
+          ),
+        ));
+  }
+
+  Future<void> _clearSchedule() async {
+    _updateTask((task) => task.copyWith(scheduledAt: null));
+  }
+
+  Future<void> _showRecurrenceDialog() async {
+    final task = _task;
+    if (task == null) return;
+    final value = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('repeat'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: const Text('none'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop('daily'),
+            child: const Text('daily'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop('weekly'),
+            child: const Text('weekly'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop('monthly'),
+            child: const Text('monthly'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    _updateTask((current) => current.copyWith(recurrence: value));
+  }
+
+  Future<void> _startStopwatch() async {
+    final task = _task;
+    if (task == null || task.stopwatchRunning) return;
+    final now = DateTime.now();
+    _updateTask((current) => current.copyWith(
+          stopwatchRunning: true,
+          stopwatchStartedAt: now,
+          inProgress: true,
+          inProgressAt: current.inProgressAt ?? now,
+        ));
+  }
+
+  Future<void> _stopStopwatch() async {
+    final task = _task;
+    if (task == null || !task.stopwatchRunning) return;
+    final started = task.stopwatchStartedAt ?? DateTime.now();
+    final added = DateTime.now().difference(started).inSeconds;
+    _updateTask((current) => current.copyWith(
+          stopwatchRunning: false,
+          stopwatchStartedAt: null,
+          stopwatchAccumulatedSeconds:
+              current.stopwatchAccumulatedSeconds + added,
+        ));
+  }
+
+  Future<void> _resetStopwatch() async {
+    _updateTask((task) => task.copyWith(
+          stopwatchRunning: false,
+          stopwatchStartedAt: null,
+          stopwatchAccumulatedSeconds: 0,
+        ));
+  }
+
+  bool get _hasChanges {
+    final initial = _initialTask;
+    final task = _effectiveTask;
+    if (initial == null || task == null) return false;
+    return jsonEncode(task.toJson()) != jsonEncode(initial.toJson());
   }
 
   Future<void> _saveTask() async {
-    final task = _task;
+    final task = _effectiveTask;
     if (task == null || _saving) return;
     final newText = _titleController.text.trim();
     if (newText.isEmpty) {
@@ -9168,12 +9335,14 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       final updated = task.copyWith(
         text: newText,
         notes: _notesController.text,
+        workMinutes: _parseWorkMinutes(),
       );
       rows[idx] = updated.toJson();
       _storage.writeTaskList(_sourceList, rows);
       if (!mounted) return;
       setState(() {
         _task = updated;
+        _initialTask = updated;
         _saving = false;
         _status = 'saved';
       });
@@ -9297,6 +9466,126 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
                                         onChanged: (_) => setState(() {}),
                                       ),
                                       const SizedBox(height: 12),
+                                      SwitchListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        value: _task!.done,
+                                        title: const Text('done'),
+                                        onChanged: _setDone,
+                                      ),
+                                      SwitchListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        value: _task!.inProgress,
+                                        title: const Text('in progress'),
+                                        onChanged: _setInProgress,
+                                      ),
+                                      SwitchListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        value: _task!.important,
+                                        title: const Text('important'),
+                                        onChanged: _setImportant,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              'scheduled: ${_task!.scheduledAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(_task!.scheduledAt!) : '-'}',
+                                            ),
+                                          ),
+                                          IconButton(
+                                            tooltip: 'set schedule',
+                                            icon: const Icon(
+                                                Icons.calendar_today),
+                                            onPressed: _pickSchedule,
+                                          ),
+                                          if (_task!.scheduledAt != null)
+                                            IconButton(
+                                              tooltip: 'clear schedule',
+                                              icon: const Icon(Icons.clear),
+                                              onPressed: _clearSchedule,
+                                            ),
+                                        ],
+                                      ),
+                                      Row(
+                                        children: [
+                                          const Text('repeat:'),
+                                          const SizedBox(width: 8),
+                                          TextButton(
+                                            onPressed: _showRecurrenceDialog,
+                                            child: Text(_task!.recurrence ==
+                                                        null ||
+                                                    _task!.recurrence!.isEmpty
+                                                ? 'none'
+                                                : _task!.recurrence!),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          const Text('time spent (min):'),
+                                          const SizedBox(width: 12),
+                                          SizedBox(
+                                            width: 110,
+                                            child: TextField(
+                                              controller:
+                                                  _workMinutesController,
+                                              keyboardType:
+                                                  TextInputType.number,
+                                              decoration: const InputDecoration(
+                                                border: OutlineInputBorder(),
+                                                isDense: true,
+                                              ),
+                                              onChanged: (_) => setState(() {}),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          Text(() {
+                                            final s =
+                                                _elapsedSecondsFor(_task!);
+                                            final hh = (s ~/ 3600)
+                                                .toString()
+                                                .padLeft(2, '0');
+                                            final mm = ((s % 3600) ~/ 60)
+                                                .toString()
+                                                .padLeft(2, '0');
+                                            final ss = (s % 60)
+                                                .toString()
+                                                .padLeft(2, '0');
+                                            return 'stopwatch: $hh:$mm:$ss';
+                                          }()),
+                                          const SizedBox(width: 8),
+                                          IconButton(
+                                            tooltip: 'start',
+                                            icon: const Icon(Icons.play_arrow),
+                                            onPressed: _task!.stopwatchRunning
+                                                ? null
+                                                : _startStopwatch,
+                                          ),
+                                          IconButton(
+                                            tooltip: 'stop',
+                                            icon: const Icon(Icons.stop),
+                                            onPressed: _task!.stopwatchRunning
+                                                ? _stopStopwatch
+                                                : null,
+                                          ),
+                                          IconButton(
+                                            tooltip: 'reset',
+                                            icon: const Icon(Icons.restart_alt),
+                                            onPressed:
+                                                (_task!.stopwatchAccumulatedSeconds >
+                                                            0 ||
+                                                        _task!.stopwatchRunning)
+                                                    ? _resetStopwatch
+                                                    : null,
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
                                       Wrap(
                                         spacing: 8,
                                         runSpacing: 8,
@@ -9311,7 +9600,25 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
                                           if (_task!.important)
                                             const Chip(
                                                 label: Text('important')),
+                                          if (_task!.subtasks.isNotEmpty)
+                                            Chip(
+                                              label: Text(
+                                                '${_task!.subtasks.where((step) => step.done).length}/${_task!.subtasks.length} subtasks',
+                                              ),
+                                            ),
                                         ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'created: ${_task!.createdAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(_task!.createdAt!) : '-'}',
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'in progress: ${_task!.inProgressAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(_task!.inProgressAt!) : '-'}',
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'completed: ${_task!.completedAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(_task!.completedAt!) : '-'}',
                                       ),
                                       if (_status.isNotEmpty) ...[
                                         const SizedBox(height: 12),
