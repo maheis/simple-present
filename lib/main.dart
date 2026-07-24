@@ -9112,6 +9112,8 @@ class _CloseTaskWindowIntent extends Intent {
 
 class _TaskWindowPageState extends State<TaskWindowPage> {
   final SembastStorage _storage = SembastStorage();
+  final MethodChannel _nativeWindowChannel =
+      const MethodChannel('simple_present/window');
   final AudioPlayer _audioPlayer = AudioPlayer();
   late final TextEditingController _titleController;
   late final TextEditingController _notesController;
@@ -9119,6 +9121,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   late final TextEditingController _newSubtaskController;
   final Map<String, TextEditingController> _subtaskControllers = {};
   Timer? _ticker;
+  Timer? _geometryTimer;
   TaskItem? _initialTask;
   TaskItem? _task;
   String _sourceList = 'simplepresent_today.json';
@@ -9128,6 +9131,8 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   double _uiTextScaleFactor = 1.0;
   String _fontFamily = 'OpenDyslexic';
   bool _refreshSignalWritten = false;
+  String? _lastWindowGeometrySignature;
+  bool _windowGeometryRestoreScheduled = false;
 
   @override
   void initState() {
@@ -9141,6 +9146,10 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
         setState(() {});
       }
     });
+    _geometryTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => unawaited(_persistWindowGeometryIfNeeded()),
+    );
     unawaited(_loadAppearanceSettings());
     unawaited(_loadTask());
   }
@@ -9148,6 +9157,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   @override
   void dispose() {
     unawaited(_writeRefreshSignal());
+    unawaited(_persistWindowGeometryIfNeeded());
     _titleController.dispose();
     _notesController.dispose();
     _workMinutesController.dispose();
@@ -9156,6 +9166,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       controller.dispose();
     }
     _ticker?.cancel();
+    _geometryTimer?.cancel();
     _audioPlayer.dispose();
     _storage.dispose();
     super.dispose();
@@ -9189,6 +9200,14 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   Future<File> _fileFor(String name) async {
     final dir = await _appDir;
     return File('${dir.path}/$name');
+  }
+
+  Future<void> _writeSettingsMap(Map<String, dynamic> data) async {
+    try {
+      final file = await _fileFor(_settingsFileName);
+      final encoded = const JsonEncoder.withIndent('  ').convert(data);
+      await file.writeAsString(encoded);
+    } catch (_) {}
   }
 
   static const String _settingsFileName = 'simplepresent_settings.json';
@@ -9241,6 +9260,80 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
           _fontFamily = font;
         }
       });
+      if (!_windowGeometryRestoreScheduled) {
+        _windowGeometryRestoreScheduled = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            unawaited(_restoreWindowGeometryFromSettings());
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  Map<String, dynamic>? _taskWindowGeometryFromSettings(
+      Map<String, dynamic> data) {
+    final raw = data['taskWindowGeometry'];
+    if (raw is! Map) return null;
+    final map = Map<String, dynamic>.from(raw);
+    int readInt(String key, int fallback) {
+      final v = map[key];
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse(v?.toString() ?? '') ?? fallback;
+    }
+
+    final geom = <String, dynamic>{
+      'x': readInt('x', 0),
+      'y': readInt('y', 0),
+      'width': readInt('width', 760),
+      'height': readInt('height', 760),
+      'maximized': map['maximized'] == true,
+      'always_on_top': map['always_on_top'] == true,
+    };
+    return geom;
+  }
+
+  Future<void> _restoreWindowGeometryFromSettings() async {
+    try {
+      final settings = await _readSettingsMap();
+      final geom = _taskWindowGeometryFromSettings(settings);
+      if (geom == null) return;
+      await _nativeWindowChannel.invokeMethod('setWindowGeometry', geom);
+    } catch (_) {}
+  }
+
+  String _geometrySignature(Map<String, dynamic> geom) {
+    return jsonEncode(<String, dynamic>{
+      'x': geom['x'],
+      'y': geom['y'],
+      'width': geom['width'],
+      'height': geom['height'],
+      'maximized': geom['maximized'] == true,
+      'always_on_top': geom['always_on_top'] == true,
+    });
+  }
+
+  Future<void> _persistWindowGeometryIfNeeded() async {
+    if (!mounted) return;
+    try {
+      final result =
+          await _nativeWindowChannel.invokeMethod('getWindowGeometry');
+      if (result is! Map) return;
+      final geom = <String, dynamic>{
+        'x': result['x'],
+        'y': result['y'],
+        'width': result['width'],
+        'height': result['height'],
+        'maximized': result['maximized'] == true,
+        'always_on_top': result['always_on_top'] == true,
+      };
+      final sig = _geometrySignature(geom);
+      if (sig == _lastWindowGeometrySignature) return;
+      _lastWindowGeometrySignature = sig;
+      final settings = await _readSettingsMap();
+      settings['taskWindowGeometry'] = geom;
+      await _writeSettingsMap(settings);
     } catch (_) {}
   }
 
@@ -9660,6 +9753,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       await _saveTask();
     }
     if (!mounted) return;
+    await _persistWindowGeometryIfNeeded();
     if (widget.closeAppOnExit) {
       await _writeRefreshSignal();
     }

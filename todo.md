@@ -62,12 +62,13 @@
 - [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben! (primärgerät-definieren?)
 - [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
       notification funktioniert mit weißen icon.[text](about:blank#blocked)
-      kleines app icon in der taks auswahl und benachrichtigung klappt auch
+      kleines app icon in der taks auswahl und benachrichtigung klappt auchhttps://www.youtube.com/watch?v=rNPMETYAKYA&t=13s
       app icon ist 4 eckig auf weißem grund (rund)
       jetzt ist das icon wieder vermatscht, glaube muss transparentes icon mit gößerem transparenten rand sein, damit es rund passt
 - [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
 - [x] aufgaben nicht aufklappen auf dem desktop, sondern in einem eigenen fenster öffnen (optional in den settings konfigurierbar)
+- [x] aufgaben fenster position und größe merken
 
 ## notes
 
