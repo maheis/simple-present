@@ -64,7 +64,7 @@
 - [x] widget nur einzeilig, hinten raus mit ... wenn zu lang
 - [x] in arbeit sichtbarerer!
 - [x] automatic backups und auto delete old trash settings werden nicht gespeichert
-- [ ] auto delete old trash 90 tage default
+- [x] auto delete old trash 90 tage default
 
 ## notes
 

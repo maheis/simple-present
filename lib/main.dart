@@ -619,7 +619,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _doneRetentionDays = 30;
   // Auto-clean settings for Trash
   bool _autoPurgeTrashEnabled = false;
-  int _trashRetentionDays = 30;
+  int _trashRetentionDays = 90;
   // Color-scaling thresholds (configurable in settings)
   int _maxTasksToday = 25;
   int _maxTasksBacklog = 50;
@@ -700,7 +700,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Timer? _autoExportIntervalTimer;
   final List<Timer> _autoExportTimeTimers = <Timer>[];
   String _lastAutoExportChecksum = '';
-  int _autoExportMaxBackups = 14;
+  int _autoExportMaxBackups = 67;
 
   late final Future<void> _initFuture = _initializeApp();
 
@@ -9354,9 +9354,9 @@ class _SettingsPageState extends State<SettingsPage> {
     } else {
       autoExportTimesCsv = readString('autoExportTimesCsv', '');
     }
-    autoExportMaxBackups = readInt('autoExportMaxBackups', 14);
+    autoExportMaxBackups = readInt('autoExportMaxBackups', 67);
     doneRetentionDays = readInt('doneRetentionDays', 30).clamp(1, 365);
-    trashRetentionDays = readInt('trashRetentionDays', 30).clamp(1, 365);
+    trashRetentionDays = readInt('trashRetentionDays', 90).clamp(1, 365);
     maxTasksToday = readInt('maxTasksToday', 25).clamp(1, 9999);
     maxTasksBacklog = readInt('maxTasksBacklog', 50).clamp(1, 9999);
     cloudLastSyncSuccessAt = readInt('cloudLastSyncSuccessAt', 0);
