@@ -10,6 +10,7 @@ SVG_DIR="$PROJECT_ROOT/assets/icons"
 ANDROID_RES="$PROJECT_ROOT/android/app/src/main/res"
 
 SVG_BACKGROUND="$SVG_DIR/color_teal_icon.svg"
+SVG_FOREGROUND="$SVG_DIR/color_transparent_icon.svg"
 SVG_NOTIFICATION="$SVG_DIR/white_transparent_icon.svg"
 
 # Background color for adaptive launcher icon (user requested)
@@ -52,6 +53,15 @@ for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
   echo "Launcher $d (${size}px)"
   svg_to_png "$SVG_BACKGROUND" "$size" "$DIR/ic_launcher.png"
   cp -f "$DIR/ic_launcher.png" "$DIR/ic_launcher_round.png"
+done
+
+# --- Launcher foreground PNG (transparent, used by adaptive launcher icon) ---
+for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+  DIR="$ANDROID_RES/drawable-$d"
+  mkdir -p "$DIR"
+  size=${LAUNCHER_SIZES[$d]}
+  echo "Foreground $d (${size}px)"
+  svg_to_png "$SVG_FOREGROUND" "$size" "$DIR/ic_launcher_foreground.png"
 done
 
 # --- Notification icons (white glyph on transparent background, one per density) ---
@@ -98,6 +108,7 @@ echo "Splash PNGs generated (8-bit if possible): $SPLASH_COLOR"
 
 # --- Remove any stale XMLs that have been superseded by PNGs ---
 rm -f "$ANDROID_RES/drawable/ic_launcher_background.xml"
+rm -f "$ANDROID_RES/drawable/ic_launcher_foreground.xml"
 rm -f "$ANDROID_RES/drawable/ic_stat_notify.xml"
 rm -f "$ANDROID_RES/drawable/launch_background.xml"
 rm -f "$ANDROID_RES/drawable-v21/launch_background.xml"
