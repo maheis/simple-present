@@ -29,7 +29,7 @@
        xlink:href="#linearGradient6"
        id="linearGradient7"
        gradientUnits="userSpaceOnUse"
-       gradientTransform="matrix(0.79401742,0,0,0.78942071,2.5465448,7.0158603)"
+       gradientTransform="matrix(0.64514017,0,0,0.64140454,4.9216021,8.5529255)"
        x1="10.619599"
        y1="3.3279314"
        x2="26.619598"
@@ -41,7 +41,7 @@
        y1="14.327931"
        x2="25.619598"
        y2="0.86959833"
-       gradientTransform="matrix(0.80308534,0,0,0.79980595,2.5238703,6.76991)" /></defs><g
+       gradientTransform="matrix(0.65250786,0,0,0.64984255,4.9031789,8.3530907)" /></defs><g
      id="g7"
      style="display:inline"><rect
        style="opacity:1;fill:#00251a;fill-opacity:1;stroke:none;stroke-width:41.8316;stroke-linecap:round;stroke-linejoin:round"
@@ -51,8 +51,8 @@
        x="-1.7763568e-15"
        y="-1.7763568e-15" /><path
        id="path6"
-       style="display:inline;fill:none;fill-opacity:1;stroke:url(#linearGradient7);stroke-width:2.51369;stroke-linecap:square;stroke-dasharray:none"
-       d="m 13.112843,5.8870534 h 1.289168 m -0.644584,0.679578 v 1.3950344 m 8.734193,8.2360562 h -0.247576 m -0.832919,0.61414 A 7.7620175,7.7281525 0 0 1 13.76131,24.539208 7.7620175,7.7281525 0 0 1 5.8903353,17.035264 7.7620175,7.7281525 0 0 1 13.312598,9.0909775 7.7620175,7.7281525 0 0 1 21.398152,16.365249" /><path
-       style="display:inline;opacity:1;fill:none;fill-opacity:1;stroke:url(#linearGradient8);stroke-width:3.81687;stroke-linecap:square;stroke-dasharray:none"
-       d="M 7.438431,10.664644 13.060029,17.063091 23.098596,7.46542"
+       style="display:inline;fill:none;fill-opacity:1;stroke:url(#linearGradient7);stroke-width:2.04237;stroke-linecap:square;stroke-dasharray:none"
+       d="m 13.506733,7.6357695 h 1.04745 m -0.523725,0.5521573 v 1.1334658 m 7.096543,6.6917974 h -0.201156 m -0.676747,0.498988 a 6.3066493,6.279126 0 0 1 -6.215485,6.278472 6.3066493,6.279126 0 0 1 -6.3951769,-6.096957 6.3066493,6.279126 0 0 1 6.0305979,-6.454734 6.3066493,6.279126 0 0 1 6.569522,5.910346" /><path
+       style="display:inline;opacity:1;fill:none;fill-opacity:1;stroke:url(#linearGradient8);stroke-width:3.10121;stroke-linecap:square;stroke-dasharray:none"
+       d="m 8.8962659,11.517563 4.5675551,5.19874 8.156349,-7.7981102"
        id="path7" /></g></svg>

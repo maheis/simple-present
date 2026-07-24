@@ -65,6 +65,7 @@
       kleines app icon in der taks auswahl und benachrichtigung klappt auchhttps://www.youtube.com/watch?v=rNPMETYAKYA&t=13s
       app icon ist 4 eckig auf weißem grund (rund)
       jetzt ist das icon wieder vermatscht, glaube muss transparentes icon mit gößerem transparenten rand sein, damit es rund passt
+      es wird besser! ich habe color_transparent_icon.png und color_teal_icon.png kleiner gemacht (stopwatch, background blieb gleich)
 - [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
 - [x] aufgaben nicht aufklappen auf dem desktop, sondern in einem eigenen fenster öffnen (optional in den settings konfigurierbar)
