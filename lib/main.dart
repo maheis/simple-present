@@ -709,7 +709,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final List<Map<String, String>> _pendingNotificationTaskActions =
       <Map<String, String>>[];
   final List<String> _pendingWidgetOpenTaskIds = <String>[];
-  StreamSubscription<FileSystemEvent>? _taskWindowRefreshSubscription;
+  Timer? _taskWindowRefreshTimer;
   final Set<String> _openDesktopTaskWindowIds = <String>{};
   final Map<String, Completer<void>> _desktopTaskWindowClosers =
       <String, Completer<void>>{};
@@ -750,7 +750,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _startUrgentTimer();
     _startAutoSwitchTimer();
     _startScheduledChecker();
-    unawaited(_startTaskWindowRefreshWatcher());
+    _taskWindowRefreshTimer = Timer.periodic(
+      const Duration(milliseconds: 350),
+      (_) => unawaited(_pollTaskWindowRefreshSignal()),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         if (!Platform.isAndroid) _requestInputFocusIfIdle();
@@ -1099,6 +1102,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _desktopTaskWindowClosers[task.id] = completer;
     _openDesktopTaskWindowIds.add(task.id);
     try {
+      try {
+        final signalFile = await _taskWindowRefreshSignalFile();
+        if (await signalFile.exists()) {
+          await signalFile.writeAsString('', flush: true);
+        }
+      } catch (_) {}
       await Process.start(
         Platform.resolvedExecutable,
         <String>['--desktop-task-window=${task.id}'],
@@ -1106,6 +1115,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         runInShell: false,
       );
       await completer.future;
+      if (mounted) {
+        await _sembastStorage.refresh();
+        await _loadToday();
+      }
     } catch (_) {
     } finally {
       _desktopTaskWindowClosers.remove(task.id);
@@ -1118,25 +1131,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return File('${dir.path}/simplepresent_task_window_refresh.signal');
   }
 
-  Future<void> _startTaskWindowRefreshWatcher() async {
-    if (!Platform.isLinux && !Platform.isWindows && !Platform.isMacOS) {
+  Future<void> _pollTaskWindowRefreshSignal() async {
+    if (_desktopTaskWindowClosers.isEmpty &&
+        _openDesktopTaskWindowIds.isEmpty) {
       return;
     }
-    try {
-      final signalFile = await _taskWindowRefreshSignalFile();
-      if (!await signalFile.exists()) {
-        await signalFile.create(recursive: true);
-      }
-      await _taskWindowRefreshSubscription?.cancel();
-      _taskWindowRefreshSubscription = signalFile
-          .watch(events: FileSystemEvent.create | FileSystemEvent.modify)
-          .listen((_) {
-        unawaited(_handleTaskWindowRefreshSignal());
-      });
-    } catch (_) {}
-  }
-
-  Future<void> _handleTaskWindowRefreshSignal() async {
     try {
       final signalFile = await _taskWindowRefreshSignalFile();
       if (!await signalFile.exists()) return;
@@ -1149,6 +1148,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _openDesktopTaskWindowIds.remove(taskId);
       }
       if (mounted) {
+        await _sembastStorage.refresh();
         await _loadToday();
       }
     } catch (_) {}
@@ -3670,7 +3670,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       HardwareKeyboard.instance.removeHandler(_hardwareKeyHandler);
     } catch (_) {}
-    _taskWindowRefreshSubscription?.cancel();
+    _taskWindowRefreshTimer?.cancel();
     _windowWatcherTimer?.cancel();
     _saveSettings();
     _controller.dispose();
@@ -9456,7 +9456,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
           : _sourceList;
       final targetRows = _storage.readTaskList(targetList);
       targetRows.insert(0, newItem.toJson());
-      _storage.writeTaskList(targetList, targetRows);
+      await _storage.writeTaskList(targetList, targetRows);
       setState(() => _status = 'duplicated');
     } catch (e) {
       if (!mounted) return;
@@ -9486,11 +9486,11 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       );
 
       sourceRows.removeAt(idx);
-      _storage.writeTaskList(_sourceList, sourceRows);
+      await _storage.writeTaskList(_sourceList, sourceRows);
 
       final targetRows = _storage.readTaskList(targetList);
       targetRows.insert(0, moved.toJson());
-      _storage.writeTaskList(targetList, targetRows);
+      await _storage.writeTaskList(targetList, targetRows);
 
       setState(() {
         _task = moved;
@@ -9549,7 +9549,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
         workMinutes: _parseWorkMinutes(),
       );
       rows[idx] = updated.toJson();
-      _storage.writeTaskList(_sourceList, rows);
+      await _storage.writeTaskList(_sourceList, rows);
       if (!mounted) return;
       setState(() {
         _task = updated;
