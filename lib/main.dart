@@ -9242,11 +9242,6 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
                 ),
                 title: const SizedBox.shrink(),
                 actions: [
-                  TextButton(
-                    onPressed: _saving ? null : _closeWindow,
-                    child: const Text('close'),
-                  ),
-                  const SizedBox(width: 8),
                   FilledButton(
                     onPressed: _saving ? null : _closeWindow,
                     child: Text(_saving ? 'saving...' : 'save'),

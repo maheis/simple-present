@@ -70,7 +70,6 @@
 - [ ] aufgaben nicht aufklappen auf dem desktop, sondern in einem eigenen fenster öffnen (optional in den settings konfigurierbar)
   - [ ] refresh liste nach close task window
   - [ ] andere felder fehlen noch...
-  - [ ] speicher frage
 
 ## notes
 
