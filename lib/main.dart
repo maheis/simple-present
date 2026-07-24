@@ -709,6 +709,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final List<Map<String, String>> _pendingNotificationTaskActions =
       <Map<String, String>>[];
   final List<String> _pendingWidgetOpenTaskIds = <String>[];
+  StreamSubscription<FileSystemEvent>? _taskWindowRefreshSubscription;
+  final Set<String> _openDesktopTaskWindowIds = <String>{};
+  final Map<String, Completer<void>> _desktopTaskWindowClosers =
+      <String, Completer<void>>{};
+  String? _lastTaskWindowRefreshToken;
 
   final Stream<int> _loadingTickStream =
       Stream<int>.periodic(const Duration(milliseconds: 220), (x) => x);
@@ -745,6 +750,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _startUrgentTimer();
     _startAutoSwitchTimer();
     _startScheduledChecker();
+    unawaited(_startTaskWindowRefreshWatcher());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         if (!Platform.isAndroid) _requestInputFocusIfIdle();
@@ -1086,6 +1092,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (!Platform.isLinux && !Platform.isWindows && !Platform.isMacOS) {
       return;
     }
+    if (_openDesktopTaskWindowIds.contains(task.id)) {
+      return;
+    }
+    final completer = Completer<void>();
+    _desktopTaskWindowClosers[task.id] = completer;
+    _openDesktopTaskWindowIds.add(task.id);
     try {
       await Process.start(
         Platform.resolvedExecutable,
@@ -1093,6 +1105,52 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         mode: ProcessStartMode.detached,
         runInShell: false,
       );
+      await completer.future;
+    } catch (_) {
+    } finally {
+      _desktopTaskWindowClosers.remove(task.id);
+      _openDesktopTaskWindowIds.remove(task.id);
+    }
+  }
+
+  Future<File> _taskWindowRefreshSignalFile() async {
+    final dir = await _appDir;
+    return File('${dir.path}/simplepresent_task_window_refresh.signal');
+  }
+
+  Future<void> _startTaskWindowRefreshWatcher() async {
+    if (!Platform.isLinux && !Platform.isWindows && !Platform.isMacOS) {
+      return;
+    }
+    try {
+      final signalFile = await _taskWindowRefreshSignalFile();
+      if (!await signalFile.exists()) {
+        await signalFile.create(recursive: true);
+      }
+      await _taskWindowRefreshSubscription?.cancel();
+      _taskWindowRefreshSubscription = signalFile
+          .watch(events: FileSystemEvent.create | FileSystemEvent.modify)
+          .listen((_) {
+        unawaited(_handleTaskWindowRefreshSignal());
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _handleTaskWindowRefreshSignal() async {
+    try {
+      final signalFile = await _taskWindowRefreshSignalFile();
+      if (!await signalFile.exists()) return;
+      final token = (await signalFile.readAsString()).trim();
+      if (token.isEmpty || token == _lastTaskWindowRefreshToken) return;
+      _lastTaskWindowRefreshToken = token;
+      final taskId = token.split('|').first.trim();
+      if (taskId.isNotEmpty) {
+        _desktopTaskWindowClosers.remove(taskId)?.complete();
+        _openDesktopTaskWindowIds.remove(taskId);
+      }
+      if (mounted) {
+        await _loadToday();
+      }
     } catch (_) {}
   }
 
@@ -3612,6 +3670,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       HardwareKeyboard.instance.removeHandler(_hardwareKeyHandler);
     } catch (_) {}
+    _taskWindowRefreshSubscription?.cancel();
     _windowWatcherTimer?.cancel();
     _saveSettings();
     _controller.dispose();
@@ -4369,7 +4428,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _openTasksInSeparateDesktopWindow) {
       unawaited(_queueTaskAction(task.id, () async {
         await _openTaskInDesktopWindow(task);
-        await Future<void>.delayed(const Duration(milliseconds: 1800));
       }));
       return;
     }
@@ -9513,6 +9571,18 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       await _saveTask();
     }
     if (!mounted) return;
+    if (widget.closeAppOnExit) {
+      try {
+        final dir = await getApplicationDocumentsDirectory();
+        final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
+        final signalFile = File(
+            '${dir.path}/$folderName/simplepresent_task_window_refresh.signal');
+        await signalFile.writeAsString(
+          '${widget.taskId}|${DateTime.now().millisecondsSinceEpoch}',
+          flush: true,
+        );
+      } catch (_) {}
+    }
     if (widget.closeAppOnExit) {
       SystemNavigator.pop();
       return;
