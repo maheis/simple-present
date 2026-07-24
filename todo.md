@@ -34,29 +34,6 @@
 - [x] aufgaben von yesterday legen nach erledigung eine neue today aufgabe an. follow up soll auch bei vergangenen aufgaben wie today behandelt werden, also follow up vom heutigem tag aus generiert werden!
 - [x] widget funktioniert wieder nicht!
 - [x] qr-code nimmt url nicht mit!
-- [?] ausführliches sync testen! kommt ständig zu fehlern, die nicht reproduzierbar sind! 
-      z.b. move von backlog zu today wird nicht synchronisiert, sachen die ins backlog gehen, bleiben in today...
-      dopplung von aufgaben...
-- [ ] android hintergrund synchronisation (push) implementieren
-- [?] android verliert manchmal den text focus beim editieren und springt runter in "neue aufgaben"-feld
-- [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
-- [ ] Windows Store Veröffentlichung (.notes/WINDOWS_APP_STORE.md)
-- [ ] Worklog an Aufgaben...
-- [ ] Web Applikation
-- [ ] Reihenfolge auch über andere Gruppen hinaus und dann optisch einsortieren
-- [ ] Abhängigkeiten Reduzieren
-  - [x] sqlite3.dll
-  - [ ] mehr?
-  - [ ] Aufräumen (ois)
-- [ ] sync: self signed certs prüfen (ca-chain) 
-- [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben! (primärgerät-definieren?)
-- [?] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
-      notification funktioniert mit weißen icon.[text](about:blank#blocked)
-      kleines app icon in der taks auswahl und benachrichtigung klappt auch
-      app icon ist 4 eckig auf weißem grund (rund)
-      jetzt ist das icon wieder vermatscht, glaube muss transparentes icon mit gößerem transparenten rand sein, damit es rund passt
-- [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
-- [ ] SimplePresent -> simple present | dateinamen: simple-present
 - [x] icon trash
 - [x] schrift im widget kleiner
 - [x] trash / done eintrag im menü ausblenden, wenn die liste jeweilige liste geöffnet ist!
@@ -65,6 +42,32 @@
 - [x] in arbeit sichtbarerer!
 - [x] automatic backups und auto delete old trash settings werden nicht gespeichert
 - [x] auto delete old trash 90 tage default
+- [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
+- [ ] Windows Store Veröffentlichung (.notes/WINDOWS_APP_STORE.md)
+- [ ] Web Applikation ?
+- [ ] ausführliches sync testen! kommt ständig zu fehlern, die nicht reproduzierbar sind! 
+      z.b. move von backlog zu today wird nicht synchronisiert
+      sachen die ins backlog gehen, bleiben in today...
+      dopplung von aufgaben...
+      dauer kringel an aufgabe (vorzugsweise völkerball, oder die apache- aufgabe, ggf. notes an den aufgaben?)
+- [ ] android hintergrund synchronisation (push) implementieren
+- [?] android verliert manchmal den text focus beim editieren und springt runter in "neue aufgaben"-feld
+- [ ] Worklog an Aufgaben...
+- [ ] Reihenfolge auch über andere Gruppen hinaus und dann optisch einsortieren
+- [ ] Abhängigkeiten Reduzieren
+  - [x] sqlite3.dll
+  - [ ] mehr?
+  - [ ] Aufräumen (ois)
+- [ ] sync: self signed certs prüfen (ca-chain) 
+- [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben! (primärgerät-definieren?)
+- [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
+      notification funktioniert mit weißen icon.[text](about:blank#blocked)
+      kleines app icon in der taks auswahl und benachrichtigung klappt auch
+      app icon ist 4 eckig auf weißem grund (rund)
+      jetzt ist das icon wieder vermatscht, glaube muss transparentes icon mit gößerem transparenten rand sein, damit es rund passt
+- [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
+- [ ] SimplePresent -> simple present | dateinamen: simple-present
+
 
 ## notes
 
