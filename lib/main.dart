@@ -9206,7 +9206,19 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('task window'),
+          leadingWidth: 44,
+          titleSpacing: 0,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 12),
+            child: Center(
+              child: Image.asset(
+                'assets/icons/color_transparent_icon.png',
+                width: 24,
+                height: 24,
+              ),
+            ),
+          ),
+          title: const SizedBox.shrink(),
           actions: [
             TextButton(
               onPressed: _saving ? null : _closeWindow,
@@ -9245,16 +9257,6 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Text(
-                                  'source: $_sourceList',
-                                  style: TextStyle(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
                                 TextField(
                                   controller: _titleController,
                                   autofocus: true,
