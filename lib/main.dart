@@ -4369,7 +4369,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _openTasksInSeparateDesktopWindow) {
       unawaited(_queueTaskAction(task.id, () async {
         await _openTaskInDesktopWindow(task);
-        await Future<void>.delayed(const Duration(milliseconds: 900));
+        await Future<void>.delayed(const Duration(milliseconds: 1800));
       }));
       return;
     }

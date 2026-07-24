@@ -71,6 +71,7 @@
   - [ ] esc close task window
   - [ ] längeres loading
   - [ ] refresh liste nach close task window
+  - [ ] andere felder fehlen noch...
 
 ## notes
 
