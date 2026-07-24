@@ -711,8 +711,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final List<String> _pendingWidgetOpenTaskIds = <String>[];
   Timer? _taskWindowRefreshTimer;
   final Set<String> _openDesktopTaskWindowIds = <String>{};
-  final Map<String, Completer<void>> _desktopTaskWindowClosers =
-      <String, Completer<void>>{};
   String? _lastTaskWindowRefreshToken;
 
   final Stream<int> _loadingTickStream =
@@ -1098,8 +1096,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (_openDesktopTaskWindowIds.contains(task.id)) {
       return;
     }
-    final completer = Completer<void>();
-    _desktopTaskWindowClosers[task.id] = completer;
     _openDesktopTaskWindowIds.add(task.id);
     try {
       try {
@@ -1111,17 +1107,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       await Process.start(
         Platform.resolvedExecutable,
         <String>['--desktop-task-window=${task.id}'],
-        mode: ProcessStartMode.detached,
+        mode: ProcessStartMode.normal,
         runInShell: false,
-      );
-      await completer.future;
+      ).then((process) => process.exitCode);
       if (mounted) {
         await _sembastStorage.refresh();
         await _loadToday();
       }
     } catch (_) {
     } finally {
-      _desktopTaskWindowClosers.remove(task.id);
       _openDesktopTaskWindowIds.remove(task.id);
     }
   }
@@ -1132,8 +1126,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _pollTaskWindowRefreshSignal() async {
-    if (_desktopTaskWindowClosers.isEmpty &&
-        _openDesktopTaskWindowIds.isEmpty) {
+    if (_openDesktopTaskWindowIds.isEmpty) {
       return;
     }
     try {
@@ -1144,7 +1137,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _lastTaskWindowRefreshToken = token;
       final taskId = token.split('|').first.trim();
       if (taskId.isNotEmpty) {
-        _desktopTaskWindowClosers.remove(taskId)?.complete();
         _openDesktopTaskWindowIds.remove(taskId);
       }
       if (mounted) {
@@ -9135,6 +9127,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   String _status = '';
   double _uiTextScaleFactor = 1.0;
   String _fontFamily = 'OpenDyslexic';
+  bool _refreshSignalWritten = false;
 
   @override
   void initState() {
@@ -9154,6 +9147,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
 
   @override
   void dispose() {
+    unawaited(_writeRefreshSignal());
     _titleController.dispose();
     _notesController.dispose();
     _workMinutesController.dispose();
@@ -9165,6 +9159,21 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     _audioPlayer.dispose();
     _storage.dispose();
     super.dispose();
+  }
+
+  Future<void> _writeRefreshSignal() async {
+    if (_refreshSignalWritten) return;
+    _refreshSignalWritten = true;
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
+      final signalFile = File(
+          '${dir.path}/$folderName/simplepresent_task_window_refresh.signal');
+      await signalFile.writeAsString(
+        '${widget.taskId}|${DateTime.now().millisecondsSinceEpoch}',
+        flush: true,
+      );
+    } catch (_) {}
   }
 
   Future<Directory> get _appDir async {
@@ -9652,16 +9661,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     }
     if (!mounted) return;
     if (widget.closeAppOnExit) {
-      try {
-        final dir = await getApplicationDocumentsDirectory();
-        final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
-        final signalFile = File(
-            '${dir.path}/$folderName/simplepresent_task_window_refresh.signal');
-        await signalFile.writeAsString(
-          '${widget.taskId}|${DateTime.now().millisecondsSinceEpoch}',
-          flush: true,
-        );
-      } catch (_) {}
+      await _writeRefreshSignal();
     }
     if (widget.closeAppOnExit) {
       SystemNavigator.pop();

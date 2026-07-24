@@ -67,9 +67,7 @@
       jetzt ist das icon wieder vermatscht, glaube muss transparentes icon mit gößerem transparenten rand sein, damit es rund passt
 - [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
-- [ ] aufgaben nicht aufklappen auf dem desktop, sondern in einem eigenen fenster öffnen (optional in den settings konfigurierbar)
-  - [ ] schriftgröße übernehmen und skalieren
-  - [ ] 
+- [x] aufgaben nicht aufklappen auf dem desktop, sondern in einem eigenen fenster öffnen (optional in den settings konfigurierbar)
 
 ## notes
 
