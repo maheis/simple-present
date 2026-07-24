@@ -8,14 +8,14 @@
   - [-] verschieben zwischen listen (insbesondere durch status änderungen!)
 - [x] fertige aufgaben werden nicht mehr automatisch aus dem today entfernt
 - [x] settings in eine eigene sembast-db
-- [x] funktionen heißen immer noch alle sqlite... 
+- [x] funktionen heißen immer noch alle sqlite...
 - [x] clean done
 - [x] android: widget funktioniert seit umstellung auf sembast nicht mehr bzw. zeigt nichts mehr an!
 - [x] aufgaben die ich im backlog auf heute oder in vergangenheit lege, sollen in today gemoved werden!
 - [x] default backup strategie: 90 Backups, alle 5 Minuten und beim Start
 - [x] cliens hängen häufiger im start loading fest, ich glaube tritt nur bei cloud sync clients auf!
 - [x] qr-code scan füllt nicht mehr die URL
-- [x] today migration funktioniert nicht mehr sauber. today soll beim ersten start leer sein. alle aufgaben die done sind sollen in done verschoben werden, alle aufaben die offen  sind sollen ins backlog geschoben werden. alle aufgaben die auf heute oder in der vergangenheit liegen, sollen danach vom backlog ins today verschoben werden! 
+- [x] today migration funktioniert nicht mehr sauber. today soll beim ersten start leer sein. alle aufgaben die done sind sollen in done verschoben werden, alle aufaben die offen  sind sollen ins backlog geschoben werden. alle aufgaben die auf heute oder in der vergangenheit liegen, sollen danach vom backlog ins today verschoben werden!
 - [x] settings doppeln sich!
 - [x] settings wieder auf json zurueckgestellt
 - [x] warum braucht windows firebase? was ist firebase? wofür brauche ich firebase? -> Komplett entfernt!
@@ -24,7 +24,7 @@
 - [x] dailymigration klappert!
 - [x] cloud sync (merken welche ids etc) aus den settings ruasnehmen und in die haupt db verschieben!
 - [-] erinnerungen deaktiveren können (z.b. bei aktiver app?) - erinnerung ist wichtig!
-- [x] sync: erster sync muss schneller, es muss beim öffnen geprüft werden bevor der client selbst aktionen ausführt. sonst kann es zu chaos kommen! (aufgaben die anm handy in heute lagen nd schon erledigt waren, wurden beim anderen in backlog verschoben und da liegengelassen...) 
+- [x] sync: erster sync muss schneller, es muss beim öffnen geprüft werden bevor der client selbst aktionen ausführt. sonst kann es zu chaos kommen! (aufgaben die anm handy in heute lagen nd schon erledigt waren, wurden beim anderen in backlog verschoben und da liegengelassen...)
 - [x] papierkorb:
         schiebt sync in den papierkorb?
         papierkorb sichtbar machen (um wiederherstellen zu können)
@@ -45,7 +45,7 @@
 - [ ] Google Play Store Veröffentlichung (.notes/PLAY_STORE_ANDROID.md) - IN WORK
 - [ ] Windows Store Veröffentlichung (.notes/WINDOWS_APP_STORE.md)
 - [ ] Web Applikation ?
-- [ ] ausführliches sync testen! kommt ständig zu fehlern, die nicht reproduzierbar sind! 
+- [ ] ausführliches sync testen! kommt ständig zu fehlern, die nicht reproduzierbar sind!
       z.b. move von backlog zu today wird nicht synchronisiert
       sachen die ins backlog gehen, bleiben in today...
       dopplung von aufgaben...
@@ -58,7 +58,7 @@
   - [x] sqlite3.dll
   - [ ] mehr?
   - [ ] Aufräumen (ois)
-- [ ] sync: self signed certs prüfen (ca-chain) 
+- [ ] sync: self signed certs prüfen (ca-chain)
 - [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben! (primärgerät-definieren?)
 - [ ] android: icon fritte (muss es einen hintergrund haben?), was ist mit weißem icon für statusleiste z.b.?
       notification funktioniert mit weißen icon.[text](about:blank#blocked)
@@ -67,7 +67,7 @@
       jetzt ist das icon wieder vermatscht, glaube muss transparentes icon mit gößerem transparenten rand sein, damit es rund passt
 - [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
-
+- [ ] aufgaben nicht aufklappen auf dem desktop, sondern in einem eigenen fenster öffnen (optional in den settings konfigurierbar)
 
 ## notes
 
@@ -78,4 +78,3 @@
 - [ ] Export/Import: Möglichkeit, Aufgabenlisten zu exportieren und zu importieren, z.B. als JSON oder CSV, um Backups zu erstellen oder Daten zwischen verschiedenen Apps zu übertragen.
 - [ ] Widgets: Unterstützung für Widgets auf dem Startbildschirm (Mobile) oder Desktop, um schnellen Zugriff auf die wichtigsten Aufgaben zu ermöglichen.
 - [ ] Integration mit Kalendern: Möglichkeit, Aufgaben mit Kalenderereignissen zu verknüpfen, um eine bessere Übersicht über Termine und Aufgaben zu erhalten.
-

@@ -22,9 +22,21 @@ const _noChange = Object();
 
 const String kClientVersion = '0.1.0';
 
-void main() {
+String? _parseDesktopTaskWindowId(List<String> args) {
+  for (final arg in args) {
+    if (arg.startsWith('--desktop-task-window=')) {
+      final value = arg.substring('--desktop-task-window='.length).trim();
+      return value.isEmpty ? null : value;
+    }
+  }
+  return null;
+}
+
+void main(List<String> args) {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const SimplePresentApp());
+  runApp(SimplePresentApp(
+    desktopTaskWindowId: _parseDesktopTaskWindowId(args),
+  ));
 }
 
 String _suggestedCloudDeviceName() {
@@ -171,7 +183,10 @@ Future<void> exportTodayAndRefresh(List<TaskItem> tasks,
 // Force-write debug log removed. Use _debugLog() instead (respects _debugWriteLog flag)
 
 class SimplePresentApp extends StatelessWidget {
-  const SimplePresentApp({super.key});
+  const SimplePresentApp({super.key, this.desktopTaskWindowId});
+
+  final String? desktopTaskWindowId;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -195,7 +210,9 @@ class SimplePresentApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(
             seedColor: Colors.teal, brightness: Brightness.dark),
       ),
-      home: const HomePage(),
+      home: desktopTaskWindowId == null
+          ? const HomePage()
+          : TaskWindowPage(taskId: desktopTaskWindowId!),
     );
   }
 }
@@ -545,6 +562,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _useTrash = true;
   bool _showingTrash = false;
   int _countTrash = 0;
+  bool _openTasksInSeparateDesktopWindow = false;
   // Reminder window (HH:MM) — only remind within this time window when enabled
   String _reminderWindowFrom = '09:00';
   String _reminderWindowTo = '17:00';
@@ -1059,6 +1077,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _scheduleDelayedReorder();
     await _processPendingNotificationTaskActions();
     await _processPendingWidgetOpenTasks();
+  }
+
+  Future<void> _openTaskInDesktopWindow(TaskItem task) async {
+    if (!Platform.isLinux && !Platform.isWindows && !Platform.isMacOS) {
+      return;
+    }
+    try {
+      await Process.start(
+        Platform.resolvedExecutable,
+        <String>['--desktop-task-window=${task.id}'],
+        mode: ProcessStartMode.detached,
+        runInShell: false,
+      );
+    } catch (_) {}
   }
 
   Future<void> _handleNativeWindowMethodCall(MethodCall call) async {
@@ -3300,6 +3332,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _urgentBringToFrontEnabled =
             readBool('urgentBringToFrontEnabled', _urgentBringToFrontEnabled);
         _swipeEnabled = readBool('swipeEnabled', _swipeEnabled);
+        _openTasksInSeparateDesktopWindow = readBool(
+          'openTasksInSeparateDesktopWindow',
+          _openTasksInSeparateDesktopWindow);
         _autoPurgeDoneEnabled =
             readBool('autoPurgeDoneEnabled', _autoPurgeDoneEnabled);
         _autoPurgeTrashEnabled =
@@ -3469,6 +3504,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'urgentNotifyEnabled': _urgentNotifyEnabled,
         'urgentBringToFrontEnabled': _urgentBringToFrontEnabled,
         'swipeEnabled': _swipeEnabled,
+        'openTasksInSeparateDesktopWindow':
+          _openTasksInSeparateDesktopWindow,
         'uiTextScaleFactor': _uiTextScaleFactor,
         'fontFamily': _fontFamily,
         'cloudServerUrl': _cloudServerUrl,
@@ -4070,6 +4107,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             'urgentNotifyEnabled': _urgentNotifyEnabled,
             'urgentBringToFrontEnabled': _urgentBringToFrontEnabled,
             'swipeEnabled': _swipeEnabled,
+            'openTasksInSeparateDesktopWindow':
+              _openTasksInSeparateDesktopWindow,
             'uiTextScaleFactor': _uiTextScaleFactor,
             'fontFamily': _fontFamily,
             'cloudServerUrl': _cloudServerUrl,
@@ -4162,6 +4201,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _urgentNotifyEnabled = result['urgentNotifyEnabled'] == true;
       _urgentBringToFrontEnabled = result['urgentBringToFrontEnabled'] == true;
       _swipeEnabled = result['swipeEnabled'] == true;
+      _openTasksInSeparateDesktopWindow =
+          result['openTasksInSeparateDesktopWindow'] == true;
       _autoPurgeDoneEnabled = result['autoPurgeDoneEnabled'] == true;
       _doneRetentionDays =
           clampMin(result['doneRetentionDays'], _doneRetentionDays);
@@ -4314,6 +4355,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       });
     }
     _registerActivity();
+  }
+
+  void _handleTaskTap(int index) {
+    if ((Platform.isLinux || Platform.isWindows || Platform.isMacOS) &&
+        _openTasksInSeparateDesktopWindow) {
+      unawaited(_openTaskInDesktopWindow(_today[index]));
+      return;
+    }
+    _toggleExpanded(index);
   }
 
   /// Finalize any open edits by saving and logging them. This should be
@@ -7986,8 +8036,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                   horizontal:
                                                                       12),
                                                           onTap: () =>
-                                                              _toggleExpanded(
-                                                                  i),
+                                                              _handleTaskTap(
+                                                                i),
                                                           leading: _busyTaskIds
                                                                   .contains(
                                                                       task.id)
@@ -8983,6 +9033,263 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 }
 
+class TaskWindowPage extends StatefulWidget {
+  const TaskWindowPage({super.key, required this.taskId});
+
+  final String taskId;
+
+  @override
+  State<TaskWindowPage> createState() => _TaskWindowPageState();
+}
+
+class _TaskWindowPageState extends State<TaskWindowPage> {
+  final SembastStorage _storage = SembastStorage();
+  late final TextEditingController _titleController;
+  late final TextEditingController _notesController;
+  TaskItem? _task;
+  String _sourceList = 'simplepresent_today.json';
+  bool _loading = true;
+  bool _saving = false;
+  String _status = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController();
+    _notesController = TextEditingController();
+    unawaited(_loadTask());
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _notesController.dispose();
+    _storage.dispose();
+    super.dispose();
+  }
+
+  ({TaskItem task, String sourceList})? _findTask(String taskId) {
+    const candidates = <String>[
+      'simplepresent_today.json',
+      'simplepresent_backlog.json',
+      'simplepresent_done.json',
+      'simplepresent_trash.json',
+    ];
+    for (final listName in candidates) {
+      final rows = _storage.readTaskList(listName);
+      for (final row in rows) {
+        if ((row['id'] ?? '').toString() == taskId) {
+          return (
+            task: TaskItem.fromJson(Map<String, dynamic>.from(row)),
+            sourceList: listName,
+          );
+        }
+      }
+    }
+    return null;
+  }
+
+  Future<void> _loadTask() async {
+    try {
+      await _storage.init(debugMode: kDebugMode);
+      final found = _findTask(widget.taskId);
+      if (!mounted) return;
+      if (found == null) {
+        setState(() {
+          _loading = false;
+          _status = 'task not found';
+        });
+        return;
+      }
+      _task = found.task;
+      _sourceList = found.sourceList;
+      _titleController.text = found.task.text;
+      _notesController.text = found.task.notes ?? '';
+      setState(() => _loading = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _status = 'failed to open task: $e';
+      });
+    }
+  }
+
+  bool get _hasChanges {
+    final task = _task;
+    if (task == null) return false;
+    return _titleController.text.trim() != task.text.trim() ||
+        _notesController.text != (task.notes ?? '');
+  }
+
+  Future<void> _saveTask() async {
+    final task = _task;
+    if (task == null || _saving) return;
+    final newText = _titleController.text.trim();
+    if (newText.isEmpty) {
+      setState(() => _status = 'title must not be empty');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _status = '';
+    });
+    try {
+      final rows = _storage.readTaskList(_sourceList);
+      final idx = rows.indexWhere((row) => (row['id'] ?? '').toString() == task.id);
+      if (idx == -1) {
+        if (mounted) {
+          setState(() {
+            _saving = false;
+            _status = 'task changed in another window';
+          });
+        }
+        return;
+      }
+      final updated = task.copyWith(
+        text: newText,
+        notes: _notesController.text,
+      );
+      rows[idx] = updated.toJson();
+      _storage.writeTaskList(_sourceList, rows);
+      if (!mounted) return;
+      setState(() {
+        _task = updated;
+        _saving = false;
+        _status = 'saved';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _status = 'save failed: $e';
+      });
+    }
+  }
+
+  Future<void> _closeWindow() async {
+    if (_hasChanges) {
+      await _saveTask();
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final baseTheme = Theme.of(context);
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _closeWindow();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('task window'),
+          actions: [
+            TextButton(
+              onPressed: _saving ? null : _closeWindow,
+              child: const Text('close'),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: _saving ? null : _saveTask,
+              child: Text(_saving ? 'saving...' : 'save'),
+            ),
+            const SizedBox(width: 12),
+          ],
+        ),
+        body: MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(1.0)),
+          child: Theme(
+            data: baseTheme,
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _task == null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            _status.isEmpty ? 'task not found' : _status,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 760),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'source: $_sourceList',
+                                  style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: _titleController,
+                                  autofocus: true,
+                                  decoration: const InputDecoration(
+                                    labelText: 'title',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: _notesController,
+                                  minLines: 10,
+                                  maxLines: 16,
+                                  decoration: const InputDecoration(
+                                    labelText: 'notes',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    Chip(label: Text(_task!.done ? 'done' : 'open')),
+                                    if (_task!.inProgress)
+                                      const Chip(label: Text('in progress')),
+                                    if (_task!.important)
+                                      const Chip(label: Text('important')),
+                                  ],
+                                ),
+                                if (_status.isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    _status,
+                                    style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class StatsPage extends StatefulWidget {
   const StatsPage({
     super.key,
@@ -9036,6 +9343,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool urgentBringToFrontEnabled;
   late bool swipeEnabled;
   late bool scheduledReminderSoundEnabled;
+  late bool openTasksInSeparateDesktopWindow;
   late String reminderWindowFrom;
   late String reminderWindowTo;
   late double textScaleFactor;
@@ -9249,6 +9557,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool _initialUrgentBringToFrontEnabled;
   late bool _initialSwipeEnabled;
   late bool _initialScheduledReminderSoundEnabled;
+  late bool _initialOpenTasksInSeparateDesktopWindow;
   late String _initialReminderWindowFrom;
   late String _initialReminderWindowTo;
   late double _initialTextScaleFactor;
@@ -9329,6 +9638,8 @@ class _SettingsPageState extends State<SettingsPage> {
     swipeEnabled = readBool('swipeEnabled', true);
     scheduledReminderSoundEnabled =
         readBool('scheduledReminderSoundEnabled', true);
+    openTasksInSeparateDesktopWindow =
+      readBool('openTasksInSeparateDesktopWindow', false);
     reminderWindowFrom = readString('reminderWindowFrom', '09:00');
     reminderWindowTo = readString('reminderWindowTo', '17:00');
     textScaleFactor = readDouble('uiTextScaleFactor', 1.0).clamp(0.5, 1.6);
@@ -9385,6 +9696,8 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialUrgentBringToFrontEnabled = urgentBringToFrontEnabled;
     _initialSwipeEnabled = swipeEnabled;
     _initialScheduledReminderSoundEnabled = scheduledReminderSoundEnabled;
+    _initialOpenTasksInSeparateDesktopWindow =
+      openTasksInSeparateDesktopWindow;
     _initialReminderWindowFrom = reminderWindowFrom;
     _initialReminderWindowTo = reminderWindowTo;
     _initialTextScaleFactor = textScaleFactor;
@@ -9532,6 +9845,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 'urgentNotifyEnabled': urgentNotifyEnabled,
                 'urgentBringToFrontEnabled': urgentBringToFrontEnabled,
                 'swipeEnabled': swipeEnabled,
+                'openTasksInSeparateDesktopWindow':
+                  openTasksInSeparateDesktopWindow,
                 'uiTextScaleFactor': textScaleFactor,
                 'fontFamily': fontFamily,
                 'cloudServerUrl': cloudServerUrl,
@@ -9598,6 +9913,8 @@ class _SettingsPageState extends State<SettingsPage> {
         urgentSoundEnabled != _initialUrgentSoundEnabled ||
         scheduledReminderSoundEnabled !=
             _initialScheduledReminderSoundEnabled ||
+        openTasksInSeparateDesktopWindow !=
+          _initialOpenTasksInSeparateDesktopWindow ||
         urgentFlashEnabled != _initialUrgentFlashEnabled ||
         urgentNotifyEnabled != _initialUrgentNotifyEnabled ||
         urgentBringToFrontEnabled != _initialUrgentBringToFrontEnabled ||
@@ -10089,6 +10406,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       'urgentNotifyEnabled': urgentNotifyEnabled,
                       'urgentBringToFrontEnabled': urgentBringToFrontEnabled,
                       'swipeEnabled': swipeEnabled,
+                        'openTasksInSeparateDesktopWindow':
+                          openTasksInSeparateDesktopWindow,
                       'uiTextScaleFactor': textScaleFactor,
                       'scheduledReminderSoundEnabled':
                           scheduledReminderSoundEnabled,
@@ -10405,6 +10724,15 @@ class _SettingsPageState extends State<SettingsPage> {
                       'play a sound for scheduled task reminders (15min and due)'),
                   onChanged: (v) =>
                       setState(() => scheduledReminderSoundEnabled = v),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  value: openTasksInSeparateDesktopWindow,
+                  title: const Text('open desktop tasks in a separate window'),
+                  subtitle: const Text(
+                    'on desktop, open a task in its own window instead of expanding it in the list.'),
+                  onChanged: (v) =>
+                    setState(() => openTasksInSeparateDesktopWindow = v),
                 ),
                 const SizedBox(height: 8),
                 const Divider(),
