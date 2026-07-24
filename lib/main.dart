@@ -212,7 +212,10 @@ class SimplePresentApp extends StatelessWidget {
       ),
       home: desktopTaskWindowId == null
           ? const HomePage()
-          : TaskWindowPage(taskId: desktopTaskWindowId!),
+          : TaskWindowPage(
+              taskId: desktopTaskWindowId!,
+              closeAppOnExit: true,
+            ),
     );
   }
 }
@@ -9040,9 +9043,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 }
 
 class TaskWindowPage extends StatefulWidget {
-  const TaskWindowPage({super.key, required this.taskId});
+  const TaskWindowPage({
+    super.key,
+    required this.taskId,
+    this.closeAppOnExit = false,
+  });
 
   final String taskId;
+  final bool closeAppOnExit;
 
   @override
   State<TaskWindowPage> createState() => _TaskWindowPageState();
@@ -9178,7 +9186,12 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     if (_hasChanges) {
       await _saveTask();
     }
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+    if (widget.closeAppOnExit) {
+      SystemNavigator.pop();
+      return;
+    }
+    Navigator.of(context).pop();
   }
 
   @override
