@@ -9120,6 +9120,7 @@ class _CloseTaskWindowIntent extends Intent {
 
 class _TaskWindowPageState extends State<TaskWindowPage> {
   final SembastStorage _storage = SembastStorage();
+  final AudioPlayer _audioPlayer = AudioPlayer();
   late final TextEditingController _titleController;
   late final TextEditingController _notesController;
   late final TextEditingController _workMinutesController;
@@ -9158,6 +9159,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       controller.dispose();
     }
     _ticker?.cancel();
+    _audioPlayer.dispose();
     _storage.dispose();
     super.dispose();
   }
@@ -9434,6 +9436,13 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
         ));
   }
 
+  Future<void> _playDonePling() async {
+    try {
+      await _audioPlayer.setReleaseMode(ReleaseMode.stop);
+      await _audioPlayer.play(AssetSource('sounds/ding.mp3'));
+    } catch (_) {}
+  }
+
   Future<void> _duplicateTask() async {
     final task = _effectiveTask;
     if (task == null || _saving) return;
@@ -9637,9 +9646,10 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
                   FilledButton(
                     onPressed: _saving
                         ? null
-                        : () {
+                        : () async {
                             _setDone(true);
-                            unawaited(_closeWindow());
+                            await _playDonePling();
+                            await _closeWindow();
                           },
                     child: const Text('done'),
                   ),

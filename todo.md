@@ -68,8 +68,6 @@
 - [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
 - [ ] aufgaben nicht aufklappen auf dem desktop, sondern in einem eigenen fenster öffnen (optional in den settings konfigurierbar)
-  - [ ] refresh liste nach close task window
-  - [ ] esc soll auch speichern
   - [ ] schriftgröße übernehmen und skalieren
   - [ ] 
 
