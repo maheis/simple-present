@@ -22,9 +22,21 @@ const _noChange = Object();
 
 const String kClientVersion = '0.1.0';
 
-void main() {
+String? _parseDesktopTaskWindowId(List<String> args) {
+  for (final arg in args) {
+    if (arg.startsWith('--desktop-task-window=')) {
+      final value = arg.substring('--desktop-task-window='.length).trim();
+      return value.isEmpty ? null : value;
+    }
+  }
+  return null;
+}
+
+void main(List<String> args) {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const SimplePresentApp());
+  runApp(SimplePresentApp(
+    desktopTaskWindowId: _parseDesktopTaskWindowId(args),
+  ));
 }
 
 String _suggestedCloudDeviceName() {
@@ -171,7 +183,10 @@ Future<void> exportTodayAndRefresh(List<TaskItem> tasks,
 // Force-write debug log removed. Use _debugLog() instead (respects _debugWriteLog flag)
 
 class SimplePresentApp extends StatelessWidget {
-  const SimplePresentApp({super.key});
+  const SimplePresentApp({super.key, this.desktopTaskWindowId});
+
+  final String? desktopTaskWindowId;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -195,7 +210,12 @@ class SimplePresentApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(
             seedColor: Colors.teal, brightness: Brightness.dark),
       ),
-      home: const HomePage(),
+      home: desktopTaskWindowId == null
+          ? const HomePage()
+          : TaskWindowPage(
+              taskId: desktopTaskWindowId!,
+              closeAppOnExit: true,
+            ),
     );
   }
 }
@@ -545,6 +565,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _useTrash = true;
   bool _showingTrash = false;
   int _countTrash = 0;
+  bool _openTasksInSeparateDesktopWindow = false;
   // Reminder window (HH:MM) — only remind within this time window when enabled
   String _reminderWindowFrom = '09:00';
   String _reminderWindowTo = '17:00';
@@ -688,6 +709,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final List<Map<String, String>> _pendingNotificationTaskActions =
       <Map<String, String>>[];
   final List<String> _pendingWidgetOpenTaskIds = <String>[];
+  Timer? _taskWindowRefreshTimer;
+  final Set<String> _openDesktopTaskWindowIds = <String>{};
+  String? _lastTaskWindowRefreshToken;
 
   final Stream<int> _loadingTickStream =
       Stream<int>.periodic(const Duration(milliseconds: 220), (x) => x);
@@ -724,6 +748,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _startUrgentTimer();
     _startAutoSwitchTimer();
     _startScheduledChecker();
+    _taskWindowRefreshTimer = Timer.periodic(
+      const Duration(milliseconds: 350),
+      (_) => unawaited(_pollTaskWindowRefreshSignal()),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         if (!Platform.isAndroid) _requestInputFocusIfIdle();
@@ -1059,6 +1087,63 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _scheduleDelayedReorder();
     await _processPendingNotificationTaskActions();
     await _processPendingWidgetOpenTasks();
+  }
+
+  Future<void> _openTaskInDesktopWindow(TaskItem task) async {
+    if (!Platform.isLinux && !Platform.isWindows && !Platform.isMacOS) {
+      return;
+    }
+    if (_openDesktopTaskWindowIds.contains(task.id)) {
+      return;
+    }
+    _openDesktopTaskWindowIds.add(task.id);
+    try {
+      try {
+        final signalFile = await _taskWindowRefreshSignalFile();
+        if (await signalFile.exists()) {
+          await signalFile.writeAsString('', flush: true);
+        }
+      } catch (_) {}
+      await Process.start(
+        Platform.resolvedExecutable,
+        <String>['--desktop-task-window=${task.id}'],
+        mode: ProcessStartMode.normal,
+        runInShell: false,
+      ).then((process) => process.exitCode);
+      if (mounted) {
+        await _sembastStorage.refresh();
+        await _loadToday();
+      }
+    } catch (_) {
+    } finally {
+      _openDesktopTaskWindowIds.remove(task.id);
+    }
+  }
+
+  Future<File> _taskWindowRefreshSignalFile() async {
+    final dir = await _appDir;
+    return File('${dir.path}/simplepresent_task_window_refresh.signal');
+  }
+
+  Future<void> _pollTaskWindowRefreshSignal() async {
+    if (_openDesktopTaskWindowIds.isEmpty) {
+      return;
+    }
+    try {
+      final signalFile = await _taskWindowRefreshSignalFile();
+      if (!await signalFile.exists()) return;
+      final token = (await signalFile.readAsString()).trim();
+      if (token.isEmpty || token == _lastTaskWindowRefreshToken) return;
+      _lastTaskWindowRefreshToken = token;
+      final taskId = token.split('|').first.trim();
+      if (taskId.isNotEmpty) {
+        _openDesktopTaskWindowIds.remove(taskId);
+      }
+      if (mounted) {
+        await _sembastStorage.refresh();
+        await _loadToday();
+      }
+    } catch (_) {}
   }
 
   Future<void> _handleNativeWindowMethodCall(MethodCall call) async {
@@ -3300,6 +3385,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _urgentBringToFrontEnabled =
             readBool('urgentBringToFrontEnabled', _urgentBringToFrontEnabled);
         _swipeEnabled = readBool('swipeEnabled', _swipeEnabled);
+        _openTasksInSeparateDesktopWindow = readBool(
+            'openTasksInSeparateDesktopWindow',
+            _openTasksInSeparateDesktopWindow);
         _autoPurgeDoneEnabled =
             readBool('autoPurgeDoneEnabled', _autoPurgeDoneEnabled);
         _autoPurgeTrashEnabled =
@@ -3469,6 +3557,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'urgentNotifyEnabled': _urgentNotifyEnabled,
         'urgentBringToFrontEnabled': _urgentBringToFrontEnabled,
         'swipeEnabled': _swipeEnabled,
+        'openTasksInSeparateDesktopWindow': _openTasksInSeparateDesktopWindow,
         'uiTextScaleFactor': _uiTextScaleFactor,
         'fontFamily': _fontFamily,
         'cloudServerUrl': _cloudServerUrl,
@@ -3573,6 +3662,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       HardwareKeyboard.instance.removeHandler(_hardwareKeyHandler);
     } catch (_) {}
+    _taskWindowRefreshTimer?.cancel();
     _windowWatcherTimer?.cancel();
     _saveSettings();
     _controller.dispose();
@@ -4070,6 +4160,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             'urgentNotifyEnabled': _urgentNotifyEnabled,
             'urgentBringToFrontEnabled': _urgentBringToFrontEnabled,
             'swipeEnabled': _swipeEnabled,
+            'openTasksInSeparateDesktopWindow':
+                _openTasksInSeparateDesktopWindow,
             'uiTextScaleFactor': _uiTextScaleFactor,
             'fontFamily': _fontFamily,
             'cloudServerUrl': _cloudServerUrl,
@@ -4162,6 +4254,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _urgentNotifyEnabled = result['urgentNotifyEnabled'] == true;
       _urgentBringToFrontEnabled = result['urgentBringToFrontEnabled'] == true;
       _swipeEnabled = result['swipeEnabled'] == true;
+      _openTasksInSeparateDesktopWindow =
+          result['openTasksInSeparateDesktopWindow'] == true;
       _autoPurgeDoneEnabled = result['autoPurgeDoneEnabled'] == true;
       _doneRetentionDays =
           clampMin(result['doneRetentionDays'], _doneRetentionDays);
@@ -4314,6 +4408,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       });
     }
     _registerActivity();
+  }
+
+  void _handleTaskTap(int index) {
+    final task = _today[index];
+    if (_busyTaskIds.contains(task.id) ||
+        _taskActionProcessing.contains(task.id)) {
+      return;
+    }
+    if ((Platform.isLinux || Platform.isWindows || Platform.isMacOS) &&
+        _openTasksInSeparateDesktopWindow) {
+      unawaited(_queueTaskAction(task.id, () async {
+        await _openTaskInDesktopWindow(task);
+      }));
+      return;
+    }
+    _toggleExpanded(index);
   }
 
   /// Finalize any open edits by saving and logging them. This should be
@@ -7986,8 +8096,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                   horizontal:
                                                                       12),
                                                           onTap: () =>
-                                                              _toggleExpanded(
-                                                                  i),
+                                                              _handleTaskTap(i),
                                                           leading: _busyTaskIds
                                                                   .contains(
                                                                       task.id)
@@ -8983,6 +9092,980 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 }
 
+class TaskWindowPage extends StatefulWidget {
+  const TaskWindowPage({
+    super.key,
+    required this.taskId,
+    this.closeAppOnExit = false,
+  });
+
+  final String taskId;
+  final bool closeAppOnExit;
+
+  @override
+  State<TaskWindowPage> createState() => _TaskWindowPageState();
+}
+
+class _CloseTaskWindowIntent extends Intent {
+  const _CloseTaskWindowIntent();
+}
+
+class _TaskWindowPageState extends State<TaskWindowPage> {
+  final SembastStorage _storage = SembastStorage();
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  late final TextEditingController _titleController;
+  late final TextEditingController _notesController;
+  late final TextEditingController _workMinutesController;
+  late final TextEditingController _newSubtaskController;
+  final Map<String, TextEditingController> _subtaskControllers = {};
+  Timer? _ticker;
+  TaskItem? _initialTask;
+  TaskItem? _task;
+  String _sourceList = 'simplepresent_today.json';
+  bool _loading = true;
+  bool _saving = false;
+  String _status = '';
+  double _uiTextScaleFactor = 1.0;
+  String _fontFamily = 'OpenDyslexic';
+  bool _refreshSignalWritten = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController();
+    _notesController = TextEditingController();
+    _workMinutesController = TextEditingController();
+    _newSubtaskController = TextEditingController();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && (_task?.stopwatchRunning ?? false)) {
+        setState(() {});
+      }
+    });
+    unawaited(_loadAppearanceSettings());
+    unawaited(_loadTask());
+  }
+
+  @override
+  void dispose() {
+    unawaited(_writeRefreshSignal());
+    _titleController.dispose();
+    _notesController.dispose();
+    _workMinutesController.dispose();
+    _newSubtaskController.dispose();
+    for (final controller in _subtaskControllers.values) {
+      controller.dispose();
+    }
+    _ticker?.cancel();
+    _audioPlayer.dispose();
+    _storage.dispose();
+    super.dispose();
+  }
+
+  Future<void> _writeRefreshSignal() async {
+    if (_refreshSignalWritten) return;
+    _refreshSignalWritten = true;
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
+      final signalFile = File(
+          '${dir.path}/$folderName/simplepresent_task_window_refresh.signal');
+      await signalFile.writeAsString(
+        '${widget.taskId}|${DateTime.now().millisecondsSinceEpoch}',
+        flush: true,
+      );
+    } catch (_) {}
+  }
+
+  Future<Directory> get _appDir async {
+    final dir = await getApplicationDocumentsDirectory();
+    final folderName = kDebugMode ? 'simplepresent-debug' : 'simplepresent';
+    final sub = Directory('${dir.path}/$folderName');
+    try {
+      if (!await sub.exists()) await sub.create(recursive: true);
+    } catch (_) {}
+    return sub;
+  }
+
+  Future<File> _fileFor(String name) async {
+    final dir = await _appDir;
+    return File('${dir.path}/$name');
+  }
+
+  static const String _settingsFileName = 'simplepresent_settings.json';
+
+  Map<String, dynamic> _asSettingsMap(dynamic raw) {
+    if (raw is Map) {
+      try {
+        return Map<String, dynamic>.from(raw);
+      } catch (_) {
+        return <String, dynamic>{};
+      }
+    }
+    if (raw is String) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          return Map<String, dynamic>.from(decoded);
+        }
+      } catch (_) {}
+    }
+    return <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> _readSettingsMap() async {
+    try {
+      final file = await _fileFor(_settingsFileName);
+      if (!await file.exists()) return <String, dynamic>{};
+      return _asSettingsMap(await file.readAsString());
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  Future<void> _loadAppearanceSettings() async {
+    try {
+      final data = await _readSettingsMap();
+      if (data.isEmpty || !mounted) return;
+      double readDouble(String key, double fallback) {
+        final v = data[key];
+        if (v is num) return v.toDouble();
+        return double.tryParse(v?.toString() ?? '') ?? fallback;
+      }
+
+      setState(() {
+        _uiTextScaleFactor = readDouble('uiTextScaleFactor', _uiTextScaleFactor)
+            .clamp(0.5, 1.6)
+            .toDouble();
+        final font = data['fontFamily'];
+        if (font is String && font.isNotEmpty) {
+          _fontFamily = font;
+        }
+      });
+    } catch (_) {}
+  }
+
+  ({TaskItem task, String sourceList})? _findTask(String taskId) {
+    const candidates = <String>[
+      'simplepresent_today.json',
+      'simplepresent_backlog.json',
+      'simplepresent_done.json',
+      'simplepresent_trash.json',
+    ];
+    for (final listName in candidates) {
+      final rows = _storage.readTaskList(listName);
+      for (final row in rows) {
+        if ((row['id'] ?? '').toString() == taskId) {
+          return (
+            task: TaskItem.fromJson(Map<String, dynamic>.from(row)),
+            sourceList: listName,
+          );
+        }
+      }
+    }
+    return null;
+  }
+
+  Future<void> _loadTask() async {
+    try {
+      await _storage.init(debugMode: kDebugMode);
+      final found = _findTask(widget.taskId);
+      if (!mounted) return;
+      if (found == null) {
+        setState(() {
+          _loading = false;
+          _status = 'task not found';
+        });
+        return;
+      }
+      _initialTask = found.task;
+      _task = found.task;
+      _sourceList = found.sourceList;
+      _titleController.text = found.task.text;
+      _notesController.text = found.task.notes ?? '';
+      _workMinutesController.text =
+          found.task.workMinutes > 0 ? found.task.workMinutes.toString() : '';
+      _syncSubtaskControllers(found.task.subtasks);
+      setState(() => _loading = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _status = 'failed to open task: $e';
+      });
+    }
+  }
+
+  int _parseWorkMinutes() {
+    return int.tryParse(_workMinutesController.text.trim()) ??
+        (_task?.workMinutes ?? 0);
+  }
+
+  TaskItem? get _effectiveTask {
+    final task = _task;
+    if (task == null) return null;
+    return task.copyWith(
+      text: _titleController.text.trim(),
+      notes: _notesController.text,
+      workMinutes: _parseWorkMinutes(),
+    );
+  }
+
+  void _updateTask(TaskItem Function(TaskItem current) update) {
+    final task = _task;
+    if (task == null) return;
+    setState(() {
+      _task = update(task);
+      if (_task != null) {
+        _syncSubtaskControllers(_task!.subtasks);
+      }
+    });
+  }
+
+  void _syncSubtaskControllers(List<TaskStep> subtasks) {
+    final liveIds = subtasks.map((step) => step.id).toSet();
+    final staleIds =
+        _subtaskControllers.keys.where((id) => !liveIds.contains(id)).toList();
+    for (final staleId in staleIds) {
+      _subtaskControllers.remove(staleId)?.dispose();
+    }
+    for (final step in subtasks) {
+      _subtaskControllers.putIfAbsent(
+        step.id,
+        () => TextEditingController(text: step.text),
+      );
+    }
+  }
+
+  String _nextSubtaskId() {
+    return '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+  }
+
+  int _elapsedSecondsFor(TaskItem task) {
+    var acc = task.stopwatchAccumulatedSeconds;
+    if (task.stopwatchRunning && task.stopwatchStartedAt != null) {
+      acc += DateTime.now().difference(task.stopwatchStartedAt!).inSeconds;
+    }
+    return acc;
+  }
+
+  void _setDone(bool value) {
+    _updateTask((task) => task.copyWith(
+          done: value,
+          inProgress: value ? false : task.inProgress,
+          completedAt: value ? DateTime.now() : null,
+          inProgressAt: value ? null : task.inProgressAt,
+          stopwatchRunning: value ? false : task.stopwatchRunning,
+          stopwatchStartedAt: value ? null : task.stopwatchStartedAt,
+        ));
+  }
+
+  void _setInProgress(bool value) {
+    _updateTask((task) => task.copyWith(
+          inProgress: value,
+          done: value ? false : task.done,
+          inProgressAt: value ? (task.inProgressAt ?? DateTime.now()) : null,
+        ));
+  }
+
+  void _setImportant(bool value) {
+    _updateTask((task) => task.copyWith(
+          important: value,
+          importantAt: value ? DateTime.now() : null,
+        ));
+  }
+
+  Future<void> _pickSchedule() async {
+    final task = _task;
+    if (task == null) return;
+    final now = DateTime.now();
+    final initial = task.scheduledAt ?? now;
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: initial.hour, minute: initial.minute),
+    );
+    if (time == null || !mounted) return;
+    _updateTask((current) => current.copyWith(
+          scheduledAt: DateTime(
+            date.year,
+            date.month,
+            date.day,
+            time.hour,
+            time.minute,
+          ),
+        ));
+  }
+
+  Future<void> _clearSchedule() async {
+    _updateTask((task) => task.copyWith(scheduledAt: null));
+  }
+
+  Future<void> _showRecurrenceDialog() async {
+    final task = _task;
+    if (task == null) return;
+    final value = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('repeat'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: const Text('none'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop('daily'),
+            child: const Text('daily'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop('weekly'),
+            child: const Text('weekly'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop('monthly'),
+            child: const Text('monthly'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    _updateTask((current) => current.copyWith(recurrence: value));
+  }
+
+  Future<void> _addSubtask() async {
+    final task = _task;
+    if (task == null) return;
+    final text = _newSubtaskController.text.trim();
+    if (text.isEmpty) return;
+    final step = TaskStep(id: _nextSubtaskId(), text: text, done: false);
+    _newSubtaskController.clear();
+    _updateTask((current) => current.copyWith(
+          subtasks: [...current.subtasks, step],
+        ));
+  }
+
+  void _updateSubtask(String subtaskId, {String? text, bool? done}) {
+    final task = _task;
+    if (task == null) return;
+    final updated = task.subtasks.map((step) {
+      if (step.id != subtaskId) return step;
+      return step.copyWith(
+        text: text ?? step.text,
+        done: done ?? step.done,
+      );
+    }).toList();
+    _updateTask((current) => current.copyWith(subtasks: updated));
+  }
+
+  void _removeSubtask(String subtaskId) {
+    final task = _task;
+    if (task == null) return;
+    final removed = _subtaskControllers.remove(subtaskId);
+    removed?.dispose();
+    _updateTask((current) => current.copyWith(
+          subtasks:
+              current.subtasks.where((step) => step.id != subtaskId).toList(),
+        ));
+  }
+
+  void _reorderSubtasks(int oldIndex, int newIndex) {
+    final task = _task;
+    if (task == null) return;
+    final items = [...task.subtasks];
+    if (oldIndex < newIndex) newIndex -= 1;
+    final item = items.removeAt(oldIndex);
+    items.insert(newIndex, item);
+    _updateTask((current) => current.copyWith(subtasks: items));
+  }
+
+  Future<void> _startStopwatch() async {
+    final task = _task;
+    if (task == null || task.stopwatchRunning) return;
+    final now = DateTime.now();
+    _updateTask((current) => current.copyWith(
+          stopwatchRunning: true,
+          stopwatchStartedAt: now,
+          inProgress: true,
+          inProgressAt: current.inProgressAt ?? now,
+        ));
+  }
+
+  Future<void> _stopStopwatch() async {
+    final task = _task;
+    if (task == null || !task.stopwatchRunning) return;
+    final started = task.stopwatchStartedAt ?? DateTime.now();
+    final added = DateTime.now().difference(started).inSeconds;
+    _updateTask((current) => current.copyWith(
+          stopwatchRunning: false,
+          stopwatchStartedAt: null,
+          stopwatchAccumulatedSeconds:
+              current.stopwatchAccumulatedSeconds + added,
+        ));
+  }
+
+  Future<void> _resetStopwatch() async {
+    _updateTask((task) => task.copyWith(
+          stopwatchRunning: false,
+          stopwatchStartedAt: null,
+          stopwatchAccumulatedSeconds: 0,
+        ));
+  }
+
+  Future<void> _playDonePling() async {
+    try {
+      await _audioPlayer.setReleaseMode(ReleaseMode.stop);
+      await _audioPlayer.play(AssetSource('sounds/ding.mp3'));
+    } catch (_) {}
+  }
+
+  Future<void> _duplicateTask() async {
+    final task = _effectiveTask;
+    if (task == null || _saving) return;
+    try {
+      final newId =
+          '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
+      final newItem = task.copyWith(
+        id: newId,
+        createdAt: DateTime.now(),
+        done: false,
+        completedAt: null,
+        inProgress: false,
+        inProgressAt: null,
+        stopwatchAccumulatedSeconds: 0,
+        stopwatchRunning: false,
+        stopwatchStartedAt: null,
+      );
+      final targetList = _sourceList == 'simplepresent_done.json'
+          ? 'simplepresent_backlog.json'
+          : _sourceList;
+      final targetRows = _storage.readTaskList(targetList);
+      targetRows.insert(0, newItem.toJson());
+      await _storage.writeTaskList(targetList, targetRows);
+      setState(() => _status = 'duplicated');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _status = 'duplicate failed: $e');
+    }
+  }
+
+  Future<void> _moveTaskToList(String targetList) async {
+    final task = _effectiveTask;
+    if (task == null || _saving) return;
+    try {
+      final sourceRows = _storage.readTaskList(_sourceList);
+      final idx = sourceRows
+          .indexWhere((row) => (row['id'] ?? '').toString() == task.id);
+      if (idx == -1) {
+        setState(() => _status = 'task changed in another window');
+        return;
+      }
+
+      final moved = task.copyWith(
+        done: false,
+        inProgress: false,
+        completedAt: null,
+        inProgressAt: null,
+        stopwatchRunning: false,
+        stopwatchStartedAt: null,
+      );
+
+      sourceRows.removeAt(idx);
+      await _storage.writeTaskList(_sourceList, sourceRows);
+
+      final targetRows = _storage.readTaskList(targetList);
+      targetRows.insert(0, moved.toJson());
+      await _storage.writeTaskList(targetList, targetRows);
+
+      setState(() {
+        _task = moved;
+        _initialTask = moved;
+        _sourceList = targetList;
+        _status = targetList == 'simplepresent_backlog.json'
+            ? 'moved to backlog'
+            : 'moved to today';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _status = 'move failed: $e');
+    }
+  }
+
+  Future<void> _moveToBacklog() =>
+      _moveTaskToList('simplepresent_backlog.json');
+
+  Future<void> _moveToToday() => _moveTaskToList('simplepresent_today.json');
+
+  bool get _hasChanges {
+    final initial = _initialTask;
+    final task = _effectiveTask;
+    if (initial == null || task == null) return false;
+    return jsonEncode(task.toJson()) != jsonEncode(initial.toJson());
+  }
+
+  Future<void> _saveTask() async {
+    final task = _effectiveTask;
+    if (task == null || _saving) return;
+    final newText = _titleController.text.trim();
+    if (newText.isEmpty) {
+      setState(() => _status = 'title must not be empty');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _status = '';
+    });
+    try {
+      final rows = _storage.readTaskList(_sourceList);
+      final idx =
+          rows.indexWhere((row) => (row['id'] ?? '').toString() == task.id);
+      if (idx == -1) {
+        if (mounted) {
+          setState(() {
+            _saving = false;
+            _status = 'task changed in another window';
+          });
+        }
+        return;
+      }
+      final updated = task.copyWith(
+        text: newText,
+        notes: _notesController.text,
+        workMinutes: _parseWorkMinutes(),
+      );
+      rows[idx] = updated.toJson();
+      await _storage.writeTaskList(_sourceList, rows);
+      if (!mounted) return;
+      setState(() {
+        _task = updated;
+        _initialTask = updated;
+        _saving = false;
+        _status = 'saved';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _status = 'save failed: $e';
+      });
+    }
+  }
+
+  Future<void> _closeWindow() async {
+    if (_hasChanges) {
+      await _saveTask();
+    }
+    if (!mounted) return;
+    if (widget.closeAppOnExit) {
+      await _writeRefreshSignal();
+    }
+    if (widget.closeAppOnExit) {
+      SystemNavigator.pop();
+      return;
+    }
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final baseTheme = Theme.of(context);
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _closeWindow();
+      },
+      child: Shortcuts(
+        shortcuts: <ShortcutActivator, Intent>{
+          const SingleActivator(LogicalKeyboardKey.escape):
+              const _CloseTaskWindowIntent(),
+        },
+        child: Actions(
+          actions: <Type, Action<Intent>>{
+            _CloseTaskWindowIntent: CallbackAction<_CloseTaskWindowIntent>(
+              onInvoke: (_) {
+                if (!_saving) {
+                  unawaited(_closeWindow());
+                }
+                return null;
+              },
+            ),
+          },
+          child: Focus(
+            autofocus: true,
+            child: Scaffold(
+              appBar: AppBar(
+                leadingWidth: 44,
+                titleSpacing: 0,
+                leading: Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: Center(
+                    child: Image.asset(
+                      'assets/icons/color_transparent_icon.png',
+                      width: 24,
+                      height: 24,
+                    ),
+                  ),
+                ),
+                title: const SizedBox.shrink(),
+                actions: [
+                  FilledButton(
+                    onPressed: _saving
+                        ? null
+                        : () async {
+                            _setDone(true);
+                            await _playDonePling();
+                            await _closeWindow();
+                          },
+                    child: const Text('done'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _saving ? null : _closeWindow,
+                    child: Text(_saving ? 'saving...' : 'save'),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+              ),
+              body: MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                    textScaler: TextScaler.linear(_uiTextScaleFactor)),
+                child: Theme(
+                  data: baseTheme.copyWith(
+                    textTheme:
+                        baseTheme.textTheme.apply(fontFamily: _fontFamily),
+                    primaryTextTheme: baseTheme.primaryTextTheme
+                        .apply(fontFamily: _fontFamily),
+                  ),
+                  child: _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _task == null
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Text(
+                                  _status.isEmpty ? 'task not found' : _status,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            )
+                          : SingleChildScrollView(
+                              padding: const EdgeInsets.all(20),
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(maxWidth: 760),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      TextField(
+                                        controller: _titleController,
+                                        autofocus: true,
+                                        decoration: const InputDecoration(
+                                          labelText: 'title',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        onChanged: (_) => setState(() {}),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      TextField(
+                                        controller: _notesController,
+                                        minLines: 10,
+                                        maxLines: 16,
+                                        decoration: const InputDecoration(
+                                          labelText: 'notes',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        onChanged: (_) => setState(() {}),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextField(
+                                              controller: _newSubtaskController,
+                                              decoration: const InputDecoration(
+                                                labelText: 'add subtask',
+                                                border: OutlineInputBorder(),
+                                              ),
+                                              onSubmitted: (_) => _addSubtask(),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          FilledButton(
+                                            onPressed: _addSubtask,
+                                            child: const Text('+'),
+                                          ),
+                                        ],
+                                      ),
+                                      if (_task!.subtasks.isNotEmpty) ...[
+                                        const SizedBox(height: 12),
+                                        ReorderableListView(
+                                          shrinkWrap: true,
+                                          physics:
+                                              const NeverScrollableScrollPhysics(),
+                                          buildDefaultDragHandles: false,
+                                          onReorder: _reorderSubtasks,
+                                          children: [
+                                            for (final step in _task!.subtasks)
+                                              Card(
+                                                key: ValueKey(
+                                                    'task-window-subtask-${step.id}'),
+                                                child: ListTile(
+                                                  leading: Checkbox(
+                                                    value: step.done,
+                                                    onChanged: (value) =>
+                                                        _updateSubtask(
+                                                      step.id,
+                                                      done: value ?? false,
+                                                    ),
+                                                  ),
+                                                  title: TextField(
+                                                    controller:
+                                                        _subtaskControllers[
+                                                            step.id],
+                                                    decoration:
+                                                        const InputDecoration(
+                                                      border: InputBorder.none,
+                                                      isDense: true,
+                                                    ),
+                                                    onChanged: (value) =>
+                                                        _updateSubtask(
+                                                      step.id,
+                                                      text: value,
+                                                    ),
+                                                  ),
+                                                  trailing: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      IconButton(
+                                                        tooltip:
+                                                            'delete subtask',
+                                                        icon: const Icon(
+                                                            Icons.close),
+                                                        onPressed: () =>
+                                                            _removeSubtask(
+                                                                step.id),
+                                                      ),
+                                                      ReorderableDragStartListener(
+                                                        index: _task!.subtasks
+                                                            .indexOf(step),
+                                                        child: const Icon(
+                                                            Icons.drag_handle),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              'stopwatch: ${(() {
+                                                final s =
+                                                    _elapsedSecondsFor(_task!);
+                                                final hh = (s ~/ 3600)
+                                                    .toString()
+                                                    .padLeft(2, '0');
+                                                final mm = ((s % 3600) ~/ 60)
+                                                    .toString()
+                                                    .padLeft(2, '0');
+                                                final ss = (s % 60)
+                                                    .toString()
+                                                    .padLeft(2, '0');
+                                                return '$hh:$mm:$ss';
+                                              })()}',
+                                            ),
+                                          ),
+                                          IconButton(
+                                            tooltip: 'start',
+                                            icon: const Icon(Icons.play_arrow),
+                                            onPressed: _task!.stopwatchRunning
+                                                ? null
+                                                : _startStopwatch,
+                                          ),
+                                          IconButton(
+                                            tooltip: 'stop',
+                                            icon: const Icon(Icons.stop),
+                                            onPressed: _task!.stopwatchRunning
+                                                ? _stopStopwatch
+                                                : null,
+                                          ),
+                                          IconButton(
+                                            tooltip: 'reset',
+                                            icon: const Icon(Icons.restart_alt),
+                                            onPressed:
+                                                (_task!.stopwatchAccumulatedSeconds >
+                                                            0 ||
+                                                        _task!.stopwatchRunning)
+                                                    ? _resetStopwatch
+                                                    : null,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          SizedBox(
+                                            width: 120,
+                                            child: TextField(
+                                              controller:
+                                                  _workMinutesController,
+                                              keyboardType:
+                                                  TextInputType.number,
+                                              decoration: const InputDecoration(
+                                                labelText: 'time spent',
+                                                border: OutlineInputBorder(),
+                                                isDense: true,
+                                              ),
+                                              onChanged: (_) => setState(() {}),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'created: ${_task!.createdAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(_task!.createdAt!) : '-'}',
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'in progress: ${_task!.inProgressAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(_task!.inProgressAt!) : '-'}',
+                                      ),
+                                      const SizedBox(height: 12),
+                                      SwitchListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        value: _task!.inProgress,
+                                        title: const Text('in progress'),
+                                        onChanged: _setInProgress,
+                                      ),
+                                      SwitchListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        value: _task!.important,
+                                        title: const Text('important'),
+                                        onChanged: _setImportant,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              'scheduled: ${_task!.scheduledAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(_task!.scheduledAt!) : '-'}',
+                                            ),
+                                          ),
+                                          IconButton(
+                                            tooltip: 'set schedule',
+                                            icon: const Icon(
+                                                Icons.calendar_today),
+                                            onPressed: _pickSchedule,
+                                          ),
+                                          if (_task!.scheduledAt != null)
+                                            IconButton(
+                                              tooltip: 'clear schedule',
+                                              icon: const Icon(Icons.clear),
+                                              onPressed: _clearSchedule,
+                                            ),
+                                          if (_sourceList ==
+                                              'simplepresent_today.json')
+                                            IconButton(
+                                              tooltip: 'move to backlog',
+                                              icon: const Icon(
+                                                  Icons.arrow_circle_right),
+                                              onPressed: _moveToBacklog,
+                                            ),
+                                          if (_sourceList ==
+                                              'simplepresent_backlog.json')
+                                            IconButton(
+                                              tooltip: 'move to today',
+                                              icon: const Icon(
+                                                  Icons.arrow_circle_left),
+                                              onPressed: _moveToToday,
+                                            ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          const Text('repeat:'),
+                                          const SizedBox(width: 8),
+                                          TextButton(
+                                            onPressed: _showRecurrenceDialog,
+                                            child: Text(_task!.recurrence ==
+                                                        null ||
+                                                    _task!.recurrence!.isEmpty
+                                                ? 'none'
+                                                : _task!.recurrence!),
+                                          ),
+                                          const Spacer(),
+                                          IconButton(
+                                            tooltip: 'duplicate',
+                                            icon: const Icon(Icons.copy),
+                                            onPressed: _duplicateTask,
+                                          ),
+                                          IconButton(
+                                            tooltip: _task!.inProgress
+                                                ? 'remove in progress'
+                                                : 'mark in progress',
+                                            icon: Icon(
+                                              Icons.construction,
+                                              color: _task!.inProgress
+                                                  ? Colors.greenAccent.shade200
+                                                  : Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                            ),
+                                            onPressed: () => _setInProgress(
+                                                !_task!.inProgress),
+                                          ),
+                                          IconButton(
+                                            tooltip: 'important',
+                                            icon: Icon(
+                                              _task!.important
+                                                  ? Icons.star
+                                                  : Icons.star_border,
+                                              color: _task!.important
+                                                  ? Colors.amber
+                                                  : Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                            ),
+                                            onPressed: () => _setImportant(
+                                                !_task!.important),
+                                          ),
+                                        ],
+                                      ),
+                                      if (_status.isNotEmpty) ...[
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          _status,
+                                          style: TextStyle(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class StatsPage extends StatefulWidget {
   const StatsPage({
     super.key,
@@ -9036,6 +10119,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool urgentBringToFrontEnabled;
   late bool swipeEnabled;
   late bool scheduledReminderSoundEnabled;
+  late bool openTasksInSeparateDesktopWindow;
   late String reminderWindowFrom;
   late String reminderWindowTo;
   late double textScaleFactor;
@@ -9249,6 +10333,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool _initialUrgentBringToFrontEnabled;
   late bool _initialSwipeEnabled;
   late bool _initialScheduledReminderSoundEnabled;
+  late bool _initialOpenTasksInSeparateDesktopWindow;
   late String _initialReminderWindowFrom;
   late String _initialReminderWindowTo;
   late double _initialTextScaleFactor;
@@ -9329,6 +10414,8 @@ class _SettingsPageState extends State<SettingsPage> {
     swipeEnabled = readBool('swipeEnabled', true);
     scheduledReminderSoundEnabled =
         readBool('scheduledReminderSoundEnabled', true);
+    openTasksInSeparateDesktopWindow =
+        readBool('openTasksInSeparateDesktopWindow', false);
     reminderWindowFrom = readString('reminderWindowFrom', '09:00');
     reminderWindowTo = readString('reminderWindowTo', '17:00');
     textScaleFactor = readDouble('uiTextScaleFactor', 1.0).clamp(0.5, 1.6);
@@ -9385,6 +10472,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _initialUrgentBringToFrontEnabled = urgentBringToFrontEnabled;
     _initialSwipeEnabled = swipeEnabled;
     _initialScheduledReminderSoundEnabled = scheduledReminderSoundEnabled;
+    _initialOpenTasksInSeparateDesktopWindow = openTasksInSeparateDesktopWindow;
     _initialReminderWindowFrom = reminderWindowFrom;
     _initialReminderWindowTo = reminderWindowTo;
     _initialTextScaleFactor = textScaleFactor;
@@ -9532,6 +10620,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 'urgentNotifyEnabled': urgentNotifyEnabled,
                 'urgentBringToFrontEnabled': urgentBringToFrontEnabled,
                 'swipeEnabled': swipeEnabled,
+                'openTasksInSeparateDesktopWindow':
+                    openTasksInSeparateDesktopWindow,
                 'uiTextScaleFactor': textScaleFactor,
                 'fontFamily': fontFamily,
                 'cloudServerUrl': cloudServerUrl,
@@ -9598,6 +10688,8 @@ class _SettingsPageState extends State<SettingsPage> {
         urgentSoundEnabled != _initialUrgentSoundEnabled ||
         scheduledReminderSoundEnabled !=
             _initialScheduledReminderSoundEnabled ||
+        openTasksInSeparateDesktopWindow !=
+            _initialOpenTasksInSeparateDesktopWindow ||
         urgentFlashEnabled != _initialUrgentFlashEnabled ||
         urgentNotifyEnabled != _initialUrgentNotifyEnabled ||
         urgentBringToFrontEnabled != _initialUrgentBringToFrontEnabled ||
@@ -10089,6 +11181,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       'urgentNotifyEnabled': urgentNotifyEnabled,
                       'urgentBringToFrontEnabled': urgentBringToFrontEnabled,
                       'swipeEnabled': swipeEnabled,
+                      'openTasksInSeparateDesktopWindow':
+                          openTasksInSeparateDesktopWindow,
                       'uiTextScaleFactor': textScaleFactor,
                       'scheduledReminderSoundEnabled':
                           scheduledReminderSoundEnabled,
@@ -10405,6 +11499,15 @@ class _SettingsPageState extends State<SettingsPage> {
                       'play a sound for scheduled task reminders (15min and due)'),
                   onChanged: (v) =>
                       setState(() => scheduledReminderSoundEnabled = v),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  value: openTasksInSeparateDesktopWindow,
+                  title: const Text('open desktop tasks in a separate window'),
+                  subtitle: const Text(
+                      'on desktop, open a task in its own window instead of expanding it in the list.'),
+                  onChanged: (v) =>
+                      setState(() => openTasksInSeparateDesktopWindow = v),
                 ),
                 const SizedBox(height: 8),
                 const Divider(),

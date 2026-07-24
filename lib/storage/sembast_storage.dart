@@ -80,6 +80,61 @@ class SembastStorage {
     } catch (_) {}
   }
 
+  Future<void> refresh() async {
+    final currentDb = _db;
+    if (_dbPath.isEmpty) return;
+    try {
+      await currentDb?.close();
+    } catch (_) {}
+    try {
+      _db = await databaseFactoryIo.openDatabase(_dbPath);
+    } catch (_) {
+      _db = currentDb;
+    }
+    final db = _db;
+    if (db == null) return;
+    _listsCache.clear();
+    _rawCache.clear();
+    _timeCache.clear();
+
+    try {
+      final recs = await _listsStore.find(db);
+      for (final r in recs) {
+        final key = r.key;
+        final val = r.value;
+        if (val is List) {
+          _listsCache[key] = val
+              .whereType<Map>()
+              .map((m) => Map<String, dynamic>.from(m))
+              .toList();
+        }
+      }
+    } catch (_) {}
+
+    try {
+      final recs = await _rawStore.find(db);
+      for (final r in recs) {
+        final key = r.key;
+        final val = r.value;
+        if (val is String) _rawCache[key] = val;
+      }
+    } catch (_) {}
+
+    try {
+      final recs = await _timeStore.find(db);
+      for (final r in recs) {
+        final key = r.key;
+        final val = r.value;
+        if (val is List) {
+          _timeCache[key] = val
+              .whereType<Map>()
+              .map((m) => Map<String, dynamic>.from(m))
+              .toList();
+        }
+      }
+    } catch (_) {}
+  }
+
   List<Map<String, dynamic>> readTaskList(String listName) {
     final key = _canonicalKey(listName);
     final list = _listsCache[key];
@@ -89,17 +144,18 @@ class SembastStorage {
         list.map((m) => Map<String, dynamic>.from(m)));
   }
 
-  void writeTaskList(String listName, List<Map<String, dynamic>> items) {
+  Future<void> writeTaskList(
+      String listName, List<Map<String, dynamic>> items) {
     final key = _canonicalKey(listName);
     // update cache
     _listsCache[key] = List<Map<String, dynamic>>.from(
         items.map((m) => Map<String, dynamic>.from(m)));
     // persist async
-    unawaited(() async {
+    return () async {
       try {
         await _listsStore.record(key).put(_db!, items);
       } catch (_) {}
-    }());
+    }();
   }
 
   bool taskListExists(String listName) {
