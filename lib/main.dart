@@ -1808,6 +1808,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Timer? _cloudPullTimer;
   Timer? _cloudBackgroundSyncTimer;
   bool _autoPromoteDueBacklogBusy = false;
+  bool _resumeSyncMigrationBusy = false;
   DateTime? _lastPromoteDueBacklogNoopLogAt;
   bool _cloudSyncBusy = false;
   bool _applyingCloudState = false;
@@ -1838,6 +1839,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Set<String> _cloudKnownBacklogIds = <String>{};
   Set<String> _cloudKnownDoneIds = <String>{};
   Set<String> _cloudKnownTrashIds = <String>{};
+  // Local per-task sync metadata. The task JSON stays focused on task data;
+  // these values record when this device last changed that task.
+  final Map<String, int> _localTaskModifiedAt = <String, int>{};
+  final Map<String, String> _localTaskSyncSnapshots = <String, String>{};
 
   Duration get _idleDuration => Duration(minutes: _idleMinutes.clamp(1, 720));
   Duration get _attentionDuration =>
@@ -1945,12 +1950,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       _cloudBackgroundSyncTimer?.cancel();
       if (!_initializationComplete) return;
-      unawaited(_runDailyMigrationIfNeeded());
-      unawaited(_promoteDueBacklogToToday(showToast: false));
+      unawaited(_syncBeforeDailyMigration());
     } else if (Platform.isAndroid &&
         (state == AppLifecycleState.paused ||
             state == AppLifecycleState.inactive)) {
       _startAndroidBackgroundSyncTimer();
+    }
+  }
+
+  Future<void> _syncBeforeDailyMigration() async {
+    if (_resumeSyncMigrationBusy) return;
+    _resumeSyncMigrationBusy = true;
+    try {
+      if (_cloudSyncConfigured) {
+        await _drainPushQueue();
+        await _syncPullFromCloud();
+      }
+      await _runDailyMigrationIfNeeded();
+      await _promoteDueBacklogToToday(showToast: false);
+    } catch (e, st) {
+      unawaited(_debugLog('resume sync before migration failed: $e\n$st'));
+    } finally {
+      _resumeSyncMigrationBusy = false;
     }
   }
 
@@ -2105,6 +2126,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final f = await _fileFor(_storage('simplepresent_debug.log'));
       await _appendQueuedDebugLog(() async => f, msg);
     } catch (_) {}
+  }
+
+  String _taskSyncSignature(TaskItem task) => jsonEncode(task.toJson());
+
+  void _rememberLoadedTasks(Iterable<TaskItem> tasks) {
+    for (final task in tasks) {
+      _localTaskSyncSnapshots[task.id] = _taskSyncSignature(task);
+    }
+  }
+
+  Future<void> _logTaskSyncDecision({
+    required TaskItem task,
+    required String listName,
+    required String decision,
+    required int localModifiedAt,
+    required int serverModifiedAt,
+  }) async {
+    final message =
+        'task sync: id=${task.id} list=$listName decision=$decision '
+        'local_modified_at=$localModifiedAt server_modified_at=$serverModifiedAt';
+    await Future.wait([
+      _debugLog(message),
+      _appendRedoLog('sync_task_$decision', taskId: task.id, details: {
+        'list': listName,
+        'local_modified_at': localModifiedAt,
+        'server_modified_at': serverModifiedAt,
+      }),
+    ]);
   }
 
   Future<void> _shareDebugLog() async {
@@ -2519,6 +2568,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           }
         }
         _dedupeTaskIdsInPlace(target, filename);
+        _rememberLoadedTasks(target);
         return;
       }
       if (_isListDir(filename)) {
@@ -2536,6 +2586,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           }
         }
         _dedupeTaskIdsInPlace(target, filename);
+        _rememberLoadedTasks(target);
         return;
       }
       final f = await _fileFor(filename);
@@ -2552,6 +2603,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
       }
       _dedupeTaskIdsInPlace(target, filename);
+      _rememberLoadedTasks(target);
     } catch (e) {
       unawaited(_debugLog('loadList failed: file=$filename error=$e'));
     }
@@ -3188,6 +3240,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await (_storageWriteChain =
         _storageWriteChain.catchError((_) {}).then((_) async {
       try {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        if (!_applyingCloudState) {
+          for (final task in source) {
+            final signature = _taskSyncSignature(task);
+            final previous = _localTaskSyncSnapshots[task.id];
+            if (previous != signature) {
+              final previousModifiedAt = _localTaskModifiedAt[task.id] ?? 0;
+              _localTaskModifiedAt[task.id] =
+                  math.max(now, previousModifiedAt + 1);
+            }
+            _localTaskSyncSnapshots[task.id] = signature;
+          }
+          unawaited(_saveSettings());
+        }
         unawaited(_debugLog(
             'saveList start: $filename count=${source.length} sembast=$_useSembast listdir=${_isListDir(filename)}'));
         final encoder = const JsonEncoder.withIndent('  ');
@@ -4658,7 +4724,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'done': done,
         'trash': trash,
       };
-      final pulledTasks = <({TaskItem task, String listName, int position})>[];
+      final pulledTasks = <({
+        TaskItem task,
+        String listName,
+        int position,
+        int serverModifiedAt
+      })>[];
+      final localWinnerIds = <String>{};
+      final localWinnerSnapshots = <String, List<TaskItem>>{};
 
       _applyingCloudState = true;
       var maxModifiedAt = _cloudLastSyncModifiedAt;
@@ -4674,6 +4747,39 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
           if (item.tombstone) {
             if (item.id.startsWith('task:')) {
+              TaskItem? localTask;
+              String? localListName;
+              for (final entry in listMap.entries) {
+                for (final candidate in entry.value) {
+                  if (candidate.id == taskId) {
+                    localTask = candidate;
+                    localListName = entry.key;
+                    break;
+                  }
+                }
+                if (localTask != null) break;
+              }
+              final localModifiedAt = _localTaskModifiedAt[taskId] ?? 0;
+              if (localTask != null && localModifiedAt > item.modifiedAt) {
+                localWinnerIds.add(taskId);
+                await _logTaskSyncDecision(
+                  task: localTask,
+                  listName: localListName ?? 'unknown',
+                  decision: 'local_newer',
+                  localModifiedAt: localModifiedAt,
+                  serverModifiedAt: item.modifiedAt,
+                );
+                continue;
+              }
+              if (localTask != null) {
+                await _logTaskSyncDecision(
+                  task: localTask,
+                  listName: localListName ?? 'unknown',
+                  decision: 'server_newer',
+                  localModifiedAt: localModifiedAt,
+                  serverModifiedAt: item.modifiedAt,
+                );
+              }
               for (final list in listMap.values) {
                 list.removeWhere((t) => t.id == taskId);
               }
@@ -4749,8 +4855,84 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           if (taskRaw is! Map || !listMap.containsKey(listName)) continue;
 
           final task = TaskItem.fromJson(Map<String, dynamic>.from(taskRaw));
-          pulledTasks.add((task: task, listName: listName, position: position));
+          pulledTasks.add((
+            task: task,
+            listName: listName,
+            position: position,
+            serverModifiedAt: item.modifiedAt,
+          ));
         }
+
+        final decisions = <({
+          TaskItem task,
+          String listName,
+          int position,
+          int serverModifiedAt
+        })>[];
+        for (final pulled in pulledTasks) {
+          TaskItem? localTask;
+          String? localListName;
+          for (final entry in listMap.entries) {
+            for (final candidate in entry.value) {
+              if (candidate.id == pulled.task.id) {
+                localTask = candidate;
+                localListName = entry.key;
+                break;
+              }
+            }
+            if (localTask != null) break;
+          }
+
+          final localModifiedAt = _localTaskModifiedAt[pulled.task.id] ?? 0;
+          final serverModifiedAt = pulled.serverModifiedAt;
+          if (localTask == null) {
+            await _logTaskSyncDecision(
+              task: pulled.task,
+              listName: pulled.listName,
+              decision: 'server_newer',
+              localModifiedAt: 0,
+              serverModifiedAt: serverModifiedAt,
+            );
+            decisions.add(pulled);
+            continue;
+          }
+
+          final sameContent =
+              _taskSyncSignature(localTask) == _taskSyncSignature(pulled.task);
+          if (sameContent) {
+            _localTaskModifiedAt[pulled.task.id] =
+                math.max(localModifiedAt, serverModifiedAt);
+            await _logTaskSyncDecision(
+              task: pulled.task,
+              listName: pulled.listName,
+              decision: 'identical',
+              localModifiedAt: localModifiedAt,
+              serverModifiedAt: serverModifiedAt,
+            );
+            decisions.add(pulled);
+          } else if (localModifiedAt > serverModifiedAt) {
+            localWinnerIds.add(pulled.task.id);
+            await _logTaskSyncDecision(
+              task: localTask,
+              listName: localListName ?? pulled.listName,
+              decision: 'local_newer',
+              localModifiedAt: localModifiedAt,
+              serverModifiedAt: serverModifiedAt,
+            );
+          } else {
+            await _logTaskSyncDecision(
+              task: pulled.task,
+              listName: pulled.listName,
+              decision: 'server_newer',
+              localModifiedAt: localModifiedAt,
+              serverModifiedAt: serverModifiedAt,
+            );
+            decisions.add(pulled);
+          }
+        }
+        pulledTasks
+          ..clear()
+          ..addAll(decisions);
 
         final pulledTaskIds = pulledTasks.map((item) => item.task.id).toSet();
         for (final list in listMap.values) {
@@ -4790,6 +4972,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             _storage('simplepresent_backlog.json'), backlog);
         await _queueReplaceList(_storage('simplepresent_done.json'), done);
         await _queueReplaceList(_storage('simplepresent_trash.json'), trash);
+        for (final listName in listMap.keys) {
+          if (listMap[listName]!
+              .any((task) => localWinnerIds.contains(task.id))) {
+            localWinnerSnapshots[_storage('simplepresent_$listName.json')] =
+                List<TaskItem>.from(listMap[listName]!);
+          }
+        }
         await _loadToday();
         _cloudKnownTodayIds
           ..clear()
@@ -4809,6 +4998,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         } catch (_) {}
       } finally {
         _applyingCloudState = false;
+      }
+
+      if (localWinnerSnapshots.isNotEmpty) {
+        await _enqueuePushBatch(localWinnerSnapshots);
+        unawaited(_debugLog(
+            'syncPullFromCloud: queued local task winners=${localWinnerIds.length}'));
       }
 
       _cloudLastSyncModifiedAt = maxModifiedAt;
@@ -5112,6 +5307,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (cloudModifiedAt is num) {
           _cloudLastSyncModifiedAt = cloudModifiedAt.toInt();
         }
+        final localTaskModifiedAt = data['localTaskModifiedAt'];
+        if (localTaskModifiedAt is Map) {
+          _localTaskModifiedAt.clear();
+          for (final entry in localTaskModifiedAt.entries) {
+            final value = entry.value;
+            if (value is num) {
+              _localTaskModifiedAt[entry.key.toString()] = value.toInt();
+            }
+          }
+        }
         final cloudLastSuccessAt = data['cloudLastSyncSuccessAt'];
         if (cloudLastSuccessAt is num) {
           _cloudLastSyncSuccessAt = cloudLastSuccessAt.toInt();
@@ -5233,6 +5438,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'cloudAllowInsecureTls': _cloudAllowInsecureTls,
         'cloudStateVersion': _cloudStateVersion,
         'cloudLastSyncModifiedAt': _cloudLastSyncModifiedAt,
+        'localTaskModifiedAt': _localTaskModifiedAt,
         'cloudLastSyncSuccessAt': _cloudLastSyncSuccessAt,
         'cloudSyncFailed': _cloudSyncFailed,
         'cloudSyncLastError': _cloudSyncLastError,
