@@ -1,7 +1,7 @@
 name: simple_present
 description: A simple task management system focused on present tasks.
 publish_to: "none"
-version: 0.9.30+930
+version: 0.9.3!+931
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
