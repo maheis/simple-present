@@ -56,11 +56,13 @@ class TodayWidgetProvider : AppWidgetProvider() {
             val rootLayout = when (family) {
                 "NotoSans" -> R.layout.today_widget_noto_sans
                 "CourierPrime" -> R.layout.today_widget_courier_prime
+                "UbuntuMono" -> R.layout.today_widget
                 else -> R.layout.today_widget
             }
             val itemLayout = when (family) {
                 "NotoSans" -> R.layout.today_widget_item_noto_sans
                 "CourierPrime" -> R.layout.today_widget_item_courier_prime
+                "UbuntuMono" -> R.layout.today_widget_item
                 else -> R.layout.today_widget_item
             }
 
@@ -170,7 +172,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
             return when (family) {
                 "NotoSans" -> if (bold) R.font.noto_sans_bold else R.font.noto_sans_regular
                 "CourierPrime" -> if (bold) R.font.courier_prime_bold else R.font.courier_prime_regular
-                else -> if (bold) R.font.open_dyslexic_bold else R.font.open_dyslexic_regular
+                "UbuntuMono" -> if (bold) R.font.ubuntu_mono_bold else R.font.ubuntu_mono_regular
+                "OpenDyslexic" -> if (bold) R.font.open_dyslexic_bold else R.font.open_dyslexic_regular
+                else -> if (bold) R.font.ubuntu_bold else R.font.ubuntu_regular
             }
         }
     }
