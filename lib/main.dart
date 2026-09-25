@@ -1451,18 +1451,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Map<String, TextEditingController> _workControllers = {};
   List<Map<String, dynamic>> _subtaskTemplates = <Map<String, dynamic>>[];
 
-  Future<void> _searchExistingTasksForNewTask(String value) async {
+  Future<Map<String, List<TaskItem>>> _findTasks(String value) async {
     final query = value.trim().toLowerCase();
-    final generation = ++_newTaskSearchGeneration;
-    if (query.isEmpty || _showingDone) {
-      if (mounted) {
-        setState(() {
-          _newTaskSearchQuery = '';
-          _newTaskSearchResults = const {};
-        });
-      }
-      return;
-    }
+    if (query.isEmpty) return const {};
 
     final lists = <String, List<TaskItem>>{
       'today': <TaskItem>[],
@@ -1476,7 +1467,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         entry.value,
       );
     }
-    if (!mounted || generation != _newTaskSearchGeneration) return;
 
     final matches = <String, List<TaskItem>>{};
     for (final entry in lists.entries) {
@@ -1495,6 +1485,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       });
       if (matchingTasks.isNotEmpty) matches[entry.key] = matchingTasks;
     }
+    return matches;
+  }
+
+  Future<void> _searchExistingTasksForNewTask(String value) async {
+    final query = value.trim().toLowerCase();
+    final generation = ++_newTaskSearchGeneration;
+    if (query.isEmpty || _showingDone) {
+      if (mounted) {
+        setState(() {
+          _newTaskSearchQuery = '';
+          _newTaskSearchResults = const {};
+        });
+      }
+      return;
+    }
+
+    final matches = await _findTasks(query);
+    if (!mounted || generation != _newTaskSearchGeneration) return;
     setState(() {
       _newTaskSearchQuery = query;
       _newTaskSearchResults = matches;
@@ -1597,6 +1605,126 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _moveBacklogSearchTaskToToday(TaskItem task) async {
     _clearNewTaskSearch();
     await _moveFromBacklog(task.id);
+  }
+
+  Future<void> _showGlobalTaskSearch() async {
+    final searchController = TextEditingController();
+    Map<String, List<TaskItem>> results = const {};
+    var loading = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          Future<void> search(String value) async {
+            final query = value.trim();
+            if (query.isEmpty) {
+              setDialogState(() {
+                results = const {};
+                loading = false;
+              });
+              return;
+            }
+            setDialogState(() => loading = true);
+            final found = await _findTasks(query);
+            if (!dialogContext.mounted) return;
+            setDialogState(() {
+              results = found;
+              loading = false;
+            });
+          }
+
+          Future<void> handleAction(String sourceList, TaskItem task) async {
+            Navigator.of(dialogContext).pop();
+            if (sourceList == 'backlog') {
+              await _moveFromBacklog(task.id);
+            } else if (sourceList == 'done' || sourceList == 'trash') {
+              await _reactivateExistingTask(sourceList, task);
+            } else {
+              await _openExistingTask(sourceList, task);
+            }
+          }
+
+          return AlertDialog(
+            title: const Text('Search tasks'),
+            content: SizedBox(
+              width: 620,
+              height: 460,
+              child: Column(
+                children: [
+                  TextField(
+                    controller: searchController,
+                    autofocus: true,
+                    onChanged: (value) => unawaited(search(value)),
+                    decoration: const InputDecoration(
+                      hintText: 'Search tasks and notes',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: loading
+                        ? const Center(child: CircularProgressIndicator())
+                        : results.isEmpty
+                            ? const Center(child: Text('No matching tasks'))
+                            : ListView(
+                                children: [
+                                  for (final entry in results.entries) ...[
+                                    Padding(
+                                      padding:
+                                          const EdgeInsets.fromLTRB(4, 8, 4, 4),
+                                      child: Text(
+                                        _newTaskSearchListTitle(entry.key),
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    for (final task in entry.value)
+                                      ListTile(
+                                        dense: true,
+                                        title: Text(
+                                          task.text,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        subtitle: Text(
+                                          task.notes?.trim().isNotEmpty == true
+                                              ? task.notes!.trim()
+                                              : _newTaskSearchDateLabel(task),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        trailing: TextButton(
+                                          onPressed: () =>
+                                              handleAction(entry.key, task),
+                                          child: Text(entry.key == 'backlog'
+                                              ? 'move to today'
+                                              : (entry.key == 'done' ||
+                                                      entry.key == 'trash'
+                                                  ? 'reactivate'
+                                                  : 'open')),
+                                        ),
+                                        onTap: () =>
+                                            handleAction(entry.key, task),
+                                      ),
+                                  ],
+                                ],
+                              ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    searchController.dispose();
   }
 
   Widget _buildNewTaskSearchResults() {
@@ -9301,361 +9429,327 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               return _buildFancyLoadingScreen(context);
             }
 
-            return Scaffold(
-              body: Stack(
-                children: [
-                  Listener(
-                    onPointerDown: (_) => _registerActivity(),
-                    onPointerMove: _collectMouseEntropy,
-                    // Task zoom via pointer signals disabled
-                    onPointerSignal: (_) {},
-                    child: GestureDetector(
-                      // Pinch-to-zoom disabled for tasks
-                      onScaleStart: (_) {},
-                      onScaleUpdate: (_) {},
-                      behavior: HitTestBehavior.translucent,
-                      onTap: () {
-                        if (!Platform.isAndroid) _requestInputFocusIfIdle();
-                        _registerActivity();
-                      },
-                      child: Column(
-                        children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 220),
-                            curve: Curves.easeOutCubic,
-                            height: Platform.isAndroid
-                                ? MediaQuery.of(context).padding.top
-                                : 0.0,
-                          ),
-                          Expanded(
-                            child: AnimatedContainer(
+            return CallbackShortcuts(
+              bindings: <ShortcutActivator, VoidCallback>{
+                const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+                    _showGlobalTaskSearch,
+                const SingleActivator(LogicalKeyboardKey.keyF, meta: true):
+                    _showGlobalTaskSearch,
+              },
+              child: Scaffold(
+                body: Stack(
+                  children: [
+                    Listener(
+                      onPointerDown: (_) => _registerActivity(),
+                      onPointerMove: _collectMouseEntropy,
+                      // Task zoom via pointer signals disabled
+                      onPointerSignal: (_) {},
+                      child: GestureDetector(
+                        // Pinch-to-zoom disabled for tasks
+                        onScaleStart: (_) {},
+                        onScaleUpdate: (_) {},
+                        behavior: HitTestBehavior.translucent,
+                        onTap: () {
+                          if (!Platform.isAndroid) _requestInputFocusIfIdle();
+                          _registerActivity();
+                        },
+                        child: Column(
+                          children: [
+                            AnimatedContainer(
                               duration: const Duration(milliseconds: 220),
                               curve: Curves.easeOutCubic,
-                              padding: const EdgeInsets.fromLTRB(12, 22, 6, 8),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 220),
-                                    switchInCurve: Curves.easeOutCubic,
-                                    switchOutCurve: Curves.easeInCubic,
-                                    child: Row(
-                                      key: const ValueKey('header_visible'),
-                                      children: [
-                                        // Left arrow moved to the far left of the header row
-                                        IconButton(
-                                          icon: Icon(_showingDone
-                                              ? Icons.arrow_back
-                                              : Icons.arrow_back_ios),
-                                          tooltip: _showingDone
-                                              ? 'Back'
-                                              : 'Previous',
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(
-                                              minWidth: 28, minHeight: 28),
-                                          visualDensity: VisualDensity.compact,
-                                          onPressed: () async {
-                                            if (_showingDone) {
-                                              await _switchFile(false);
-                                            } else {
-                                              await _cycleView(false);
-                                            }
-                                          },
-                                        ),
-                                        Expanded(
-                                          child: Row(
-                                            children: [
-                                              Padding(
-                                                padding: const EdgeInsets.only(
-                                                    top: 0),
-                                                child: SvgPicture.asset(
-                                                  _showingBacklog
-                                                      ? 'assets/icons/white_transparent_backlog.svg'
-                                                      : (_showingDone
-                                                          ? 'assets/icons/white_transparent_done.svg'
-                                                          : (_showingTrash
-                                                              ? 'assets/icons/white_transparent_trash.svg'
-                                                              : 'assets/icons/white_transparent_today.svg')),
-                                                  width: 28,
-                                                  height: 28,
-                                                  color: Color(
-                                                      _accentColorNotifier
-                                                          .value),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child:
-                                                    (_showingDone ||
-                                                            _showingTrash)
-                                                        ? SizedBox(
-                                                            height: 44,
-                                                            child: TextField(
-                                                              controller: _showingDone
-                                                                  ? _doneSearchController
-                                                                  : _trashSearchController,
-                                                              onChanged: (v) =>
-                                                                  setState(() {
-                                                                if (_showingDone) {
-                                                                  _doneSearchQuery =
-                                                                      v.trim();
-                                                                } else {
-                                                                  _trashSearchQuery =
-                                                                      v.trim();
-                                                                }
-                                                              }),
-                                                              decoration:
-                                                                  InputDecoration(
-                                                                hintText: _showingDone
-                                                                    ? 'Search done'
-                                                                    : 'Search trash',
-                                                                isDense: true,
-                                                                contentPadding:
-                                                                    const EdgeInsets
-                                                                        .symmetric(
-                                                                        vertical:
-                                                                            10,
-                                                                        horizontal:
-                                                                            12),
-                                                                suffixIcon: (_showingDone
-                                                                            ? _doneSearchQuery
-                                                                            : _trashSearchQuery)
-                                                                        .isNotEmpty
-                                                                    ? IconButton(
-                                                                        icon: const Icon(
-                                                                            Icons.clear),
-                                                                        onPressed:
-                                                                            () {
-                                                                          setState(
-                                                                              () {
-                                                                            if (_showingDone) {
-                                                                              _doneSearchController.clear();
-                                                                              _doneSearchQuery = '';
-                                                                            } else {
-                                                                              _trashSearchController.clear();
-                                                                              _trashSearchQuery = '';
-                                                                            }
-                                                                          });
-                                                                        },
-                                                                      )
-                                                                    : null,
-                                                              ),
-                                                            ),
-                                                          )
-                                                        : Text(
-                                                            _showingBacklog
-                                                                ? 'backlog'
-                                                                : (_showingTrash
-                                                                    ? 'trash'
-                                                                    : 'today'),
-                                                            style: const TextStyle(
-                                                                    fontSize:
-                                                                        24,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w700)
-                                                                .copyWith(
-                                                                    fontFamily:
-                                                                        _fontFamily),
-                                                            maxLines: 2,
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                          ),
-                                              ),
-                                              const SizedBox(width: 8.0),
-                                              Text(
-                                                (_showingBacklog
-                                                        ? _countBacklog
-                                                        : (_showingDone
-                                                            ? _countDone
-                                                            : (_showingTrash
-                                                                ? _countTrash
-                                                                : _countToday)))
-                                                    .toString(),
-                                                style: const TextStyle(
-                                                    fontSize: 14,
-                                                    fontWeight:
-                                                        FontWeight.w400),
-                                              ),
-                                            ],
+                              height: Platform.isAndroid
+                                  ? MediaQuery.of(context).padding.top
+                                  : 0.0,
+                            ),
+                            Expanded(
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 220),
+                                curve: Curves.easeOutCubic,
+                                padding:
+                                    const EdgeInsets.fromLTRB(12, 22, 6, 8),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    AnimatedSwitcher(
+                                      duration:
+                                          const Duration(milliseconds: 220),
+                                      switchInCurve: Curves.easeOutCubic,
+                                      switchOutCurve: Curves.easeInCubic,
+                                      child: Row(
+                                        key: const ValueKey('header_visible'),
+                                        children: [
+                                          // Left arrow moved to the far left of the header row
+                                          IconButton(
+                                            icon: Icon(_showingDone
+                                                ? Icons.arrow_back
+                                                : Icons.arrow_back_ios),
+                                            tooltip: _showingDone
+                                                ? 'Back'
+                                                : 'Previous',
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(
+                                                minWidth: 28, minHeight: 28),
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            onPressed: () async {
+                                              if (_showingDone) {
+                                                await _switchFile(false);
+                                              } else {
+                                                await _cycleView(false);
+                                              }
+                                            },
                                           ),
-                                        ),
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            PopupMenuButton<String>(
-                                              icon: Icon(Icons.more_vert,
-                                                  color: Color(
-                                                      _accentColorNotifier
-                                                          .value)),
-                                              onSelected: (v) async {
-                                                await _finalizeAllEdits();
-                                                if (v == 'stats')
-                                                  await _openStats();
-                                                else if (v == 'settings')
-                                                  await _openSettings();
-                                                else if (v == 'notes')
-                                                  await _openNotes();
-                                                else if (v == 'export')
-                                                  await _exportViaChooser();
-                                                else if (v == 'backups')
-                                                  await _showAutomaticBackups();
-                                                else if (v == 'import')
-                                                  await _importViaChooser();
-                                                else if (v == 'redo') {
-                                                  final res = await Navigator
-                                                          .of(context)
-                                                      .push(MaterialPageRoute(
-                                                          builder: (ctx) =>
-                                                              const RedoLogPage()));
-                                                  if (res is Map &&
-                                                      res['undo'] == true &&
-                                                      res['entry'] is Map<
-                                                          String, dynamic>) {
-                                                    try {
-                                                      await _loadToday();
-                                                    } catch (_) {}
-                                                    try {
-                                                      _showTopToast(
-                                                          'undo applied');
-                                                    } catch (_) {}
-                                                  } else if (res == true) {
-                                                    try {
-                                                      await _loadToday();
-                                                    } catch (_) {}
-                                                    try {
-                                                      _showTopToast(
-                                                          'undo applied');
-                                                    } catch (_) {}
+                                          Expanded(
+                                            child: Row(
+                                              children: [
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                          top: 0),
+                                                  child: SvgPicture.asset(
+                                                    _showingBacklog
+                                                        ? 'assets/icons/white_transparent_backlog.svg'
+                                                        : (_showingDone
+                                                            ? 'assets/icons/white_transparent_done.svg'
+                                                            : (_showingTrash
+                                                                ? 'assets/icons/white_transparent_trash.svg'
+                                                                : 'assets/icons/white_transparent_today.svg')),
+                                                    width: 28,
+                                                    height: 28,
+                                                    color: Color(
+                                                        _accentColorNotifier
+                                                            .value),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child:
+                                                      (_showingDone ||
+                                                              _showingTrash)
+                                                          ? SizedBox(
+                                                              height: 44,
+                                                              child: TextField(
+                                                                controller: _showingDone
+                                                                    ? _doneSearchController
+                                                                    : _trashSearchController,
+                                                                onChanged: (v) =>
+                                                                    setState(
+                                                                        () {
+                                                                  if (_showingDone) {
+                                                                    _doneSearchQuery =
+                                                                        v.trim();
+                                                                  } else {
+                                                                    _trashSearchQuery =
+                                                                        v.trim();
+                                                                  }
+                                                                }),
+                                                                decoration:
+                                                                    InputDecoration(
+                                                                  hintText: _showingDone
+                                                                      ? 'Search done'
+                                                                      : 'Search trash',
+                                                                  isDense: true,
+                                                                  contentPadding: const EdgeInsets
+                                                                      .symmetric(
+                                                                      vertical:
+                                                                          10,
+                                                                      horizontal:
+                                                                          12),
+                                                                  suffixIcon: (_showingDone
+                                                                              ? _doneSearchQuery
+                                                                              : _trashSearchQuery)
+                                                                          .isNotEmpty
+                                                                      ? IconButton(
+                                                                          icon:
+                                                                              const Icon(Icons.clear),
+                                                                          onPressed:
+                                                                              () {
+                                                                            setState(() {
+                                                                              if (_showingDone) {
+                                                                                _doneSearchController.clear();
+                                                                                _doneSearchQuery = '';
+                                                                              } else {
+                                                                                _trashSearchController.clear();
+                                                                                _trashSearchQuery = '';
+                                                                              }
+                                                                            });
+                                                                          },
+                                                                        )
+                                                                      : null,
+                                                                ),
+                                                              ),
+                                                            )
+                                                          : Text(
+                                                              _showingBacklog
+                                                                  ? 'backlog'
+                                                                  : (_showingTrash
+                                                                      ? 'trash'
+                                                                      : 'today'),
+                                                              style: const TextStyle(
+                                                                      fontSize:
+                                                                          24,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w700)
+                                                                  .copyWith(
+                                                                      fontFamily:
+                                                                          _fontFamily),
+                                                              maxLines: 2,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                            ),
+                                                ),
+                                                const SizedBox(width: 8.0),
+                                                Text(
+                                                  (_showingBacklog
+                                                          ? _countBacklog
+                                                          : (_showingDone
+                                                              ? _countDone
+                                                              : (_showingTrash
+                                                                  ? _countTrash
+                                                                  : _countToday)))
+                                                      .toString(),
+                                                  style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w400),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              PopupMenuButton<String>(
+                                                icon: Icon(Icons.more_vert,
+                                                    color: Color(
+                                                        _accentColorNotifier
+                                                            .value)),
+                                                onSelected: (v) async {
+                                                  await _finalizeAllEdits();
+                                                  if (v == 'stats')
+                                                    await _openStats();
+                                                  else if (v == 'settings')
+                                                    await _openSettings();
+                                                  else if (v == 'notes')
+                                                    await _openNotes();
+                                                  else if (v == 'export')
+                                                    await _exportViaChooser();
+                                                  else if (v == 'backups')
+                                                    await _showAutomaticBackups();
+                                                  else if (v == 'import')
+                                                    await _importViaChooser();
+                                                  else if (v == 'redo') {
+                                                    final res = await Navigator
+                                                            .of(context)
+                                                        .push(MaterialPageRoute(
+                                                            builder: (ctx) =>
+                                                                const RedoLogPage()));
+                                                    if (res is Map &&
+                                                        res['undo'] == true &&
+                                                        res['entry'] is Map<
+                                                            String, dynamic>) {
+                                                      try {
+                                                        await _loadToday();
+                                                      } catch (_) {}
+                                                      try {
+                                                        _showTopToast(
+                                                            'undo applied');
+                                                      } catch (_) {}
+                                                    } else if (res == true) {
+                                                      try {
+                                                        await _loadToday();
+                                                      } catch (_) {}
+                                                      try {
+                                                        _showTopToast(
+                                                            'undo applied');
+                                                      } catch (_) {}
+                                                    }
+                                                  } else if (v == 'done') {
+                                                    await _switchFile(true);
+                                                  } else if (v == 'trash') {
+                                                    await _switchToTrash();
+                                                  } else if (v ==
+                                                      'empty_done') {
+                                                    await _emptyDone();
+                                                  } else if (v ==
+                                                      'empty_trash') {
+                                                    await _emptyTrash();
                                                   }
-                                                } else if (v == 'done') {
-                                                  await _switchFile(true);
-                                                } else if (v == 'trash') {
-                                                  await _switchToTrash();
-                                                } else if (v == 'empty_done') {
-                                                  await _emptyDone();
-                                                } else if (v == 'empty_trash') {
-                                                  await _emptyTrash();
-                                                }
-                                              },
-                                              itemBuilder: (ctx) {
-                                                final items =
-                                                    <PopupMenuEntry<String>>[];
-                                                items.add(PopupMenuItem(
-                                                    value: 'stats',
-                                                    child: Row(children: [
-                                                      _menuSvgIcon(ctx,
-                                                          'assets/icons/white_transparent_statistic.svg'),
-                                                      const SizedBox(width: 8),
-                                                      const Text('statistics')
-                                                    ])));
-                                                items.add(PopupMenuItem(
-                                                    value: 'settings',
-                                                    child: Row(children: [
-                                                      _menuSvgIcon(ctx,
-                                                          'assets/icons/white_transparent_settings.svg'),
-                                                      const SizedBox(width: 8),
-                                                      const Text('settings')
-                                                    ])));
-                                                items.add(PopupMenuItem(
-                                                    value: 'notes',
-                                                    child: Row(children: [
-                                                      _menuSvgIcon(ctx,
-                                                          'assets/icons/white_transparent_notes.svg'),
-                                                      const SizedBox(width: 8),
-                                                      const Text('notes')
-                                                    ])));
-                                                items.add(PopupMenuItem(
-                                                    value: 'redo',
-                                                    child: Row(children: [
-                                                      _menuSvgIcon(ctx,
-                                                          'assets/icons/white_transparent_redo.svg'),
-                                                      const SizedBox(width: 8),
-                                                      const Text('redo log')
-                                                    ])));
-                                                items.add(PopupMenuItem(
-                                                    value: 'export',
-                                                    child: Row(children: [
-                                                      Icon(
-                                                          Icons
-                                                              .download_rounded,
-                                                          size: 18,
-                                                          color: Color(
-                                                              _accentColorNotifier
-                                                                  .value)),
-                                                      const SizedBox(width: 8),
-                                                      const Text('export')
-                                                    ])));
-                                                items.add(PopupMenuItem(
-                                                    value: 'import',
-                                                    child: Row(children: [
-                                                      Icon(Icons.upload_rounded,
-                                                          size: 18,
-                                                          color: Color(
-                                                              _accentColorNotifier
-                                                                  .value)),
-                                                      const SizedBox(width: 8),
-                                                      const Text('import')
-                                                    ])));
-                                                items.add(PopupMenuItem(
-                                                    value: 'backups',
-                                                    child: Row(children: [
-                                                      Icon(Icons.restore,
-                                                          size: 18,
-                                                          color: Color(
-                                                              _accentColorNotifier
-                                                                  .value)),
-                                                      const SizedBox(width: 8),
-                                                      const Text(
-                                                          'automatic backups')
-                                                    ])));
-                                                if (!_showingDone) {
+                                                },
+                                                itemBuilder: (ctx) {
+                                                  final items = <PopupMenuEntry<
+                                                      String>>[];
                                                   items.add(PopupMenuItem(
-                                                      value: 'done',
+                                                      value: 'stats',
                                                       child: Row(children: [
                                                         _menuSvgIcon(ctx,
-                                                            'assets/icons/white_transparent_done.svg'),
+                                                            'assets/icons/white_transparent_statistic.svg'),
                                                         const SizedBox(
                                                             width: 8),
-                                                        const Text('done')
+                                                        const Text('statistics')
                                                       ])));
-                                                }
-                                                if (!_showingTrash) {
                                                   items.add(PopupMenuItem(
-                                                      value: 'trash',
+                                                      value: 'settings',
                                                       child: Row(children: [
                                                         _menuSvgIcon(ctx,
-                                                            'assets/icons/white_transparent_trash.svg'),
+                                                            'assets/icons/white_transparent_settings.svg'),
                                                         const SizedBox(
                                                             width: 8),
-                                                        const Text('trash')
+                                                        const Text('settings')
                                                       ])));
-                                                }
-                                                // 'Next' removed by request
-                                                if (_showingDone) {
                                                   items.add(PopupMenuItem(
-                                                      value: 'empty_done',
+                                                      value: 'notes',
+                                                      child: Row(children: [
+                                                        _menuSvgIcon(ctx,
+                                                            'assets/icons/white_transparent_notes.svg'),
+                                                        const SizedBox(
+                                                            width: 8),
+                                                        const Text('notes')
+                                                      ])));
+                                                  items.add(PopupMenuItem(
+                                                      value: 'redo',
+                                                      child: Row(children: [
+                                                        _menuSvgIcon(ctx,
+                                                            'assets/icons/white_transparent_redo.svg'),
+                                                        const SizedBox(
+                                                            width: 8),
+                                                        const Text('redo log')
+                                                      ])));
+                                                  items.add(PopupMenuItem(
+                                                      value: 'export',
                                                       child: Row(children: [
                                                         Icon(
                                                             Icons
-                                                                .delete_sweep_rounded,
+                                                                .download_rounded,
                                                             size: 18,
                                                             color: Color(
                                                                 _accentColorNotifier
                                                                     .value)),
                                                         const SizedBox(
                                                             width: 8),
-                                                        const Text('empty done')
+                                                        const Text('export')
                                                       ])));
-                                                }
-                                                if (_showingTrash) {
                                                   items.add(PopupMenuItem(
-                                                      value: 'empty_trash',
+                                                      value: 'import',
                                                       child: Row(children: [
                                                         Icon(
                                                             Icons
-                                                                .delete_sweep_rounded,
+                                                                .upload_rounded,
+                                                            size: 18,
+                                                            color: Color(
+                                                                _accentColorNotifier
+                                                                    .value)),
+                                                        const SizedBox(
+                                                            width: 8),
+                                                        const Text('import')
+                                                      ])));
+                                                  items.add(PopupMenuItem(
+                                                      value: 'backups',
+                                                      child: Row(children: [
+                                                        Icon(Icons.restore,
                                                             size: 18,
                                                             color: Color(
                                                                 _accentColorNotifier
@@ -9663,1667 +9757,1700 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                         const SizedBox(
                                                             width: 8),
                                                         const Text(
-                                                            'empty trash')
+                                                            'automatic backups')
                                                       ])));
-                                                }
-                                                return items;
-                                              },
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                                  if (!_showingDone) {
+                                                    items.add(PopupMenuItem(
+                                                        value: 'done',
+                                                        child: Row(children: [
+                                                          _menuSvgIcon(ctx,
+                                                              'assets/icons/white_transparent_done.svg'),
+                                                          const SizedBox(
+                                                              width: 8),
+                                                          const Text('done')
+                                                        ])));
+                                                  }
+                                                  if (!_showingTrash) {
+                                                    items.add(PopupMenuItem(
+                                                        value: 'trash',
+                                                        child: Row(children: [
+                                                          _menuSvgIcon(ctx,
+                                                              'assets/icons/white_transparent_trash.svg'),
+                                                          const SizedBox(
+                                                              width: 8),
+                                                          const Text('trash')
+                                                        ])));
+                                                  }
+                                                  // 'Next' removed by request
+                                                  if (_showingDone) {
+                                                    items.add(PopupMenuItem(
+                                                        value: 'empty_done',
+                                                        child: Row(children: [
+                                                          Icon(
+                                                              Icons
+                                                                  .delete_sweep_rounded,
+                                                              size: 18,
+                                                              color: Color(
+                                                                  _accentColorNotifier
+                                                                      .value)),
+                                                          const SizedBox(
+                                                              width: 8),
+                                                          const Text(
+                                                              'empty done')
+                                                        ])));
+                                                  }
+                                                  if (_showingTrash) {
+                                                    items.add(PopupMenuItem(
+                                                        value: 'empty_trash',
+                                                        child: Row(children: [
+                                                          Icon(
+                                                              Icons
+                                                                  .delete_sweep_rounded,
+                                                              size: 18,
+                                                              color: Color(
+                                                                  _accentColorNotifier
+                                                                      .value)),
+                                                          const SizedBox(
+                                                              width: 8),
+                                                          const Text(
+                                                              'empty trash')
+                                                        ])));
+                                                  }
+                                                  return items;
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 220),
-                                    curve: Curves.easeOutCubic,
-                                    height: 8.0,
-                                  ),
-                                  Expanded(
-                                    child: _today.isEmpty
-                                        ? Center(
-                                            child: Text(_showingBacklog
-                                                ? 'no backlog tasks'
-                                                : (_showingDone
-                                                    ? 'no archived tasks'
-                                                    : 'no tasks for today')))
-                                        : Builder(builder: (ctx) {
-                                            // Build grouped list preserving insertion order within groups.
-                                            // Order must match _performDelayedReorder schema.
-                                            final bucketImportantInProgress =
-                                                <MapEntry<int, TaskItem>>[];
-                                            final bucketInProgressScheduledPast =
-                                                <MapEntry<int, TaskItem>>[];
-                                            final bucketInProgressNoSchedule =
-                                                <MapEntry<int, TaskItem>>[];
-                                            final bucketInProgressScheduledFuture =
-                                                <MapEntry<int, TaskItem>>[];
-                                            final bucketImportant =
-                                                <MapEntry<int, TaskItem>>[];
-                                            final bucketScheduledPast =
-                                                <MapEntry<int, TaskItem>>[];
-                                            final bucketDueIn1h =
-                                                <MapEntry<int, TaskItem>>[];
-                                            final bucketRest =
-                                                <MapEntry<int, TaskItem>>[];
-                                            final bucketScheduledFuture =
-                                                <MapEntry<int, TaskItem>>[];
-                                            final bucketDone =
-                                                <MapEntry<int, TaskItem>>[];
+                                    AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 220),
+                                      curve: Curves.easeOutCubic,
+                                      height: 8.0,
+                                    ),
+                                    Expanded(
+                                      child: _today.isEmpty
+                                          ? Center(
+                                              child: Text(_showingBacklog
+                                                  ? 'no backlog tasks'
+                                                  : (_showingDone
+                                                      ? 'no archived tasks'
+                                                      : 'no tasks for today')))
+                                          : Builder(builder: (ctx) {
+                                              // Build grouped list preserving insertion order within groups.
+                                              // Order must match _performDelayedReorder schema.
+                                              final bucketImportantInProgress =
+                                                  <MapEntry<int, TaskItem>>[];
+                                              final bucketInProgressScheduledPast =
+                                                  <MapEntry<int, TaskItem>>[];
+                                              final bucketInProgressNoSchedule =
+                                                  <MapEntry<int, TaskItem>>[];
+                                              final bucketInProgressScheduledFuture =
+                                                  <MapEntry<int, TaskItem>>[];
+                                              final bucketImportant =
+                                                  <MapEntry<int, TaskItem>>[];
+                                              final bucketScheduledPast =
+                                                  <MapEntry<int, TaskItem>>[];
+                                              final bucketDueIn1h =
+                                                  <MapEntry<int, TaskItem>>[];
+                                              final bucketRest =
+                                                  <MapEntry<int, TaskItem>>[];
+                                              final bucketScheduledFuture =
+                                                  <MapEntry<int, TaskItem>>[];
+                                              final bucketDone =
+                                                  <MapEntry<int, TaskItem>>[];
 
-                                            final now = DateTime.now();
-                                            final entries =
-                                                _today.asMap().entries;
-                                            // If viewing Done or Trash and a search query is present,
-                                            // filter entries so only matching tasks are processed.
-                                            Iterable<MapEntry<int, TaskItem>>
-                                                entriesFiltered = entries;
-                                            if (_showingDone &&
-                                                _doneSearchQuery.isNotEmpty) {
-                                              final q = _doneSearchQuery
-                                                  .toLowerCase();
-                                              entriesFiltered =
-                                                  entries.where((e) {
-                                                final t = e.value;
-                                                final txt =
-                                                    t.text.toLowerCase();
-                                                final notes = (t.notes ?? '')
+                                              final now = DateTime.now();
+                                              final entries =
+                                                  _today.asMap().entries;
+                                              // If viewing Done or Trash and a search query is present,
+                                              // filter entries so only matching tasks are processed.
+                                              Iterable<MapEntry<int, TaskItem>>
+                                                  entriesFiltered = entries;
+                                              if (_showingDone &&
+                                                  _doneSearchQuery.isNotEmpty) {
+                                                final q = _doneSearchQuery
                                                     .toLowerCase();
-                                                return txt.contains(q) ||
-                                                    notes.contains(q);
-                                              });
-                                            } else if (_showingTrash &&
-                                                _trashSearchQuery.isNotEmpty) {
-                                              final q = _trashSearchQuery
-                                                  .toLowerCase();
-                                              entriesFiltered =
-                                                  entries.where((e) {
-                                                final t = e.value;
-                                                final txt =
-                                                    t.text.toLowerCase();
-                                                final notes = (t.notes ?? '')
-                                                    .toLowerCase();
-                                                return txt.contains(q) ||
-                                                    notes.contains(q);
-                                              });
-                                            }
-                                            for (final e in entriesFiltered) {
-                                              final t = e.value;
-                                              if (t.done) {
-                                                bucketDone.add(e);
-                                                continue;
-                                              }
-                                              final hasSchedule =
-                                                  t.scheduledAt != null;
-                                              final diff = hasSchedule
-                                                  ? t.scheduledAt!
-                                                      .difference(now)
-                                                  : null;
-                                              final isOverdue = hasSchedule &&
-                                                  diff!.isNegative;
-                                              final dueWithin1h = hasSchedule &&
-                                                  !diff!.isNegative &&
-                                                  diff.inMinutes <= 60;
-
-                                              final isScheduledFuture =
-                                                  hasSchedule &&
-                                                      !isOverdue &&
-                                                      !dueWithin1h;
-
-                                              if (t.inProgress && t.important) {
-                                                bucketImportantInProgress
-                                                    .add(e);
-                                                continue;
-                                              }
-                                              if (t.inProgress) {
-                                                if (isOverdue) {
-                                                  bucketInProgressScheduledPast
-                                                      .add(e);
-                                                } else if (isScheduledFuture) {
-                                                  bucketInProgressScheduledFuture
-                                                      .add(e);
-                                                } else {
-                                                  bucketInProgressNoSchedule
-                                                      .add(e);
-                                                }
-                                                continue;
-                                              }
-                                              if (t.important) {
-                                                bucketImportant.add(e);
-                                                continue;
-                                              }
-                                              if (isOverdue) {
-                                                bucketScheduledPast.add(e);
-                                                continue;
-                                              }
-                                              if (dueWithin1h) {
-                                                bucketDueIn1h.add(e);
-                                                continue;
-                                              }
-                                              if (isScheduledFuture) {
-                                                bucketScheduledFuture.add(e);
-                                                continue;
-                                              }
-                                              bucketRest.add(e);
-                                            }
-
-                                            final sorted = [
-                                              ...bucketImportantInProgress,
-                                              ...bucketInProgressScheduledPast,
-                                              ...bucketInProgressNoSchedule,
-                                              ...bucketInProgressScheduledFuture,
-                                              ...bucketImportant,
-                                              ...bucketScheduledPast,
-                                              ...bucketDueIn1h,
-                                              ...bucketRest,
-                                              ...bucketScheduledFuture,
-                                              ...bucketDone,
-                                            ];
-
-                                            return ReorderableListView(
-                                              scrollController:
-                                                  _listScrollController,
-                                              buildDefaultDragHandles: false,
-                                              onReorderItem:
-                                                  (oldIndex, newIndex) {
-                                                if (oldIndex < 0 ||
-                                                    oldIndex >= sorted.length) {
-                                                  return;
-                                                }
-                                                final srcEntry =
-                                                    sorted[oldIndex];
-                                                // Determine bucket membership for src and dst
-                                                int bucketOf(
-                                                    MapEntry<int, TaskItem> e) {
-                                                  if (bucketImportantInProgress
-                                                      .contains(e)) return 0;
-                                                  if (bucketInProgressScheduledPast
-                                                      .contains(e)) return 1;
-                                                  if (bucketInProgressNoSchedule
-                                                      .contains(e)) return 2;
-                                                  if (bucketInProgressScheduledFuture
-                                                      .contains(e)) return 3;
-                                                  if (bucketImportant
-                                                      .contains(e)) return 4;
-                                                  if (bucketScheduledPast
-                                                      .contains(e)) return 5;
-                                                  if (bucketDueIn1h.contains(e))
-                                                    return 6;
-                                                  if (bucketRest.contains(e))
-                                                    return 7;
-                                                  if (bucketScheduledFuture
-                                                      .contains(e)) return 8;
-                                                  return 9; // done
-                                                }
-
-                                                final srcBucket =
-                                                    bucketOf(srcEntry);
-                                                final safeNewIndex = newIndex
-                                                    .clamp(0, sorted.length);
-                                                final probeIndex =
-                                                    safeNewIndex >=
-                                                            sorted.length
-                                                        ? sorted.length - 1
-                                                        : safeNewIndex;
-                                                final dstBucket = bucketOf(
-                                                    sorted[probeIndex]);
-                                                if (srcBucket != dstBucket) {
-                                                  _showTopToast(
-                                                      'Reorder allowed only within the same group');
-                                                  return;
-                                                }
-
-                                                // Work on the specific bucket list
-                                                List<MapEntry<int, TaskItem>>
-                                                    targetBucket;
-                                                switch (srcBucket) {
-                                                  case 0:
-                                                    targetBucket =
-                                                        bucketImportantInProgress;
-                                                    break;
-                                                  case 1:
-                                                    targetBucket =
-                                                        bucketInProgressScheduledPast;
-                                                    break;
-                                                  case 2:
-                                                    targetBucket =
-                                                        bucketInProgressNoSchedule;
-                                                    break;
-                                                  case 3:
-                                                    targetBucket =
-                                                        bucketInProgressScheduledFuture;
-                                                    break;
-                                                  case 4:
-                                                    targetBucket =
-                                                        bucketImportant;
-                                                    break;
-                                                  case 5:
-                                                    targetBucket =
-                                                        bucketScheduledPast;
-                                                    break;
-                                                  case 6:
-                                                    targetBucket =
-                                                        bucketDueIn1h;
-                                                    break;
-                                                  case 7:
-                                                    targetBucket = bucketRest;
-                                                    break;
-                                                  case 8:
-                                                    targetBucket =
-                                                        bucketScheduledFuture;
-                                                    break;
-                                                  default:
-                                                    targetBucket = bucketDone;
-                                                }
-
-                                                // onReorderItem already gives
-                                                // a post-removal newIndex.
-                                                final adjustedNewIndex =
-                                                    safeNewIndex;
-                                                if (adjustedNewIndex ==
-                                                    oldIndex) {
-                                                  return;
-                                                }
-
-                                                final reordered = List<
-                                                    MapEntry<int,
-                                                        TaskItem>>.from(sorted);
-                                                final moved = reordered
-                                                    .removeAt(oldIndex);
-                                                reordered.insert(
-                                                    adjustedNewIndex, moved);
-
-                                                final reorderedBucket =
-                                                    reordered
-                                                        .where((e) =>
-                                                            bucketOf(e) ==
-                                                            srcBucket)
-                                                        .toList();
-
-                                                setState(() {
-                                                  targetBucket
-                                                    ..clear()
-                                                    ..addAll(reorderedBucket);
-
-                                                  // rebuild _today preserving bucket concatenation order
-                                                  final newOrder = <TaskItem>[];
-                                                  void appendBucket(
-                                                          List<
-                                                                  MapEntry<int,
-                                                                      TaskItem>>
-                                                              b) =>
-                                                      newOrder.addAll(b
-                                                          .map((e) => e.value));
-                                                  appendBucket(
-                                                      bucketImportantInProgress);
-                                                  appendBucket(
-                                                      bucketInProgressScheduledPast);
-                                                  appendBucket(
-                                                      bucketInProgressNoSchedule);
-                                                  appendBucket(
-                                                      bucketInProgressScheduledFuture);
-                                                  appendBucket(bucketImportant);
-                                                  appendBucket(
-                                                      bucketScheduledPast);
-                                                  appendBucket(bucketDueIn1h);
-                                                  appendBucket(bucketRest);
-                                                  appendBucket(
-                                                      bucketScheduledFuture);
-                                                  appendBucket(bucketDone);
-                                                  _today.clear();
-                                                  _today.addAll(newOrder);
-                                                  _saveToday();
+                                                entriesFiltered =
+                                                    entries.where((e) {
+                                                  final t = e.value;
+                                                  final txt =
+                                                      t.text.toLowerCase();
+                                                  final notes = (t.notes ?? '')
+                                                      .toLowerCase();
+                                                  return txt.contains(q) ||
+                                                      notes.contains(q);
                                                 });
-                                              },
-                                              children: List.generate(
-                                                  sorted.length, (vi) {
-                                                final originalIndex =
-                                                    sorted[vi].key;
-                                                final task = sorted[vi].value;
-                                                final completedSubtasks = task
-                                                    .subtasks
-                                                    .where((step) => step.done)
-                                                    .length;
-                                                final totalSubtasks =
-                                                    task.subtasks.length;
-                                                final i = originalIndex;
-                                                // Minimal-mode removed: always render the full task Dismissible below.
-                                                final containerKey =
-                                                    _tileKeys.putIfAbsent(
-                                                        task.id,
-                                                        () => GlobalKey());
-                                                final firstIndexForId =
-                                                    _today.indexWhere(
-                                                        (t) => t.id == task.id);
-                                                final tileBodyKey =
-                                                    firstIndexForId == i
-                                                        ? containerKey
-                                                        : ValueKey(
-                                                            'dup-${task.id}-$i');
-                                                final bool _isDimmed =
-                                                    _stagedDone[task.id] ??
-                                                        task.done;
-                                                final Color _iconColor =
-                                                    _isDimmed
-                                                        ? (Theme.of(context)
-                                                                    .iconTheme
-                                                                    .color ??
-                                                                Theme.of(
-                                                                        context)
-                                                                    .colorScheme
-                                                                    .primary)
-                                                            .withAlpha(
-                                                                (0.30 * 255)
-                                                                    .round())
-                                                        : (Theme.of(context)
-                                                                .iconTheme
-                                                                .color ??
-                                                            Theme.of(context)
-                                                                .colorScheme
-                                                                .primary);
-                                                final Color _primaryTextColor =
-                                                    _isDimmed
-                                                        ? Theme.of(context)
-                                                            .colorScheme
-                                                            .onSurface
-                                                            .withAlpha(
-                                                                (0.30 * 255)
-                                                                    .round())
-                                                        : Theme.of(context)
-                                                            .colorScheme
-                                                            .onSurface;
-                                                final Color _variantColor =
-                                                    _isDimmed
-                                                        ? Theme.of(context)
-                                                            .colorScheme
-                                                            .onSurfaceVariant
-                                                            .withAlpha(
-                                                                (0.30 * 255)
-                                                                    .round())
-                                                        : Theme.of(context)
-                                                            .colorScheme
-                                                            .onSurfaceVariant;
-                                                final isSelected =
-                                                    _selectedTaskId == task.id;
-                                                final selectedColor = Color(
-                                                    _accentColorNotifier.value);
-                                                return Dismissible(
-                                                  key:
-                                                      ValueKey('${task.id}-$i'),
-                                                  background: Container(
-                                                    color: Colors.green,
-                                                    alignment:
-                                                        Alignment.centerLeft,
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                            left: 20),
-                                                    child: (_showingBacklog ||
-                                                            _currentFile ==
-                                                                _storage(
-                                                                    'simplepresent_backlog.json'))
-                                                        ? Row(
-                                                            mainAxisSize:
-                                                                MainAxisSize
-                                                                    .min,
-                                                            children: [
-                                                              const Icon(
-                                                                  Icons
-                                                                      .arrow_circle_left,
-                                                                  color: Colors
-                                                                      .white,
-                                                                  size: 20),
-                                                              const SizedBox(
-                                                                  width: 8),
-                                                              const Text(
-                                                                  'moved to today',
-                                                                  style: TextStyle(
-                                                                      color: Colors
-                                                                          .white,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .w600)),
-                                                            ],
-                                                          )
-                                                        : (_today[i].inProgress
-                                                            ? Row(
-                                                                mainAxisSize:
-                                                                    MainAxisSize
-                                                                        .min,
-                                                                children: [
-                                                                  const Icon(
-                                                                      Icons
-                                                                          .check_circle,
-                                                                      color: Colors
-                                                                          .white),
-                                                                  const SizedBox(
-                                                                      width: 8),
-                                                                  const Text(
-                                                                      'done',
-                                                                      style: TextStyle(
-                                                                          color: Colors
-                                                                              .white,
-                                                                          fontWeight:
-                                                                              FontWeight.w600)),
-                                                                ],
-                                                              )
-                                                            : Row(
-                                                                mainAxisSize:
-                                                                    MainAxisSize
-                                                                        .min,
-                                                                children: [
-                                                                  const Icon(
-                                                                      Icons
-                                                                          .construction,
-                                                                      color: Colors
-                                                                          .white,
-                                                                      size: 18),
-                                                                  const SizedBox(
-                                                                      width: 8),
-                                                                  const Text(
-                                                                      'in progress',
-                                                                      style: TextStyle(
-                                                                          color: Colors
-                                                                              .white,
-                                                                          fontWeight:
-                                                                              FontWeight.w600)),
-                                                                ],
-                                                              )),
-                                                  ),
-                                                  secondaryBackground:
-                                                      Container(
-                                                    color:
-                                                        (_today[i].inProgress &&
-                                                                !_today[i].done)
-                                                            ? Colors.transparent
-                                                            : Colors.red,
-                                                    alignment:
-                                                        Alignment.centerRight,
-                                                    // align delete icon where the star sits (far right)
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                            right: 12),
-                                                    child: (_showingTrash
-                                                        ? const Icon(
-                                                            Icons.restore,
-                                                            color: Colors.white)
-                                                        : (_today[i].inProgress &&
-                                                                !_today[i].done)
-                                                            ? Text(
-                                                                'open',
-                                                                style:
-                                                                    TextStyle(
-                                                                  decoration:
-                                                                      TextDecoration
-                                                                          .none,
-                                                                  color: Theme.of(
-                                                                          context)
-                                                                      .colorScheme
-                                                                      .onSurface,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
-                                                                ),
-                                                              )
-                                                            : const Icon(
-                                                                Icons.delete,
-                                                                color: Colors
-                                                                    .white)),
-                                                  ),
-                                                  confirmDismiss:
-                                                      (direction) async {
-                                                    final t = _today[i];
-                                                    final taskId = t.id;
-                                                    // Prevent swipe actions when the task is expanded/open
-                                                    if (_expanded.contains(
-                                                        taskId)) return false;
+                                              } else if (_showingTrash &&
+                                                  _trashSearchQuery
+                                                      .isNotEmpty) {
+                                                final q = _trashSearchQuery
+                                                    .toLowerCase();
+                                                entriesFiltered =
+                                                    entries.where((e) {
+                                                  final t = e.value;
+                                                  final txt =
+                                                      t.text.toLowerCase();
+                                                  final notes = (t.notes ?? '')
+                                                      .toLowerCase();
+                                                  return txt.contains(q) ||
+                                                      notes.contains(q);
+                                                });
+                                              }
+                                              for (final e in entriesFiltered) {
+                                                final t = e.value;
+                                                if (t.done) {
+                                                  bucketDone.add(e);
+                                                  continue;
+                                                }
+                                                final hasSchedule =
+                                                    t.scheduledAt != null;
+                                                final diff = hasSchedule
+                                                    ? t.scheduledAt!
+                                                        .difference(now)
+                                                    : null;
+                                                final isOverdue = hasSchedule &&
+                                                    diff!.isNegative;
+                                                final dueWithin1h =
+                                                    hasSchedule &&
+                                                        !diff!.isNegative &&
+                                                        diff.inMinutes <= 60;
 
-                                                    if (direction ==
-                                                        DismissDirection
-                                                            .startToEnd) {
-                                                      // Right swipe: queue action, return immediately to snap back
-                                                      if (_currentFile ==
-                                                              _storage(
-                                                                  'simplepresent_backlog.json') ||
-                                                          _showingBacklog) {
-                                                        // Backlog view: move to Today
-                                                        _performSwipeAction(
-                                                            taskId,
-                                                            'moveFromBacklog');
-                                                        return false;
-                                                      }
-                                                      if (!t.inProgress &&
-                                                          !t.done) {
-                                                        // Today view: set in progress
-                                                        _performSwipeAction(
-                                                            taskId,
-                                                            'setInProgress');
-                                                        return false;
-                                                      }
-                                                      if (t.inProgress &&
-                                                          !t.done) {
-                                                        // Today view: set done
-                                                        _performSwipeAction(
-                                                            taskId, 'setDone');
-                                                        return false;
-                                                      }
-                                                      return false;
-                                                    }
+                                                final isScheduledFuture =
+                                                    hasSchedule &&
+                                                        !isOverdue &&
+                                                        !dueWithin1h;
 
-                                                    if (direction ==
-                                                        DismissDirection
-                                                            .endToStart) {
-                                                      // Left swipe: if inProgress, unset it; otherwise delete
-                                                      if (t.inProgress &&
-                                                          !t.done) {
-                                                        _performSwipeAction(
-                                                            taskId,
-                                                            'unsetInProgress');
-                                                        return false;
-                                                      }
+                                                if (t.inProgress &&
+                                                    t.important) {
+                                                  bucketImportantInProgress
+                                                      .add(e);
+                                                  continue;
+                                                }
+                                                if (t.inProgress) {
+                                                  if (isOverdue) {
+                                                    bucketInProgressScheduledPast
+                                                        .add(e);
+                                                  } else if (isScheduledFuture) {
+                                                    bucketInProgressScheduledFuture
+                                                        .add(e);
+                                                  } else {
+                                                    bucketInProgressNoSchedule
+                                                        .add(e);
+                                                  }
+                                                  continue;
+                                                }
+                                                if (t.important) {
+                                                  bucketImportant.add(e);
+                                                  continue;
+                                                }
+                                                if (isOverdue) {
+                                                  bucketScheduledPast.add(e);
+                                                  continue;
+                                                }
+                                                if (dueWithin1h) {
+                                                  bucketDueIn1h.add(e);
+                                                  continue;
+                                                }
+                                                if (isScheduledFuture) {
+                                                  bucketScheduledFuture.add(e);
+                                                  continue;
+                                                }
+                                                bucketRest.add(e);
+                                              }
 
-                                                      // Otherwise ask for delete confirmation
-                                                      final shouldDelete =
-                                                          await showDialog<
-                                                              bool>(
-                                                        context: context,
-                                                        builder:
-                                                            (dialogContext) =>
-                                                                AlertDialog(
-                                                          title: const Text(
-                                                              'delete task?'),
-                                                          content: Text(
-                                                              'delete "${_today[i].text}"?'),
-                                                          actions: [
-                                                            TextButton(
-                                                              onPressed: () =>
-                                                                  Navigator.of(
-                                                                          dialogContext)
-                                                                      .pop(
-                                                                          false),
-                                                              child: const Text(
-                                                                  'cancel'),
-                                                            ),
-                                                            FilledButton(
-                                                              autofocus: true,
-                                                              onPressed: () =>
-                                                                  Navigator.of(
-                                                                          dialogContext)
-                                                                      .pop(
-                                                                          true),
-                                                              child: const Text(
-                                                                  'delete'),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      );
-                                                      return shouldDelete ==
-                                                          true;
-                                                    }
+                                              final sorted = [
+                                                ...bucketImportantInProgress,
+                                                ...bucketInProgressScheduledPast,
+                                                ...bucketInProgressNoSchedule,
+                                                ...bucketInProgressScheduledFuture,
+                                                ...bucketImportant,
+                                                ...bucketScheduledPast,
+                                                ...bucketDueIn1h,
+                                                ...bucketRest,
+                                                ...bucketScheduledFuture,
+                                                ...bucketDone,
+                                              ];
 
-                                                    return false;
-                                                  },
-                                                  direction: (!_expanded
-                                                              .contains(
-                                                                  task.id) &&
-                                                          _swipeEnabled)
-                                                      ? (!task.done
-                                                          ? DismissDirection
-                                                              .horizontal
-                                                          : DismissDirection
-                                                              .endToStart)
-                                                      : DismissDirection.none,
-                                                  onDismissed: (_) => (_showingTrash
-                                                      ? _restoreFromTrashByIndex(
-                                                          i)
-                                                      : _removeFromToday(i)),
-                                                  child: Column(
-                                                    children: [
-                                                      Card(
-                                                        key: tileBodyKey,
-                                                        color: isSelected
-                                                            ? selectedColor
-                                                                .withAlpha(
-                                                                    (0.12 * 255)
-                                                                        .round())
-                                                            : (task.inProgress
-                                                                ? Colors.green
-                                                                    .withAlpha((0.10 *
-                                                                            255)
-                                                                        .round())
-                                                                : null),
-                                                        shape:
-                                                            RoundedRectangleBorder(
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(12),
-                                                          side: isSelected
-                                                              ? BorderSide(
-                                                                  color:
-                                                                      selectedColor,
-                                                                  width: 2,
+                                              return ReorderableListView(
+                                                scrollController:
+                                                    _listScrollController,
+                                                buildDefaultDragHandles: false,
+                                                onReorderItem:
+                                                    (oldIndex, newIndex) {
+                                                  if (oldIndex < 0 ||
+                                                      oldIndex >=
+                                                          sorted.length) {
+                                                    return;
+                                                  }
+                                                  final srcEntry =
+                                                      sorted[oldIndex];
+                                                  // Determine bucket membership for src and dst
+                                                  int bucketOf(
+                                                      MapEntry<int, TaskItem>
+                                                          e) {
+                                                    if (bucketImportantInProgress
+                                                        .contains(e)) return 0;
+                                                    if (bucketInProgressScheduledPast
+                                                        .contains(e)) return 1;
+                                                    if (bucketInProgressNoSchedule
+                                                        .contains(e)) return 2;
+                                                    if (bucketInProgressScheduledFuture
+                                                        .contains(e)) return 3;
+                                                    if (bucketImportant
+                                                        .contains(e)) return 4;
+                                                    if (bucketScheduledPast
+                                                        .contains(e)) return 5;
+                                                    if (bucketDueIn1h
+                                                        .contains(e)) return 6;
+                                                    if (bucketRest.contains(e))
+                                                      return 7;
+                                                    if (bucketScheduledFuture
+                                                        .contains(e)) return 8;
+                                                    return 9; // done
+                                                  }
+
+                                                  final srcBucket =
+                                                      bucketOf(srcEntry);
+                                                  final safeNewIndex = newIndex
+                                                      .clamp(0, sorted.length);
+                                                  final probeIndex =
+                                                      safeNewIndex >=
+                                                              sorted.length
+                                                          ? sorted.length - 1
+                                                          : safeNewIndex;
+                                                  final dstBucket = bucketOf(
+                                                      sorted[probeIndex]);
+                                                  if (srcBucket != dstBucket) {
+                                                    _showTopToast(
+                                                        'Reorder allowed only within the same group');
+                                                    return;
+                                                  }
+
+                                                  // Work on the specific bucket list
+                                                  List<MapEntry<int, TaskItem>>
+                                                      targetBucket;
+                                                  switch (srcBucket) {
+                                                    case 0:
+                                                      targetBucket =
+                                                          bucketImportantInProgress;
+                                                      break;
+                                                    case 1:
+                                                      targetBucket =
+                                                          bucketInProgressScheduledPast;
+                                                      break;
+                                                    case 2:
+                                                      targetBucket =
+                                                          bucketInProgressNoSchedule;
+                                                      break;
+                                                    case 3:
+                                                      targetBucket =
+                                                          bucketInProgressScheduledFuture;
+                                                      break;
+                                                    case 4:
+                                                      targetBucket =
+                                                          bucketImportant;
+                                                      break;
+                                                    case 5:
+                                                      targetBucket =
+                                                          bucketScheduledPast;
+                                                      break;
+                                                    case 6:
+                                                      targetBucket =
+                                                          bucketDueIn1h;
+                                                      break;
+                                                    case 7:
+                                                      targetBucket = bucketRest;
+                                                      break;
+                                                    case 8:
+                                                      targetBucket =
+                                                          bucketScheduledFuture;
+                                                      break;
+                                                    default:
+                                                      targetBucket = bucketDone;
+                                                  }
+
+                                                  // onReorderItem already gives
+                                                  // a post-removal newIndex.
+                                                  final adjustedNewIndex =
+                                                      safeNewIndex;
+                                                  if (adjustedNewIndex ==
+                                                      oldIndex) {
+                                                    return;
+                                                  }
+
+                                                  final reordered = List<
+                                                          MapEntry<int,
+                                                              TaskItem>>.from(
+                                                      sorted);
+                                                  final moved = reordered
+                                                      .removeAt(oldIndex);
+                                                  reordered.insert(
+                                                      adjustedNewIndex, moved);
+
+                                                  final reorderedBucket =
+                                                      reordered
+                                                          .where((e) =>
+                                                              bucketOf(e) ==
+                                                              srcBucket)
+                                                          .toList();
+
+                                                  setState(() {
+                                                    targetBucket
+                                                      ..clear()
+                                                      ..addAll(reorderedBucket);
+
+                                                    // rebuild _today preserving bucket concatenation order
+                                                    final newOrder =
+                                                        <TaskItem>[];
+                                                    void appendBucket(
+                                                            List<
+                                                                    MapEntry<
+                                                                        int,
+                                                                        TaskItem>>
+                                                                b) =>
+                                                        newOrder.addAll(b.map(
+                                                            (e) => e.value));
+                                                    appendBucket(
+                                                        bucketImportantInProgress);
+                                                    appendBucket(
+                                                        bucketInProgressScheduledPast);
+                                                    appendBucket(
+                                                        bucketInProgressNoSchedule);
+                                                    appendBucket(
+                                                        bucketInProgressScheduledFuture);
+                                                    appendBucket(
+                                                        bucketImportant);
+                                                    appendBucket(
+                                                        bucketScheduledPast);
+                                                    appendBucket(bucketDueIn1h);
+                                                    appendBucket(bucketRest);
+                                                    appendBucket(
+                                                        bucketScheduledFuture);
+                                                    appendBucket(bucketDone);
+                                                    _today.clear();
+                                                    _today.addAll(newOrder);
+                                                    _saveToday();
+                                                  });
+                                                },
+                                                children: List.generate(
+                                                    sorted.length, (vi) {
+                                                  final originalIndex =
+                                                      sorted[vi].key;
+                                                  final task = sorted[vi].value;
+                                                  final completedSubtasks = task
+                                                      .subtasks
+                                                      .where(
+                                                          (step) => step.done)
+                                                      .length;
+                                                  final totalSubtasks =
+                                                      task.subtasks.length;
+                                                  final i = originalIndex;
+                                                  // Minimal-mode removed: always render the full task Dismissible below.
+                                                  final containerKey =
+                                                      _tileKeys.putIfAbsent(
+                                                          task.id,
+                                                          () => GlobalKey());
+                                                  final firstIndexForId =
+                                                      _today.indexWhere((t) =>
+                                                          t.id == task.id);
+                                                  final tileBodyKey =
+                                                      firstIndexForId == i
+                                                          ? containerKey
+                                                          : ValueKey(
+                                                              'dup-${task.id}-$i');
+                                                  final bool _isDimmed =
+                                                      _stagedDone[task.id] ??
+                                                          task.done;
+                                                  final Color _iconColor = _isDimmed
+                                                      ? (Theme.of(context)
+                                                                  .iconTheme
+                                                                  .color ??
+                                                              Theme.of(context)
+                                                                  .colorScheme
+                                                                  .primary)
+                                                          .withAlpha(
+                                                              (0.30 * 255)
+                                                                  .round())
+                                                      : (Theme.of(context)
+                                                              .iconTheme
+                                                              .color ??
+                                                          Theme.of(context)
+                                                              .colorScheme
+                                                              .primary);
+                                                  final Color
+                                                      _primaryTextColor =
+                                                      _isDimmed
+                                                          ? Theme.of(context)
+                                                              .colorScheme
+                                                              .onSurface
+                                                              .withAlpha(
+                                                                  (0.30 * 255)
+                                                                      .round())
+                                                          : Theme.of(context)
+                                                              .colorScheme
+                                                              .onSurface;
+                                                  final Color _variantColor =
+                                                      _isDimmed
+                                                          ? Theme.of(context)
+                                                              .colorScheme
+                                                              .onSurfaceVariant
+                                                              .withAlpha(
+                                                                  (0.30 * 255)
+                                                                      .round())
+                                                          : Theme.of(context)
+                                                              .colorScheme
+                                                              .onSurfaceVariant;
+                                                  final isSelected =
+                                                      _selectedTaskId ==
+                                                          task.id;
+                                                  final selectedColor = Color(
+                                                      _accentColorNotifier
+                                                          .value);
+                                                  return Dismissible(
+                                                    key: ValueKey(
+                                                        '${task.id}-$i'),
+                                                    background: Container(
+                                                      color: Colors.green,
+                                                      alignment:
+                                                          Alignment.centerLeft,
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                              left: 20),
+                                                      child: (_showingBacklog ||
+                                                              _currentFile ==
+                                                                  _storage(
+                                                                      'simplepresent_backlog.json'))
+                                                          ? Row(
+                                                              mainAxisSize:
+                                                                  MainAxisSize
+                                                                      .min,
+                                                              children: [
+                                                                const Icon(
+                                                                    Icons
+                                                                        .arrow_circle_left,
+                                                                    color: Colors
+                                                                        .white,
+                                                                    size: 20),
+                                                                const SizedBox(
+                                                                    width: 8),
+                                                                const Text(
+                                                                    'moved to today',
+                                                                    style: TextStyle(
+                                                                        color: Colors
+                                                                            .white,
+                                                                        fontWeight:
+                                                                            FontWeight.w600)),
+                                                              ],
+                                                            )
+                                                          : (_today[i]
+                                                                  .inProgress
+                                                              ? Row(
+                                                                  mainAxisSize:
+                                                                      MainAxisSize
+                                                                          .min,
+                                                                  children: [
+                                                                    const Icon(
+                                                                        Icons
+                                                                            .check_circle,
+                                                                        color: Colors
+                                                                            .white),
+                                                                    const SizedBox(
+                                                                        width:
+                                                                            8),
+                                                                    const Text(
+                                                                        'done',
+                                                                        style: TextStyle(
+                                                                            color:
+                                                                                Colors.white,
+                                                                            fontWeight: FontWeight.w600)),
+                                                                  ],
                                                                 )
-                                                              : BorderSide.none,
-                                                        ),
-                                                        child: ListTile(
-                                                          contentPadding: EdgeInsets
-                                                              .symmetric(
-                                                                  vertical: ((_tileHeight -
-                                                                              _baseFontSize) /
-                                                                          2)
-                                                                      .clamp(
-                                                                          0.0,
-                                                                          40.0),
-                                                                  horizontal:
-                                                                      12),
-                                                          onTap: () =>
-                                                              _handleTaskTap(i),
-                                                          leading: _busyTaskIds
-                                                                  .contains(
-                                                                      task.id)
-                                                              ? const SizedBox(
-                                                                  width: 48,
-                                                                  height: 48,
-                                                                  child: Center(
-                                                                    child:
-                                                                        SizedBox(
-                                                                      width: 20,
-                                                                      height:
-                                                                          20,
-                                                                      child: CircularProgressIndicator(
-                                                                          strokeWidth:
-                                                                              2),
-                                                                    ),
+                                                              : Row(
+                                                                  mainAxisSize:
+                                                                      MainAxisSize
+                                                                          .min,
+                                                                  children: [
+                                                                    const Icon(
+                                                                        Icons
+                                                                            .construction,
+                                                                        color: Colors
+                                                                            .white,
+                                                                        size:
+                                                                            18),
+                                                                    const SizedBox(
+                                                                        width:
+                                                                            8),
+                                                                    const Text(
+                                                                        'in progress',
+                                                                        style: TextStyle(
+                                                                            color:
+                                                                                Colors.white,
+                                                                            fontWeight: FontWeight.w600)),
+                                                                  ],
+                                                                )),
+                                                    ),
+                                                    secondaryBackground:
+                                                        Container(
+                                                      color: (_today[i]
+                                                                  .inProgress &&
+                                                              !_today[i].done)
+                                                          ? Colors.transparent
+                                                          : Colors.red,
+                                                      alignment:
+                                                          Alignment.centerRight,
+                                                      // align delete icon where the star sits (far right)
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                              right: 12),
+                                                      child: (_showingTrash
+                                                          ? const Icon(
+                                                              Icons.restore,
+                                                              color:
+                                                                  Colors.white)
+                                                          : (_today[i].inProgress &&
+                                                                  !_today[i]
+                                                                      .done)
+                                                              ? Text(
+                                                                  'open',
+                                                                  style:
+                                                                      TextStyle(
+                                                                    decoration:
+                                                                        TextDecoration
+                                                                            .none,
+                                                                    color: Theme.of(
+                                                                            context)
+                                                                        .colorScheme
+                                                                        .onSurface,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w600,
                                                                   ),
                                                                 )
-                                                              : IconButton(
-                                                                  tooltip:
-                                                                      'done',
-                                                                  icon: Icon(
-                                                                      (_stagedDone[task.id] ??
-                                                                              task
-                                                                                  .done)
-                                                                          ? Icons
-                                                                              .radio_button_checked
-                                                                          : Icons
-                                                                              .radio_button_unchecked,
-                                                                      color:
-                                                                          _iconColor,
-                                                                      size: 18),
-                                                                  onPressed:
-                                                                      () async {
-                                                                    final current =
-                                                                        _stagedDone[task.id] ??
-                                                                            task.done;
-                                                                    final newVal =
-                                                                        !current;
-                                                                    // If we're in Done view and unchecking, perform immediate move back to Today
-                                                                    if (!newVal &&
-                                                                        _currentFile ==
-                                                                            _storage('simplepresent_done.json') &&
-                                                                        task.done) {
-                                                                      await _queueSetDoneByTaskId(
-                                                                          task.id,
-                                                                          newVal);
-                                                                      return;
-                                                                    }
-                                                                    // If we're in Backlog view and marking done, mirror Today behavior:
-                                                                    // set the radio button immediately (via _stagedDone) and start a short timer
-                                                                    if (_currentFile ==
-                                                                            _storage(
-                                                                                'simplepresent_backlog.json') &&
-                                                                        !task
-                                                                            .done) {
-                                                                      if (newVal) {
-                                                                        // set visual state immediately
-                                                                        setState(() =>
-                                                                            _stagedDone[task.id] =
-                                                                                true);
-                                                                        // perform done immediately
-                                                                        try {
-                                                                          await _queueSetDoneByTaskId(
-                                                                              task.id,
-                                                                              true);
-                                                                        } catch (_) {}
-                                                                        return;
-                                                                      } else {
-                                                                        // user unchecked before timer fired: cancel timer and clear staged state
-                                                                        setState(() =>
-                                                                            _stagedDone.remove(task.id));
+                                                              : const Icon(
+                                                                  Icons.delete,
+                                                                  color: Colors
+                                                                      .white)),
+                                                    ),
+                                                    confirmDismiss:
+                                                        (direction) async {
+                                                      final t = _today[i];
+                                                      final taskId = t.id;
+                                                      // Prevent swipe actions when the task is expanded/open
+                                                      if (_expanded.contains(
+                                                          taskId)) return false;
+
+                                                      if (direction ==
+                                                          DismissDirection
+                                                              .startToEnd) {
+                                                        // Right swipe: queue action, return immediately to snap back
+                                                        if (_currentFile ==
+                                                                _storage(
+                                                                    'simplepresent_backlog.json') ||
+                                                            _showingBacklog) {
+                                                          // Backlog view: move to Today
+                                                          _performSwipeAction(
+                                                              taskId,
+                                                              'moveFromBacklog');
+                                                          return false;
+                                                        }
+                                                        if (!t.inProgress &&
+                                                            !t.done) {
+                                                          // Today view: set in progress
+                                                          _performSwipeAction(
+                                                              taskId,
+                                                              'setInProgress');
+                                                          return false;
+                                                        }
+                                                        if (t.inProgress &&
+                                                            !t.done) {
+                                                          // Today view: set done
+                                                          _performSwipeAction(
+                                                              taskId,
+                                                              'setDone');
+                                                          return false;
+                                                        }
+                                                        return false;
+                                                      }
+
+                                                      if (direction ==
+                                                          DismissDirection
+                                                              .endToStart) {
+                                                        // Left swipe: if inProgress, unset it; otherwise delete
+                                                        if (t.inProgress &&
+                                                            !t.done) {
+                                                          _performSwipeAction(
+                                                              taskId,
+                                                              'unsetInProgress');
+                                                          return false;
+                                                        }
+
+                                                        // Otherwise ask for delete confirmation
+                                                        final shouldDelete =
+                                                            await showDialog<
+                                                                bool>(
+                                                          context: context,
+                                                          builder:
+                                                              (dialogContext) =>
+                                                                  AlertDialog(
+                                                            title: const Text(
+                                                                'delete task?'),
+                                                            content: Text(
+                                                                'delete "${_today[i].text}"?'),
+                                                            actions: [
+                                                              TextButton(
+                                                                onPressed: () =>
+                                                                    Navigator.of(
+                                                                            dialogContext)
+                                                                        .pop(
+                                                                            false),
+                                                                child: const Text(
+                                                                    'cancel'),
+                                                              ),
+                                                              FilledButton(
+                                                                autofocus: true,
+                                                                onPressed: () =>
+                                                                    Navigator.of(
+                                                                            dialogContext)
+                                                                        .pop(
+                                                                            true),
+                                                                child: const Text(
+                                                                    'delete'),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        );
+                                                        return shouldDelete ==
+                                                            true;
+                                                      }
+
+                                                      return false;
+                                                    },
+                                                    direction: (!_expanded
+                                                                .contains(
+                                                                    task.id) &&
+                                                            _swipeEnabled)
+                                                        ? (!task.done
+                                                            ? DismissDirection
+                                                                .horizontal
+                                                            : DismissDirection
+                                                                .endToStart)
+                                                        : DismissDirection.none,
+                                                    onDismissed: (_) =>
+                                                        (_showingTrash
+                                                            ? _restoreFromTrashByIndex(
+                                                                i)
+                                                            : _removeFromToday(
+                                                                i)),
+                                                    child: Column(
+                                                      children: [
+                                                        Card(
+                                                          key: tileBodyKey,
+                                                          color: isSelected
+                                                              ? selectedColor
+                                                                  .withAlpha((0.12 *
+                                                                          255)
+                                                                      .round())
+                                                              : (task.inProgress
+                                                                  ? Colors.green
+                                                                      .withAlpha((0.10 *
+                                                                              255)
+                                                                          .round())
+                                                                  : null),
+                                                          shape:
+                                                              RoundedRectangleBorder(
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        12),
+                                                            side: isSelected
+                                                                ? BorderSide(
+                                                                    color:
+                                                                        selectedColor,
+                                                                    width: 2,
+                                                                  )
+                                                                : BorderSide
+                                                                    .none,
+                                                          ),
+                                                          child: ListTile(
+                                                            contentPadding:
+                                                                EdgeInsets.symmetric(
+                                                                    vertical: ((_tileHeight -
+                                                                                _baseFontSize) /
+                                                                            2)
+                                                                        .clamp(
+                                                                            0.0,
+                                                                            40.0),
+                                                                    horizontal:
+                                                                        12),
+                                                            onTap: () =>
+                                                                _handleTaskTap(
+                                                                    i),
+                                                            leading: _busyTaskIds
+                                                                    .contains(
+                                                                        task.id)
+                                                                ? const SizedBox(
+                                                                    width: 48,
+                                                                    height: 48,
+                                                                    child:
+                                                                        Center(
+                                                                      child:
+                                                                          SizedBox(
+                                                                        width:
+                                                                            20,
+                                                                        height:
+                                                                            20,
+                                                                        child: CircularProgressIndicator(
+                                                                            strokeWidth:
+                                                                                2),
+                                                                      ),
+                                                                    ),
+                                                                  )
+                                                                : IconButton(
+                                                                    tooltip:
+                                                                        'done',
+                                                                    icon: Icon(
+                                                                        (_stagedDone[task.id] ?? task.done)
+                                                                            ? Icons
+                                                                                .radio_button_checked
+                                                                            : Icons
+                                                                                .radio_button_unchecked,
+                                                                        color:
+                                                                            _iconColor,
+                                                                        size:
+                                                                            18),
+                                                                    onPressed:
+                                                                        () async {
+                                                                      final current =
+                                                                          _stagedDone[task.id] ??
+                                                                              task.done;
+                                                                      final newVal =
+                                                                          !current;
+                                                                      // If we're in Done view and unchecking, perform immediate move back to Today
+                                                                      if (!newVal &&
+                                                                          _currentFile ==
+                                                                              _storage('simplepresent_done.json') &&
+                                                                          task.done) {
+                                                                        await _queueSetDoneByTaskId(
+                                                                            task.id,
+                                                                            newVal);
                                                                         return;
                                                                       }
-                                                                    }
-                                                                    // Stage the change and schedule delayed reorder
-                                                                    setState(() =>
-                                                                        _stagedDone[task.id] =
-                                                                            newVal);
-                                                                    _scheduleDelayedReorder();
-                                                                  },
-                                                                ),
-                                                          title: Row(
-                                                            children: [
-                                                              Expanded(
-                                                                child: _expanded
-                                                                        .contains(task
-                                                                            .id)
-                                                                    ? const SizedBox
-                                                                        .shrink()
-                                                                    : Column(
-                                                                        crossAxisAlignment:
-                                                                            CrossAxisAlignment.start,
-                                                                        children: [
-                                                                          Text(
-                                                                            task.text,
-                                                                            style:
-                                                                                _fontTextStyle(
-                                                                              TextStyle(
-                                                                                fontSize: _baseFontSize,
-                                                                                fontWeight: FontWeight.normal,
-                                                                                decoration: TextDecoration.none,
-                                                                                color: task.done ? _primaryTextColor.withAlpha((0.6 * 255).round()) : (task.inProgress ? _AppPalette.green : (task.important ? _AppPalette.yellow : _primaryTextColor)),
-                                                                              ),
-                                                                            ),
-                                                                          ),
-                                                                          if (totalSubtasks >
-                                                                              0)
-                                                                            Padding(
-                                                                              padding: const EdgeInsets.only(top: 2.0),
-                                                                              child: Text(
-                                                                                '$completedSubtasks/$totalSubtasks',
-                                                                                style: TextStyle(
-                                                                                  fontSize: 12,
-                                                                                  color: _variantColor,
+                                                                      // If we're in Backlog view and marking done, mirror Today behavior:
+                                                                      // set the radio button immediately (via _stagedDone) and start a short timer
+                                                                      if (_currentFile ==
+                                                                              _storage('simplepresent_backlog.json') &&
+                                                                          !task.done) {
+                                                                        if (newVal) {
+                                                                          // set visual state immediately
+                                                                          setState(() =>
+                                                                              _stagedDone[task.id] = true);
+                                                                          // perform done immediately
+                                                                          try {
+                                                                            await _queueSetDoneByTaskId(task.id,
+                                                                                true);
+                                                                          } catch (_) {}
+                                                                          return;
+                                                                        } else {
+                                                                          // user unchecked before timer fired: cancel timer and clear staged state
+                                                                          setState(() =>
+                                                                              _stagedDone.remove(task.id));
+                                                                          return;
+                                                                        }
+                                                                      }
+                                                                      // Stage the change and schedule delayed reorder
+                                                                      setState(() =>
+                                                                          _stagedDone[task.id] =
+                                                                              newVal);
+                                                                      _scheduleDelayedReorder();
+                                                                    },
+                                                                  ),
+                                                            title: Row(
+                                                              children: [
+                                                                Expanded(
+                                                                  child: _expanded
+                                                                          .contains(task
+                                                                              .id)
+                                                                      ? const SizedBox
+                                                                          .shrink()
+                                                                      : Column(
+                                                                          crossAxisAlignment:
+                                                                              CrossAxisAlignment.start,
+                                                                          children: [
+                                                                            Text(
+                                                                              task.text,
+                                                                              style: _fontTextStyle(
+                                                                                TextStyle(
+                                                                                  fontSize: _baseFontSize,
+                                                                                  fontWeight: FontWeight.normal,
+                                                                                  decoration: TextDecoration.none,
+                                                                                  color: task.done ? _primaryTextColor.withAlpha((0.6 * 255).round()) : (task.inProgress ? _AppPalette.green : (task.important ? _AppPalette.yellow : _primaryTextColor)),
                                                                                 ),
                                                                               ),
                                                                             ),
-                                                                          if (task.done &&
-                                                                              task.completedAt != null)
-                                                                            Padding(
-                                                                              padding: const EdgeInsets.only(top: 4.0),
-                                                                              child: Text(
-                                                                                'completed: ${DateFormat('yyyy-MM-dd HH:mm').format(task.completedAt!)}',
-                                                                                style: TextStyle(
-                                                                                  fontSize: 12,
-                                                                                  color: _variantColor,
-                                                                                ),
-                                                                              ),
-                                                                            ),
-                                                                          if (task
-                                                                              .done)
-                                                                            Builder(builder:
-                                                                                (ctx) {
-                                                                              // Sum manual "workMinutes" and stopwatch elapsed minutes,
-                                                                              // rounding stopwatch up to 15-minute blocks.
-                                                                              final secs = _elapsedSecondsFor(task);
-                                                                              const blockSec = 15 * 60;
-                                                                              final blocks = secs > 0 ? ((secs + blockSec - 1) ~/ blockSec) : 0;
-                                                                              final accumulatedMinutes = blocks * 15;
-                                                                              final manual = task.workMinutes;
-                                                                              final totalMinutes = manual + accumulatedMinutes;
-                                                                              if (totalMinutes <= 0)
-                                                                                return const SizedBox.shrink();
-                                                                              final hours = totalMinutes ~/ 60;
-                                                                              final mins = totalMinutes % 60;
-                                                                              final label = hours > 0 ? '${hours}h ${mins}m' : '${mins}m';
-                                                                              return Padding(
-                                                                                padding: const EdgeInsets.only(top: 4.0),
+                                                                            if (totalSubtasks >
+                                                                                0)
+                                                                              Padding(
+                                                                                padding: const EdgeInsets.only(top: 2.0),
                                                                                 child: Text(
-                                                                                  'spent: $label',
+                                                                                  '$completedSubtasks/$totalSubtasks',
                                                                                   style: TextStyle(
                                                                                     fontSize: 12,
                                                                                     color: _variantColor,
                                                                                   ),
                                                                                 ),
-                                                                              );
-                                                                            }),
-                                                                        ],
-                                                                      ),
-                                                              ),
-                                                              const SizedBox(
-                                                                  width: 2),
-                                                              // Right aligned icons: scheduled+time, in-progress, save (when expanded), star (far right)
-                                                              Opacity(
-                                                                opacity: _swiping
-                                                                        .contains(
-                                                                            i)
-                                                                    ? 0.0
-                                                                    : 1.0,
-                                                                child: Row(
-                                                                  mainAxisSize:
-                                                                      MainAxisSize
-                                                                          .min,
-                                                                  children: [
-                                                                    // Calendar button with time below it (date shown in backlog)
-                                                                    if (!(_stagedDone[
-                                                                            task.id] ??
-                                                                        task.done))
-                                                                      Padding(
-                                                                        padding: const EdgeInsets
-                                                                            .only(
-                                                                            left:
-                                                                                4.0,
-                                                                            right:
-                                                                                2.0),
-                                                                        child:
-                                                                            Column(
-                                                                          mainAxisSize:
-                                                                              MainAxisSize.min,
-                                                                          children: [
-                                                                            Row(
-                                                                              mainAxisSize: MainAxisSize.min,
-                                                                              children: [
-                                                                                IconButton(
-                                                                                  padding: const EdgeInsets.all(1),
-                                                                                  constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                                                                                  visualDensity: VisualDensity.compact,
-                                                                                  style: IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                                                                                  iconSize: 11,
-                                                                                  tooltip: task.scheduledAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!) : 'set schedule',
-                                                                                  icon: Icon(Icons.calendar_today, size: 11, color: task.scheduledAt != null ? _scheduleIconColor(task.scheduledAt!) : _iconColor),
-                                                                                  onPressed: () => _pickSchedule(i),
-                                                                                ),
-                                                                                if (task.scheduledAt != null)
-                                                                                  Padding(
-                                                                                    padding: const EdgeInsets.only(left: 1.0),
-                                                                                    child: Text(
-                                                                                      DateFormat('HH:mm').format(task.scheduledAt!),
-                                                                                      style: TextStyle(fontSize: 11, color: _scheduleIconColor(task.scheduledAt!)),
-                                                                                    ),
-                                                                                  ),
-                                                                              ],
-                                                                            ),
-                                                                            if (task.scheduledAt !=
-                                                                                null)
+                                                                              ),
+                                                                            if (task.done &&
+                                                                                task.completedAt != null)
                                                                               Padding(
-                                                                                padding: const EdgeInsets.only(top: 2.0),
-                                                                                child: Column(
-                                                                                  mainAxisSize: MainAxisSize.min,
-                                                                                  children: [
-                                                                                    // Show weekday for recent overdue tasks, date for older ones; notifications stay separate.
-                                                                                    if (_showingBacklog || _currentFile == _storage('simplepresent_backlog.json'))
-                                                                                      Text(
-                                                                                        _formatBacklogScheduleLabel(task.scheduledAt!),
-                                                                                        style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                                                                                      )
-                                                                                    else if (_overdueCardLabel(task.scheduledAt!) != null)
-                                                                                      Text(
-                                                                                        _overdueCardLabel(task.scheduledAt!)!,
-                                                                                        style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                                                                                      ),
-                                                                                  ],
+                                                                                padding: const EdgeInsets.only(top: 4.0),
+                                                                                child: Text(
+                                                                                  'completed: ${DateFormat('yyyy-MM-dd HH:mm').format(task.completedAt!)}',
+                                                                                  style: TextStyle(
+                                                                                    fontSize: 12,
+                                                                                    color: _variantColor,
+                                                                                  ),
                                                                                 ),
                                                                               ),
+                                                                            if (task.done)
+                                                                              Builder(builder: (ctx) {
+                                                                                // Sum manual "workMinutes" and stopwatch elapsed minutes,
+                                                                                // rounding stopwatch up to 15-minute blocks.
+                                                                                final secs = _elapsedSecondsFor(task);
+                                                                                const blockSec = 15 * 60;
+                                                                                final blocks = secs > 0 ? ((secs + blockSec - 1) ~/ blockSec) : 0;
+                                                                                final accumulatedMinutes = blocks * 15;
+                                                                                final manual = task.workMinutes;
+                                                                                final totalMinutes = manual + accumulatedMinutes;
+                                                                                if (totalMinutes <= 0) return const SizedBox.shrink();
+                                                                                final hours = totalMinutes ~/ 60;
+                                                                                final mins = totalMinutes % 60;
+                                                                                final label = hours > 0 ? '${hours}h ${mins}m' : '${mins}m';
+                                                                                return Padding(
+                                                                                  padding: const EdgeInsets.only(top: 4.0),
+                                                                                  child: Text(
+                                                                                    'spent: $label',
+                                                                                    style: TextStyle(
+                                                                                      fontSize: 12,
+                                                                                      color: _variantColor,
+                                                                                    ),
+                                                                                  ),
+                                                                                );
+                                                                              }),
                                                                           ],
                                                                         ),
-                                                                      ),
-                                                                    if (!_showingBacklog &&
-                                                                        !_showingDone &&
-                                                                        task.done)
-                                                                      IconButton(
-                                                                        tooltip:
-                                                                            'Reaktivieren',
-                                                                        icon: const Icon(
-                                                                            Icons.replay),
-                                                                        onPressed:
-                                                                            () async {
-                                                                          await _queueSetDoneByTaskId(
-                                                                              task.id,
-                                                                              false);
-                                                                        },
-                                                                      ),
-                                                                    if (_currentFile ==
-                                                                            _storage('simplepresent_backlog.json') ||
-                                                                        _showingBacklog)
+                                                                ),
+                                                                const SizedBox(
+                                                                    width: 2),
+                                                                // Right aligned icons: scheduled+time, in-progress, save (when expanded), star (far right)
+                                                                Opacity(
+                                                                  opacity: _swiping
+                                                                          .contains(
+                                                                              i)
+                                                                      ? 0.0
+                                                                      : 1.0,
+                                                                  child: Row(
+                                                                    mainAxisSize:
+                                                                        MainAxisSize
+                                                                            .min,
+                                                                    children: [
+                                                                      // Calendar button with time below it (date shown in backlog)
+                                                                      if (!(_stagedDone[
+                                                                              task.id] ??
+                                                                          task.done))
+                                                                        Padding(
+                                                                          padding: const EdgeInsets
+                                                                              .only(
+                                                                              left: 4.0,
+                                                                              right: 2.0),
+                                                                          child:
+                                                                              Column(
+                                                                            mainAxisSize:
+                                                                                MainAxisSize.min,
+                                                                            children: [
+                                                                              Row(
+                                                                                mainAxisSize: MainAxisSize.min,
+                                                                                children: [
+                                                                                  IconButton(
+                                                                                    padding: const EdgeInsets.all(1),
+                                                                                    constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                                                                                    visualDensity: VisualDensity.compact,
+                                                                                    style: IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                                                                                    iconSize: 11,
+                                                                                    tooltip: task.scheduledAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!) : 'set schedule',
+                                                                                    icon: Icon(Icons.calendar_today, size: 11, color: task.scheduledAt != null ? _scheduleIconColor(task.scheduledAt!) : _iconColor),
+                                                                                    onPressed: () => _pickSchedule(i),
+                                                                                  ),
+                                                                                  if (task.scheduledAt != null)
+                                                                                    Padding(
+                                                                                      padding: const EdgeInsets.only(left: 1.0),
+                                                                                      child: Text(
+                                                                                        DateFormat('HH:mm').format(task.scheduledAt!),
+                                                                                        style: TextStyle(fontSize: 11, color: _scheduleIconColor(task.scheduledAt!)),
+                                                                                      ),
+                                                                                    ),
+                                                                                ],
+                                                                              ),
+                                                                              if (task.scheduledAt != null)
+                                                                                Padding(
+                                                                                  padding: const EdgeInsets.only(top: 2.0),
+                                                                                  child: Column(
+                                                                                    mainAxisSize: MainAxisSize.min,
+                                                                                    children: [
+                                                                                      // Show weekday for recent overdue tasks, date for older ones; notifications stay separate.
+                                                                                      if (_showingBacklog || _currentFile == _storage('simplepresent_backlog.json'))
+                                                                                        Text(
+                                                                                          _formatBacklogScheduleLabel(task.scheduledAt!),
+                                                                                          style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                                                                        )
+                                                                                      else if (_overdueCardLabel(task.scheduledAt!) != null)
+                                                                                        Text(
+                                                                                          _overdueCardLabel(task.scheduledAt!)!,
+                                                                                          style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                                                                        ),
+                                                                                    ],
+                                                                                  ),
+                                                                                ),
+                                                                            ],
+                                                                          ),
+                                                                        ),
+                                                                      if (!_showingBacklog &&
+                                                                          !_showingDone &&
+                                                                          task.done)
+                                                                        IconButton(
+                                                                          tooltip:
+                                                                              'Reaktivieren',
+                                                                          icon:
+                                                                              const Icon(Icons.replay),
+                                                                          onPressed:
+                                                                              () async {
+                                                                            await _queueSetDoneByTaskId(task.id,
+                                                                                false);
+                                                                          },
+                                                                        ),
+                                                                      if (_currentFile ==
+                                                                              _storage('simplepresent_backlog.json') ||
+                                                                          _showingBacklog)
+                                                                        Padding(
+                                                                          padding: const EdgeInsets
+                                                                              .only(
+                                                                              left: 4.0,
+                                                                              right: 2.0),
+                                                                          child:
+                                                                              IconButton(
+                                                                            padding:
+                                                                                const EdgeInsets.all(4),
+                                                                            constraints:
+                                                                                const BoxConstraints(minWidth: 0, minHeight: 0),
+                                                                            tooltip:
+                                                                                'move to today',
+                                                                            icon: Icon(Icons.arrow_circle_left,
+                                                                                size: 20,
+                                                                                color: _iconColor),
+                                                                            onPressed:
+                                                                                () async {
+                                                                              await _queueMoveFromBacklogByTaskId(task.id);
+                                                                            },
+                                                                          ),
+                                                                        ),
+
+                                                                      // Important button: moved into expanded editor
+                                                                      // Custom D&D handle (reduced left padding)
                                                                       Padding(
                                                                         padding: const EdgeInsets
                                                                             .only(
                                                                             left:
-                                                                                4.0,
-                                                                            right:
                                                                                 2.0),
                                                                         child:
-                                                                            IconButton(
-                                                                          padding: const EdgeInsets
-                                                                              .all(
-                                                                              4),
-                                                                          constraints: const BoxConstraints(
-                                                                              minWidth: 0,
-                                                                              minHeight: 0),
-                                                                          tooltip:
-                                                                              'move to today',
-                                                                          icon: Icon(
-                                                                              Icons.arrow_circle_left,
-                                                                              size: 20,
-                                                                              color: _iconColor),
-                                                                          onPressed:
-                                                                              () async {
-                                                                            await _queueMoveFromBacklogByTaskId(task.id);
-                                                                          },
+                                                                            Opacity(
+                                                                          opacity: _swiping.contains(i)
+                                                                              ? 0.0
+                                                                              : 1.0,
+                                                                          child:
+                                                                              ReorderableDragStartListener(
+                                                                            index:
+                                                                                i,
+                                                                            child: Icon(Icons.drag_handle,
+                                                                                size: 18,
+                                                                                color: _iconColor),
+                                                                          ),
                                                                         ),
                                                                       ),
-
-                                                                    // Important button: moved into expanded editor
-                                                                    // Custom D&D handle (reduced left padding)
-                                                                    Padding(
-                                                                      padding: const EdgeInsets
-                                                                          .only(
-                                                                          left:
-                                                                              2.0),
-                                                                      child:
-                                                                          Opacity(
-                                                                        opacity: _swiping.contains(i)
-                                                                            ? 0.0
-                                                                            : 1.0,
-                                                                        child:
-                                                                            ReorderableDragStartListener(
-                                                                          index:
-                                                                              i,
-                                                                          child: Icon(
-                                                                              Icons.drag_handle,
-                                                                              size: 18,
-                                                                              color: _iconColor),
-                                                                        ),
-                                                                      ),
-                                                                    ),
-                                                                  ],
+                                                                    ],
+                                                                  ),
                                                                 ),
-                                                              ),
-                                                            ],
+                                                              ],
+                                                            ),
                                                           ),
                                                         ),
-                                                      ),
-                                                      if (_expanded
-                                                          .contains(task.id))
-                                                        Padding(
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .symmetric(
-                                                                  horizontal:
-                                                                      14.0,
-                                                                  vertical:
-                                                                      8.0),
-                                                          child: Column(
-                                                            crossAxisAlignment:
-                                                                CrossAxisAlignment
-                                                                    .start,
-                                                            children: [
-                                                              // Editable title in expanded area
-                                                              TextField(
-                                                                controller: _editControllers
-                                                                    .putIfAbsent(
-                                                                        task.id,
+                                                        if (_expanded
+                                                            .contains(task.id))
+                                                          Padding(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .symmetric(
+                                                                    horizontal:
+                                                                        14.0,
+                                                                    vertical:
+                                                                        8.0),
+                                                            child: Column(
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .start,
+                                                              children: [
+                                                                // Editable title in expanded area
+                                                                TextField(
+                                                                  controller: _editControllers
+                                                                      .putIfAbsent(
+                                                                          task.id,
+                                                                          () {
+                                                                    final c = TextEditingController(
+                                                                        text: task
+                                                                            .text);
+                                                                    c.addListener(
                                                                         () {
-                                                                  final c = TextEditingController(
-                                                                      text: task
-                                                                          .text);
-                                                                  c.addListener(
-                                                                      () {
-                                                                    if (mounted)
-                                                                      setState(
-                                                                          () {});
-                                                                    _scheduleAutoSave(
-                                                                        task.id);
-                                                                  });
-                                                                  return c;
-                                                                }),
-                                                                focusNode: _editFocusNodes
-                                                                    .putIfAbsent(
-                                                                        task.id,
-                                                                        () =>
-                                                                            FocusNode()),
-                                                                autofocus: true,
-                                                                decoration:
-                                                                    const InputDecoration(
-                                                                  border:
-                                                                      InputBorder
-                                                                          .none,
-                                                                  hintText:
-                                                                      'title',
-                                                                ),
-                                                                onSubmitted: (_) =>
-                                                                    _saveEditedTitle(
-                                                                        i),
-                                                              ),
-                                                              // (Important button moved to recurrence row)
-                                                              const SizedBox(
-                                                                  height: 8),
-                                                              // Notes field (moved above timestamps)
-                                                              TextField(
-                                                                controller: _notesControllers
-                                                                    .putIfAbsent(
-                                                                        task.id,
-                                                                        () {
-                                                                  final n = TextEditingController(
-                                                                      text: task
-                                                                              .notes ??
-                                                                          '');
-                                                                  n.addListener(
-                                                                      () {
-                                                                    if (mounted)
-                                                                      setState(
-                                                                          () {});
-                                                                    _scheduleAutoSave(
-                                                                        task.id);
-                                                                  });
-                                                                  return n;
-                                                                }),
-                                                                keyboardType:
-                                                                    TextInputType
-                                                                        .multiline,
-                                                                minLines: 3,
-                                                                maxLines: null,
-                                                                decoration:
-                                                                    const InputDecoration(
-                                                                  border:
-                                                                      OutlineInputBorder(),
-                                                                  hintText:
-                                                                      'notes',
-                                                                ),
-                                                                onSubmitted: (_) =>
-                                                                    _saveEditedTitle(
-                                                                        i),
-                                                              ),
-                                                              const SizedBox(
-                                                                  height: 12),
-                                                              Row(
-                                                                children: [
-                                                                  Expanded(
-                                                                    child:
-                                                                        TextField(
-                                                                      controller:
-                                                                          _subtaskInputControllers
-                                                                              .putIfAbsent(
-                                                                        task.id,
-                                                                        () =>
-                                                                            TextEditingController(),
-                                                                      ),
-                                                                      focusNode: _subtaskFocusNodes.putIfAbsent(
+                                                                      if (mounted)
+                                                                        setState(
+                                                                            () {});
+                                                                      _scheduleAutoSave(
+                                                                          task.id);
+                                                                    });
+                                                                    return c;
+                                                                  }),
+                                                                  focusNode: _editFocusNodes
+                                                                      .putIfAbsent(
                                                                           task
                                                                               .id,
                                                                           () =>
                                                                               FocusNode()),
-                                                                      decoration:
-                                                                          const InputDecoration(
-                                                                        border:
-                                                                            OutlineInputBorder(),
-                                                                        hintText:
-                                                                            'add subtask',
+                                                                  autofocus:
+                                                                      true,
+                                                                  decoration:
+                                                                      const InputDecoration(
+                                                                    border:
+                                                                        InputBorder
+                                                                            .none,
+                                                                    hintText:
+                                                                        'title',
+                                                                  ),
+                                                                  onSubmitted: (_) =>
+                                                                      _saveEditedTitle(
+                                                                          i),
+                                                                ),
+                                                                // (Important button moved to recurrence row)
+                                                                const SizedBox(
+                                                                    height: 8),
+                                                                // Notes field (moved above timestamps)
+                                                                TextField(
+                                                                  controller: _notesControllers
+                                                                      .putIfAbsent(
+                                                                          task.id,
+                                                                          () {
+                                                                    final n = TextEditingController(
+                                                                        text: task.notes ??
+                                                                            '');
+                                                                    n.addListener(
+                                                                        () {
+                                                                      if (mounted)
+                                                                        setState(
+                                                                            () {});
+                                                                      _scheduleAutoSave(
+                                                                          task.id);
+                                                                    });
+                                                                    return n;
+                                                                  }),
+                                                                  keyboardType:
+                                                                      TextInputType
+                                                                          .multiline,
+                                                                  minLines: 3,
+                                                                  maxLines:
+                                                                      null,
+                                                                  decoration:
+                                                                      const InputDecoration(
+                                                                    border:
+                                                                        OutlineInputBorder(),
+                                                                    hintText:
+                                                                        'notes',
+                                                                  ),
+                                                                  onSubmitted: (_) =>
+                                                                      _saveEditedTitle(
+                                                                          i),
+                                                                ),
+                                                                const SizedBox(
+                                                                    height: 12),
+                                                                Row(
+                                                                  children: [
+                                                                    Expanded(
+                                                                      child:
+                                                                          TextField(
+                                                                        controller:
+                                                                            _subtaskInputControllers.putIfAbsent(
+                                                                          task.id,
+                                                                          () =>
+                                                                              TextEditingController(),
+                                                                        ),
+                                                                        focusNode: _subtaskFocusNodes.putIfAbsent(
+                                                                            task
+                                                                                .id,
+                                                                            () =>
+                                                                                FocusNode()),
+                                                                        decoration:
+                                                                            const InputDecoration(
+                                                                          border:
+                                                                              OutlineInputBorder(),
+                                                                          hintText:
+                                                                              'add subtask',
+                                                                        ),
+                                                                        onSubmitted: (_) => _addSubtask(
+                                                                            i,
+                                                                            _subtaskInputControllers[task.id]!),
                                                                       ),
-                                                                      onSubmitted: (_) =>
+                                                                    ),
+                                                                    const SizedBox(
+                                                                        width:
+                                                                            8),
+                                                                    FilledButton(
+                                                                      onPressed: () =>
                                                                           _addSubtask(
                                                                               i,
                                                                               _subtaskInputControllers[task.id]!),
+                                                                      child: const Text(
+                                                                          '+'),
+                                                                    ),
+                                                                    const SizedBox(
+                                                                        width:
+                                                                            6),
+                                                                    PopupMenuButton<
+                                                                        String>(
+                                                                      tooltip:
+                                                                          'add subtask template',
+                                                                      icon: const Icon(
+                                                                          Icons
+                                                                              .playlist_add),
+                                                                      onSelected: (templateName) =>
+                                                                          _addSubtaskTemplate(
+                                                                              i,
+                                                                              templateName),
+                                                                      itemBuilder: (context) =>
+                                                                          _subtaskTemplates.isEmpty
+                                                                              ? [
+                                                                                  const PopupMenuItem<String>(
+                                                                                    enabled: false,
+                                                                                    value: '',
+                                                                                    child: Text('no templates available'),
+                                                                                  ),
+                                                                                ]
+                                                                              : [
+                                                                                  for (final template in _subtaskTemplates)
+                                                                                    PopupMenuItem<String>(
+                                                                                      value: template['name'] as String,
+                                                                                      child: Text(template['name'] as String),
+                                                                                    ),
+                                                                                ],
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                                if (task
+                                                                    .subtasks
+                                                                    .isNotEmpty)
+                                                                  Padding(
+                                                                    padding: const EdgeInsets
+                                                                        .only(
+                                                                        top:
+                                                                            12),
+                                                                    child:
+                                                                        SizedBox(
+                                                                      // let the ReorderableListView size to its children
+                                                                      child:
+                                                                          ReorderableListView(
+                                                                        buildDefaultDragHandles:
+                                                                            false,
+                                                                        shrinkWrap:
+                                                                            true,
+                                                                        physics:
+                                                                            const NeverScrollableScrollPhysics(),
+                                                                        onReorderItem: (oldIndex, newIndex) => _reorderSubtasks(
+                                                                            i,
+                                                                            oldIndex,
+                                                                            newIndex),
+                                                                        children: [
+                                                                          for (int sidx = 0;
+                                                                              sidx < task.subtasks.length;
+                                                                              sidx++)
+                                                                            () {
+                                                                              final step = task.subtasks[sidx];
+                                                                              return Card(
+                                                                                key: ValueKey('subtask_${task.id}_${step.id}'),
+                                                                                child: ListTile(
+                                                                                  dense: true,
+                                                                                  leading: Checkbox(
+                                                                                    value: step.done,
+                                                                                    onChanged: (value) => _updateSubtask(i, step.id, done: value ?? false),
+                                                                                  ),
+                                                                                  title: step.done
+                                                                                      ? Tooltip(
+                                                                                          message: step.text,
+                                                                                          child: Text(
+                                                                                            step.text,
+                                                                                            maxLines: 1,
+                                                                                            overflow: TextOverflow.ellipsis,
+                                                                                            style: TextStyle(
+                                                                                              decoration: TextDecoration.none,
+                                                                                              color: Theme.of(context).colorScheme.onSurface.withAlpha((0.6 * 255).round()),
+                                                                                            ),
+                                                                                          ),
+                                                                                        )
+                                                                                      : Tooltip(
+                                                                                          message: step.text,
+                                                                                          child: TextFormField(
+                                                                                            initialValue: step.text,
+                                                                                            decoration: const InputDecoration(border: InputBorder.none, isDense: true),
+                                                                                            onChanged: (value) => _updateSubtask(i, step.id, text: value),
+                                                                                          ),
+                                                                                        ),
+                                                                                  trailing: Row(
+                                                                                    mainAxisSize: MainAxisSize.min,
+                                                                                    children: [
+                                                                                      IconButton(
+                                                                                        tooltip: 'delete step',
+                                                                                        icon: const Icon(Icons.close),
+                                                                                        onPressed: () => _removeSubtask(i, step.id),
+                                                                                      ),
+                                                                                      ReorderableDragStartListener(
+                                                                                        index: sidx,
+                                                                                        child: const Padding(
+                                                                                          padding: EdgeInsets.symmetric(horizontal: 8.0),
+                                                                                          child: Icon(Icons.drag_handle),
+                                                                                        ),
+                                                                                      ),
+                                                                                    ],
+                                                                                  ),
+                                                                                ),
+                                                                              );
+                                                                            }(),
+                                                                        ],
+                                                                      ),
                                                                     ),
                                                                   ),
-                                                                  const SizedBox(
-                                                                      width: 8),
-                                                                  FilledButton(
-                                                                    onPressed: () =>
-                                                                        _addSubtask(
-                                                                            i,
-                                                                            _subtaskInputControllers[task.id]!),
-                                                                    child:
-                                                                        const Text(
-                                                                            '+'),
-                                                                  ),
-                                                                  const SizedBox(
-                                                                      width: 6),
-                                                                  PopupMenuButton<
-                                                                      String>(
-                                                                    tooltip:
-                                                                        'add subtask template',
-                                                                    icon: const Icon(
-                                                                        Icons
-                                                                            .playlist_add),
-                                                                    onSelected: (templateName) =>
-                                                                        _addSubtaskTemplate(
-                                                                            i,
-                                                                            templateName),
-                                                                    itemBuilder: (context) =>
-                                                                        _subtaskTemplates.isEmpty
-                                                                            ? [
-                                                                                const PopupMenuItem<String>(
-                                                                                  enabled: false,
-                                                                                  value: '',
-                                                                                  child: Text('no templates available'),
-                                                                                ),
-                                                                              ]
-                                                                            : [
-                                                                                for (final template in _subtaskTemplates)
-                                                                                  PopupMenuItem<String>(
-                                                                                    value: template['name'] as String,
-                                                                                    child: Text(template['name'] as String),
-                                                                                  ),
-                                                                              ],
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                              if (task.subtasks
-                                                                  .isNotEmpty)
+                                                                const SizedBox(
+                                                                    height: 10),
+                                                                // Stopwatch display and controls
                                                                 Padding(
                                                                   padding:
                                                                       const EdgeInsets
                                                                           .only(
-                                                                          top:
+                                                                          bottom:
+                                                                              8.0),
+                                                                  child: Row(
+                                                                    children: [
+                                                                      Text(() {
+                                                                        final s =
+                                                                            _elapsedSecondsFor(task);
+                                                                        final hh = (s ~/
+                                                                                3600)
+                                                                            .toString()
+                                                                            .padLeft(2,
+                                                                                '0');
+                                                                        final mm = ((s % 3600) ~/
+                                                                                60)
+                                                                            .toString()
+                                                                            .padLeft(2,
+                                                                                '0');
+                                                                        final ss = (s %
+                                                                                60)
+                                                                            .toString()
+                                                                            .padLeft(2,
+                                                                                '0');
+                                                                        return 'stopwatch: $hh:$mm:$ss';
+                                                                      }()),
+                                                                      const SizedBox(
+                                                                          width:
+                                                                              8),
+                                                                      IconButton(
+                                                                        tooltip:
+                                                                            'start',
+                                                                        icon: const Icon(
+                                                                            Icons.play_arrow),
+                                                                        onPressed: task.stopwatchRunning
+                                                                            ? null
+                                                                            : () =>
+                                                                                _startStopwatch(i),
+                                                                      ),
+                                                                      IconButton(
+                                                                        tooltip:
+                                                                            'stop',
+                                                                        icon: const Icon(
+                                                                            Icons.stop),
+                                                                        onPressed: task.stopwatchRunning
+                                                                            ? () =>
+                                                                                _stopStopwatch(i)
+                                                                            : null,
+                                                                      ),
+                                                                      IconButton(
+                                                                        tooltip:
+                                                                            'reset',
+                                                                        icon: const Icon(
+                                                                            Icons.restart_alt),
+                                                                        onPressed: (task.stopwatchAccumulatedSeconds > 0 || task.stopwatchRunning)
+                                                                            ? () =>
+                                                                                _resetStopwatch(i)
+                                                                            : null,
+                                                                      ),
+                                                                      const SizedBox(
+                                                                          width:
                                                                               12),
-                                                                  child:
-                                                                      SizedBox(
-                                                                    // let the ReorderableListView size to its children
-                                                                    child:
-                                                                        ReorderableListView(
-                                                                      buildDefaultDragHandles:
-                                                                          false,
-                                                                      shrinkWrap:
-                                                                          true,
-                                                                      physics:
-                                                                          const NeverScrollableScrollPhysics(),
-                                                                      onReorderItem: (oldIndex,
-                                                                              newIndex) =>
-                                                                          _reorderSubtasks(
-                                                                              i,
-                                                                              oldIndex,
-                                                                              newIndex),
-                                                                      children: [
-                                                                        for (int sidx =
-                                                                                0;
-                                                                            sidx <
-                                                                                task.subtasks.length;
-                                                                            sidx++)
-                                                                          () {
-                                                                            final step =
-                                                                                task.subtasks[sidx];
-                                                                            return Card(
-                                                                              key: ValueKey('subtask_${task.id}_${step.id}'),
-                                                                              child: ListTile(
-                                                                                dense: true,
-                                                                                leading: Checkbox(
-                                                                                  value: step.done,
-                                                                                  onChanged: (value) => _updateSubtask(i, step.id, done: value ?? false),
-                                                                                ),
-                                                                                title: step.done
-                                                                                    ? Tooltip(
-                                                                                        message: step.text,
-                                                                                        child: Text(
-                                                                                          step.text,
-                                                                                          maxLines: 1,
-                                                                                          overflow: TextOverflow.ellipsis,
-                                                                                          style: TextStyle(
-                                                                                            decoration: TextDecoration.none,
-                                                                                            color: Theme.of(context).colorScheme.onSurface.withAlpha((0.6 * 255).round()),
-                                                                                          ),
-                                                                                        ),
-                                                                                      )
-                                                                                    : Tooltip(
-                                                                                        message: step.text,
-                                                                                        child: TextFormField(
-                                                                                          initialValue: step.text,
-                                                                                          decoration: const InputDecoration(border: InputBorder.none, isDense: true),
-                                                                                          onChanged: (value) => _updateSubtask(i, step.id, text: value),
-                                                                                        ),
-                                                                                      ),
-                                                                                trailing: Row(
-                                                                                  mainAxisSize: MainAxisSize.min,
-                                                                                  children: [
-                                                                                    IconButton(
-                                                                                      tooltip: 'delete step',
-                                                                                      icon: const Icon(Icons.close),
-                                                                                      onPressed: () => _removeSubtask(i, step.id),
-                                                                                    ),
-                                                                                    ReorderableDragStartListener(
-                                                                                      index: sidx,
-                                                                                      child: const Padding(
-                                                                                        padding: EdgeInsets.symmetric(horizontal: 8.0),
-                                                                                        child: Icon(Icons.drag_handle),
-                                                                                      ),
-                                                                                    ),
-                                                                                  ],
-                                                                                ),
-                                                                              ),
-                                                                            );
-                                                                          }(),
-                                                                      ],
-                                                                    ),
+                                                                      // Manual time entry (time spent) shown to the right of the stopwatch buttons
+                                                                      Flexible(
+                                                                        child:
+                                                                            ConstrainedBox(
+                                                                          constraints:
+                                                                              const BoxConstraints(maxWidth: 220),
+                                                                          child:
+                                                                              TextField(
+                                                                            controller:
+                                                                                _workControllers.putIfAbsent(task.id, () {
+                                                                              final initial = task.workMinutes > 0 ? task.workMinutes.toString() : '';
+                                                                              final c = TextEditingController(text: initial);
+                                                                              c.addListener(() {
+                                                                                if (mounted) setState(() {});
+                                                                              });
+                                                                              return c;
+                                                                            }),
+                                                                            keyboardType:
+                                                                                TextInputType.number,
+                                                                            decoration:
+                                                                                const InputDecoration(border: OutlineInputBorder(), hintText: 'time spent'),
+                                                                            onTap:
+                                                                                () {
+                                                                              // Manual entry only: do not auto-suggest stopwatch time here.
+                                                                            },
+                                                                            onSubmitted:
+                                                                                (value) {
+                                                                              final parsed = int.tryParse(value.trim());
+                                                                              if (parsed == null)
+                                                                                return;
+                                                                              try {
+                                                                                unawaited(_queueTaskAction(task.id, () async {
+                                                                                  final idx = _today.indexWhere((t) => t.id == task.id);
+                                                                                  if (idx == -1) return;
+                                                                                  setState(() {
+                                                                                    _today[idx] = _today[idx].copyWith(workMinutes: parsed);
+                                                                                  });
+                                                                                  await _saveToday();
+                                                                                  try {
+                                                                                    _upsertTimeEntry(_today[idx]);
+                                                                                  } catch (_) {}
+                                                                                }));
+                                                                              } catch (_) {}
+                                                                            },
+                                                                          ),
+                                                                        ),
+                                                                      ),
+                                                                    ],
                                                                   ),
                                                                 ),
-                                                              const SizedBox(
-                                                                  height: 10),
-                                                              // Stopwatch display and controls
-                                                              Padding(
-                                                                padding:
-                                                                    const EdgeInsets
-                                                                        .only(
-                                                                        bottom:
-                                                                            8.0),
-                                                                child: Row(
+
+                                                                Text(
+                                                                    'created: ${task.createdAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.createdAt!) : '-'}'),
+                                                                const SizedBox(
+                                                                    height: 6),
+                                                                Text(
+                                                                    'in progress: ${task.inProgressAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.inProgressAt!) : '-'}'),
+                                                                const SizedBox(
+                                                                    height: 6),
+                                                                if (task.done &&
+                                                                    task.completedAt !=
+                                                                        null)
+                                                                  Text(
+                                                                      'completed: ${DateFormat('yyyy-MM-dd HH:mm').format(task.completedAt!)}'),
+                                                                const SizedBox(
+                                                                    height: 6),
+                                                                Row(
                                                                   children: [
-                                                                    Text(() {
-                                                                      final s =
-                                                                          _elapsedSecondsFor(
-                                                                              task);
-                                                                      final hh = (s ~/
-                                                                              3600)
-                                                                          .toString()
-                                                                          .padLeft(
-                                                                              2,
-                                                                              '0');
-                                                                      final mm = ((s % 3600) ~/
-                                                                              60)
-                                                                          .toString()
-                                                                          .padLeft(
-                                                                              2,
-                                                                              '0');
-                                                                      final ss = (s %
-                                                                              60)
-                                                                          .toString()
-                                                                          .padLeft(
-                                                                              2,
-                                                                              '0');
-                                                                      return 'stopwatch: $hh:$mm:$ss';
-                                                                    }()),
+                                                                    Expanded(
+                                                                      child:
+                                                                          Text(
+                                                                        "scheduled: ${task.scheduledAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!) : '-'}",
+                                                                      ),
+                                                                    ),
+                                                                    IconButton(
+                                                                      tooltip:
+                                                                          'set schedule',
+                                                                      icon: const Icon(
+                                                                          Icons
+                                                                              .calendar_today),
+                                                                      onPressed:
+                                                                          () =>
+                                                                              _pickSchedule(i),
+                                                                    ),
+                                                                    if (task.scheduledAt !=
+                                                                        null)
+                                                                      IconButton(
+                                                                        tooltip:
+                                                                            'clear schedule',
+                                                                        icon: const Icon(
+                                                                            Icons.clear),
+                                                                        onPressed:
+                                                                            () =>
+                                                                                _clearSchedule(i),
+                                                                      ),
+                                                                    if (!_showingBacklog &&
+                                                                        !_showingDone &&
+                                                                        !task
+                                                                            .done)
+                                                                      IconButton(
+                                                                        tooltip:
+                                                                            'move to backlog',
+                                                                        icon: const Icon(
+                                                                            Icons.arrow_circle_right),
+                                                                        onPressed:
+                                                                            () async {
+                                                                          await _queueMoveToBacklogByTaskId(
+                                                                              task.id);
+                                                                        },
+                                                                      ),
+                                                                  ],
+                                                                ),
+                                                                const SizedBox(
+                                                                    height: 12),
+                                                                // Recurrence selector (moved below scheduled)
+                                                                Row(
+                                                                  children: [
+                                                                    const Text(
+                                                                        'repeat:'),
                                                                     const SizedBox(
                                                                         width:
                                                                             8),
+                                                                    // Open a dialog for recurrence options (supports weekday masks)
+                                                                    TextButton(
+                                                                      onPressed:
+                                                                          () =>
+                                                                              _showRecurrenceDialog(i),
+                                                                      child: Text(task.recurrence == null ||
+                                                                              task.recurrence!.isEmpty
+                                                                          ? 'none'
+                                                                          : task.recurrence!),
+                                                                    ),
+                                                                    const Spacer(),
                                                                     IconButton(
                                                                       tooltip:
-                                                                          'start',
-                                                                      icon: const Icon(
+                                                                          'Duplicate',
+                                                                      icon: Icon(
                                                                           Icons
-                                                                              .play_arrow),
-                                                                      onPressed: task
-                                                                              .stopwatchRunning
-                                                                          ? null
-                                                                          : () =>
-                                                                              _startStopwatch(i),
+                                                                              .copy,
+                                                                          color:
+                                                                              _iconColor),
+                                                                      onPressed:
+                                                                          () async {
+                                                                        await _duplicateTask(
+                                                                            i);
+                                                                      },
                                                                     ),
                                                                     IconButton(
-                                                                      tooltip:
-                                                                          'stop',
-                                                                      icon: const Icon(
+                                                                      tooltip: task.inProgress &&
+                                                                              !task.done
+                                                                          ? 'remove in progress'
+                                                                          : 'mark in progress',
+                                                                      icon: Icon(
                                                                           Icons
-                                                                              .stop),
-                                                                      onPressed: task
-                                                                              .stopwatchRunning
-                                                                          ? () =>
-                                                                              _stopStopwatch(i)
-                                                                          : null,
-                                                                    ),
-                                                                    IconButton(
-                                                                      tooltip:
-                                                                          'reset',
-                                                                      icon: const Icon(
-                                                                          Icons
-                                                                              .restart_alt),
-                                                                      onPressed: (task.stopwatchAccumulatedSeconds > 0 ||
-                                                                              task
-                                                                                  .stopwatchRunning)
-                                                                          ? () =>
-                                                                              _resetStopwatch(i)
-                                                                          : null,
-                                                                    ),
-                                                                    const SizedBox(
-                                                                        width:
-                                                                            12),
-                                                                    // Manual time entry (time spent) shown to the right of the stopwatch buttons
-                                                                    Flexible(
-                                                                      child:
-                                                                          ConstrainedBox(
-                                                                        constraints:
-                                                                            const BoxConstraints(maxWidth: 220),
-                                                                        child:
-                                                                            TextField(
-                                                                          controller: _workControllers.putIfAbsent(
+                                                                              .construction,
+                                                                          color:
+                                                                              _iconColor),
+                                                                      onPressed:
+                                                                          () async {
+                                                                        final was =
+                                                                            _stagedInProgress[task.id] ??
+                                                                                task.inProgress;
+                                                                        if (!was) {
+                                                                          try {
+                                                                            await _startStopwatch(i);
+                                                                          } catch (_) {}
+                                                                        } else {
+                                                                          try {
+                                                                            await _stopStopwatch(i);
+                                                                          } catch (_) {}
+                                                                          // Clear the inProgress flag via the per-task queue so the spinner shows
+                                                                          unawaited(_queueTaskAction(
                                                                               task.id,
-                                                                              () {
-                                                                            final initial = task.workMinutes > 0
-                                                                                ? task.workMinutes.toString()
-                                                                                : '';
-                                                                            final c =
-                                                                                TextEditingController(text: initial);
-                                                                            c.addListener(() {
-                                                                              if (mounted)
-                                                                                setState(() {});
-                                                                            });
-                                                                            return c;
-                                                                          }),
-                                                                          keyboardType:
-                                                                              TextInputType.number,
-                                                                          decoration: const InputDecoration(
-                                                                              border: OutlineInputBorder(),
-                                                                              hintText: 'time spent'),
-                                                                          onTap:
-                                                                              () {
-                                                                            // Manual entry only: do not auto-suggest stopwatch time here.
-                                                                          },
-                                                                          onSubmitted:
-                                                                              (value) {
-                                                                            final parsed =
-                                                                                int.tryParse(value.trim());
-                                                                            if (parsed ==
-                                                                                null)
+                                                                              () async {
+                                                                            final idx = _today.indexWhere((t) =>
+                                                                                t.id ==
+                                                                                task.id);
+                                                                            if (idx ==
+                                                                                -1)
                                                                               return;
-                                                                            try {
-                                                                              unawaited(_queueTaskAction(task.id, () async {
-                                                                                final idx = _today.indexWhere((t) => t.id == task.id);
-                                                                                if (idx == -1) return;
-                                                                                setState(() {
-                                                                                  _today[idx] = _today[idx].copyWith(workMinutes: parsed);
-                                                                                });
-                                                                                await _saveToday();
-                                                                                try {
-                                                                                  _upsertTimeEntry(_today[idx]);
-                                                                                } catch (_) {}
-                                                                              }));
-                                                                            } catch (_) {}
-                                                                          },
-                                                                        ),
+                                                                            setState(() =>
+                                                                                _today[idx] = _today[idx].copyWith(inProgress: false, inProgressAt: null));
+                                                                            await _saveToday();
+                                                                          }));
+                                                                        }
+                                                                        _registerActivity();
+                                                                      },
+                                                                    ),
+                                                                    IconButton(
+                                                                      tooltip:
+                                                                          'Important',
+                                                                      icon:
+                                                                          Icon(
+                                                                        (_stagedImportant[task.id] ??
+                                                                                task.important)
+                                                                            ? Icons.star
+                                                                            : Icons.star_border,
+                                                                        color:
+                                                                            _iconColor,
                                                                       ),
+                                                                      onPressed:
+                                                                          () {
+                                                                        final newVal =
+                                                                            !(_stagedImportant[task.id] ??
+                                                                                task.important);
+                                                                        setState(() =>
+                                                                            _stagedImportant[task.id] =
+                                                                                newVal);
+                                                                        _scheduleDelayedReorder();
+                                                                      },
                                                                     ),
                                                                   ],
                                                                 ),
-                                                              ),
-
-                                                              Text(
-                                                                  'created: ${task.createdAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.createdAt!) : '-'}'),
-                                                              const SizedBox(
-                                                                  height: 6),
-                                                              Text(
-                                                                  'in progress: ${task.inProgressAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.inProgressAt!) : '-'}'),
-                                                              const SizedBox(
-                                                                  height: 6),
-                                                              if (task.done &&
-                                                                  task.completedAt !=
-                                                                      null)
-                                                                Text(
-                                                                    'completed: ${DateFormat('yyyy-MM-dd HH:mm').format(task.completedAt!)}'),
-                                                              const SizedBox(
-                                                                  height: 6),
-                                                              Row(
-                                                                children: [
-                                                                  Expanded(
-                                                                    child: Text(
-                                                                      "scheduled: ${task.scheduledAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.scheduledAt!) : '-'}",
-                                                                    ),
-                                                                  ),
-                                                                  IconButton(
-                                                                    tooltip:
-                                                                        'set schedule',
-                                                                    icon: const Icon(
-                                                                        Icons
-                                                                            .calendar_today),
-                                                                    onPressed: () =>
-                                                                        _pickSchedule(
-                                                                            i),
-                                                                  ),
-                                                                  if (task.scheduledAt !=
-                                                                      null)
-                                                                    IconButton(
-                                                                      tooltip:
-                                                                          'clear schedule',
-                                                                      icon: const Icon(
-                                                                          Icons
-                                                                              .clear),
-                                                                      onPressed:
-                                                                          () =>
-                                                                              _clearSchedule(i),
-                                                                    ),
-                                                                  if (!_showingBacklog &&
-                                                                      !_showingDone &&
-                                                                      !task
-                                                                          .done)
-                                                                    IconButton(
-                                                                      tooltip:
-                                                                          'move to backlog',
-                                                                      icon: const Icon(
-                                                                          Icons
-                                                                              .arrow_circle_right),
-                                                                      onPressed:
-                                                                          () async {
-                                                                        await _queueMoveToBacklogByTaskId(
-                                                                            task.id);
-                                                                      },
-                                                                    ),
-                                                                ],
-                                                              ),
-                                                              const SizedBox(
-                                                                  height: 12),
-                                                              // Recurrence selector (moved below scheduled)
-                                                              Row(
-                                                                children: [
-                                                                  const Text(
-                                                                      'repeat:'),
-                                                                  const SizedBox(
-                                                                      width: 8),
-                                                                  // Open a dialog for recurrence options (supports weekday masks)
-                                                                  TextButton(
-                                                                    onPressed: () =>
-                                                                        _showRecurrenceDialog(
-                                                                            i),
-                                                                    child: Text(task.recurrence ==
-                                                                                null ||
-                                                                            task
-                                                                                .recurrence!.isEmpty
-                                                                        ? 'none'
-                                                                        : task
-                                                                            .recurrence!),
-                                                                  ),
-                                                                  const Spacer(),
-                                                                  IconButton(
-                                                                    tooltip:
-                                                                        'Duplicate',
-                                                                    icon: Icon(
-                                                                        Icons
-                                                                            .copy,
-                                                                        color:
-                                                                            _iconColor),
-                                                                    onPressed:
-                                                                        () async {
-                                                                      await _duplicateTask(
-                                                                          i);
-                                                                    },
-                                                                  ),
-                                                                  IconButton(
-                                                                    tooltip: task.inProgress &&
-                                                                            !task.done
-                                                                        ? 'remove in progress'
-                                                                        : 'mark in progress',
-                                                                    icon: Icon(
-                                                                        Icons
-                                                                            .construction,
-                                                                        color:
-                                                                            _iconColor),
-                                                                    onPressed:
-                                                                        () async {
-                                                                      final was =
-                                                                          _stagedInProgress[task.id] ??
-                                                                              task.inProgress;
-                                                                      if (!was) {
-                                                                        try {
-                                                                          await _startStopwatch(
-                                                                              i);
-                                                                        } catch (_) {}
-                                                                      } else {
-                                                                        try {
-                                                                          await _stopStopwatch(
-                                                                              i);
-                                                                        } catch (_) {}
-                                                                        // Clear the inProgress flag via the per-task queue so the spinner shows
-                                                                        unawaited(_queueTaskAction(
-                                                                            task.id,
-                                                                            () async {
-                                                                          final idx = _today.indexWhere((t) =>
-                                                                              t.id ==
-                                                                              task.id);
-                                                                          if (idx ==
-                                                                              -1)
-                                                                            return;
-                                                                          setState(() => _today[idx] = _today[idx].copyWith(
-                                                                              inProgress: false,
-                                                                              inProgressAt: null));
-                                                                          await _saveToday();
-                                                                        }));
-                                                                      }
-                                                                      _registerActivity();
-                                                                    },
-                                                                  ),
-                                                                  IconButton(
-                                                                    tooltip:
-                                                                        'Important',
-                                                                    icon: Icon(
-                                                                      (_stagedImportant[task.id] ??
-                                                                              task
-                                                                                  .important)
-                                                                          ? Icons
-                                                                              .star
-                                                                          : Icons
-                                                                              .star_border,
-                                                                      color:
-                                                                          _iconColor,
-                                                                    ),
-                                                                    onPressed:
-                                                                        () {
-                                                                      final newVal =
-                                                                          !(_stagedImportant[task.id] ??
-                                                                              task.important);
-                                                                      setState(() =>
-                                                                          _stagedImportant[task.id] =
-                                                                              newVal);
-                                                                      _scheduleDelayedReorder();
-                                                                    },
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            ],
+                                                              ],
+                                                            ),
                                                           ),
-                                                        ),
-                                                    ],
-                                                  ),
-                                                );
-                                              }),
-                                            );
-                                          }),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 220),
-                            switchInCurve: Curves.easeOutCubic,
-                            switchOutCurve: Curves.easeInCubic,
-                            child: SafeArea(
-                              key: const ValueKey('composer_visible'),
-                              top: false,
-                              child: Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _buildNewTaskSearchResults(),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: TextField(
-                                            controller: _controller,
-                                            focusNode: _inputFocus,
-                                            autofocus: !_showingDone &&
-                                                !Platform.isAndroid,
-                                            enabled: !_showingDone,
-                                            textInputAction:
-                                                TextInputAction.done,
-                                            decoration: InputDecoration(
-                                              hintText: _showingDone
-                                                  ? null
-                                                  : (_showingBacklog
-                                                      ? 'new task for later'
-                                                      : 'new task for today'),
-                                              border:
-                                                  const OutlineInputBorder(),
-                                            ),
-                                            onChanged:
-                                                _searchExistingTasksForNewTask,
-                                            onSubmitted: _showingDone
-                                                ? null
-                                                : _addToToday,
-                                            onTapOutside: (_) {
-                                              if (!Platform.isAndroid)
-                                                _requestInputFocusIfIdle();
-                                            },
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            ElevatedButton(
-                                              onPressed: _showingDone
-                                                  ? null
-                                                  : () => _addToToday(
-                                                      _controller.text),
-                                              child: const Icon(Icons.add),
-                                            ),
-                                            const SizedBox(height: 6),
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Tooltip(
-                                                  message:
-                                                      _cloudSyncStatusTooltip(),
-                                                  child: Container(
-                                                    width: 10,
-                                                    height: 10,
-                                                    decoration: BoxDecoration(
-                                                      color:
-                                                          _cloudSyncStatusColor(
-                                                              Theme.of(context)
-                                                                  .colorScheme),
-                                                      shape: BoxShape.circle,
+                                                      ],
                                                     ),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Tooltip(
-                                                  message: 'synchronize',
-                                                  child: InkWell(
-                                                    onTap: _cloudSyncBusy
-                                                        ? null
-                                                        : _manualSyncNow,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            14),
-                                                    child: Padding(
-                                                      padding:
-                                                          const EdgeInsets.all(
-                                                              8),
-                                                      child: Icon(
-                                                        Icons.sync,
-                                                        size: 18,
-                                                        color: _cloudSyncBusy
-                                                            ? Theme.of(context)
-                                                                .colorScheme
-                                                                .outline
-                                                            : Theme.of(context)
-                                                                .colorScheme
-                                                                .primary,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                                  );
+                                                }),
+                                              );
+                                            }),
                                     ),
                                   ],
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 220),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              child: SafeArea(
+                                key: const ValueKey('composer_visible'),
+                                top: false,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _buildNewTaskSearchResults(),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextField(
+                                              controller: _controller,
+                                              focusNode: _inputFocus,
+                                              autofocus: !_showingDone &&
+                                                  !Platform.isAndroid,
+                                              enabled: !_showingDone,
+                                              textInputAction:
+                                                  TextInputAction.done,
+                                              decoration: InputDecoration(
+                                                hintText: _showingDone
+                                                    ? null
+                                                    : (_showingBacklog
+                                                        ? 'new task for later'
+                                                        : 'new task for today'),
+                                                border:
+                                                    const OutlineInputBorder(),
+                                              ),
+                                              onChanged:
+                                                  _searchExistingTasksForNewTask,
+                                              onSubmitted: _showingDone
+                                                  ? null
+                                                  : _addToToday,
+                                              onTapOutside: (_) {
+                                                if (!Platform.isAndroid)
+                                                  _requestInputFocusIfIdle();
+                                              },
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              ElevatedButton(
+                                                onPressed: _showingDone
+                                                    ? null
+                                                    : () => _addToToday(
+                                                        _controller.text),
+                                                child: const Icon(Icons.add),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Tooltip(
+                                                    message:
+                                                        _cloudSyncStatusTooltip(),
+                                                    child: Container(
+                                                      width: 10,
+                                                      height: 10,
+                                                      decoration: BoxDecoration(
+                                                        color:
+                                                            _cloudSyncStatusColor(
+                                                                Theme.of(
+                                                                        context)
+                                                                    .colorScheme),
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Tooltip(
+                                                    message: 'synchronize',
+                                                    child: InkWell(
+                                                      onTap: _cloudSyncBusy
+                                                          ? null
+                                                          : _manualSyncNow,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              14),
+                                                      child: Padding(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .all(8),
+                                                        child: Icon(
+                                                          Icons.sync,
+                                                          size: 18,
+                                                          color: _cloudSyncBusy
+                                                              ? Theme.of(
+                                                                      context)
+                                                                  .colorScheme
+                                                                  .outline
+                                                              : Theme.of(
+                                                                      context)
+                                                                  .colorScheme
+                                                                  .primary,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  // Minimal-mode toggle removed
-                ],
+                    // Minimal-mode toggle removed
+                  ],
+                ),
               ),
             );
           },
