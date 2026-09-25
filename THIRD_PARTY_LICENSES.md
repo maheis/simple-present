@@ -1,32 +1,49 @@
-# Third-Party-Licenses
+# Third-Party Licenses
 
-# Sounds
+This project includes third-party fonts and sounds. The project name, logos, icons, artwork, screenshots, store graphics, and other brand assets are covered separately by `TRADEMARK.md` and are not licensed as third-party assets here.
 
-[Pixabay](https://pixabay.com/service/license-summary/)
+## Fonts
 
-## [DRAGON-STUDIO](https://pixabay.com/users/dragon-studio-38165424/)
+### OpenDyslexic
 
-- [ding.mp3](https://pixabay.com/sound-effects/technology-ding-sfx-472366/)
-- [pop.mp3](https://pixabay.com/sound-effects/film-special-effects-pop-402324/)
+- Included files: `assets/fonts/OpenDyslexic/OpenDyslexic-Regular.otf`, `assets/fonts/OpenDyslexic/OpenDyslexic-Bold.otf`
+- License/source: https://opendyslexic.org
 
-## [Alexis Gaming Cam](https://pixabay.com/users/alexis_gaming_cam-50011695/)
+### Noto Sans
 
-- [there.mp3](https://pixabay.com/sound-effects/film-special-effects-ding-cartoon-346093/)
+- Included files: `assets/fonts/Noto_Sans/static/NotoSans-Regular.ttf`, `assets/fonts/Noto_Sans/static/NotoSans-Bold.ttf`
+- License: SIL Open Font License Version 1.1
+- Local license file: `assets/fonts/Noto_Sans/OFL.txt`
 
-# Fonts
+### Courier Prime
 
-## OpenDyslexic
+- Included files: `assets/fonts/Courier_Prime/CourierPrime-Regular.ttf`, `assets/fonts/Courier_Prime/CourierPrime-Bold.ttf`
+- License: SIL Open Font License Version 1.1
+- Local license file: `assets/fonts/Courier_Prime/OFL.txt`
 
-- [Free to use...](https://opendyslexic.org)
+### Ubuntu / Ubuntu Mono
 
-## Noto Sans
+- Included files: `assets/fonts/Ubuntu/Ubuntu-Regular.ttf`, `assets/fonts/Ubuntu/Ubuntu-Bold.ttf`, `assets/fonts/Ubuntu/UbuntuMono-Regular.ttf`, `assets/fonts/Ubuntu/UbuntuMono-Bold.ttf`
+- License: Ubuntu Font Licence Version 1.0
+- Local license file: `assets/fonts/Ubuntu/UFL.txt`
 
-- [SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007](https://github.com/maheis/SimplePresent/blob/main/assets/fonts/Noto_Sans/OFL.txt)
+## Sounds
 
-## Courier Prime
+Sound effects are sourced from Pixabay and are subject to the Pixabay content license summary:
 
-- [SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007](https://github.com/maheis/SimplePresent/blob/main/assets/fonts/Courier_Prime/OFL.txt)
+- https://pixabay.com/service/license-summary/
 
-### Ubuntu
+### DRAGON-STUDIO
 
-- [UBUNTU FONT LICENCE Version 1.0](https://github.com/maheis/SimplePresent/blob/main/assets/fonts/Ubuntu/UFL.txt)
+- Source: https://pixabay.com/users/dragon-studio-38165424/
+- `assets/sounds/ding.mp3`: https://pixabay.com/sound-effects/technology-ding-sfx-472366/
+- `assets/sounds/pop.mp3`: https://pixabay.com/sound-effects/film-special-effects-pop-402324/
+
+### Alexis Gaming Cam
+
+- Source: https://pixabay.com/users/alexis_gaming_cam-50011695/
+- `assets/sounds/there.mp3`: https://pixabay.com/sound-effects/film-special-effects-ding-cartoon-346093/
+
+## Flutter and Dart Dependencies
+
+Flutter and Dart package dependencies are listed in `pubspec.yaml` and `pubspec.lock`. Their licenses are provided by their respective packages and upstream projects.
