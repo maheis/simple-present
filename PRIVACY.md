@@ -1,64 +1,89 @@
-# Privacy Policy — SimplePresent (English)
+# Privacy Policy for SimplePresent
 
-Last updated: 2026-06-25
+Last updated: 2026-09-25
 
-## Introduction
+## 1. Controller
 
-SimplePresent is a local to‑do / presentation helper app. Protecting your personal data is important to this project. This privacy policy explains what data the app processes, for what purposes, and what rights you have.
-
-## Data sovereignty and self-hosting
-
-Protecting your privacy and keeping control over your data are core goals of SimplePresent. You retain full control: cloud synchronization is entirely optional and only transmits data to servers you explicitly choose and pair with. If you prefer maximum control, you may run your own sync server — the repository contains the tools and instructions needed to self-host. Choosing your own server or avoiding cloud sync entirely ensures your data stays under your control.
-
-## Data Controller
-
-Person responsible for data processing (project):
+The person responsible for data processing in connection with SimplePresent is:
 
 - Name/Handle: maheis
 - Contact: [maheis](mailto:maheis@heister.be)
 
-## What data is processed
+## 2. About the app
 
-- Local app data: tasks, status (Backlog/Done), timestamps, titles, notes, settings (e.g. auto‑delete settings). These data are stored only locally on the device.
-- No automatic transmission to servers; no analytics or crash‑reporting services are enabled by default.
-- If you perform exports/backups (e.g. file export or copy), data may be transmitted to the target platform you choose.
+SimplePresent is a local task, presentation, note, and productivity helper. It is designed to work locally first. Cloud synchronization is optional and is only used if you explicitly configure and pair a sync server.
 
-## Purpose of processing
+## 3. What data is processed
 
-The stored data is used only to provide the app's functionality (storing your tasks, display, management and optional cleanup features).
+The app may store the following data if you enter or create it:
 
-## Legal basis
+- tasks, task status, ordering, timestamps, notes, subtasks, and reminders
+- backlog, done, trash, and related task metadata
+- local notes and app state
+- app settings such as font, text size, theme mode, colors, backup settings, and cleanup settings
+- optional backup and export files
+- optional cloud sync configuration such as server URL, account/device identifiers, pairing state, sync status, and encrypted sync payload metadata
 
-Processing is based on your consent and on the necessity to provide the app's functionality (contract performance). Local storage is necessary to provide the service and perform pre‑contractual measures.
+Depending on how you use the app, this data may include personal or sensitive information. You decide what you store in the app.
 
-## Retention and deletion
+## 4. Local storage
 
-- Data remain on your device until you delete them or uninstall the app.
-- There is an optional setting to automatically delete completed tasks after X days (configurable in settings). This function deletes local Done entries according to your setting.
+By default, data is stored locally on your device. SimplePresent uses local app storage and local data files/databases depending on the platform and feature.
 
-## Data sharing
+The app does not send your data to a project-operated cloud by default.
 
-There is no sharing with third parties unless you export or share data yourself. Cloud synchronization is entirely voluntary and always under your control: you choose which server to pair with, and if you prefer maximum control you can run your own self‑hosted sync server — all necessary tools and instructions are included in this repository.
+## 5. Optional self-hosted cloud synchronization
 
-## Third‑party services
+SimplePresent is currently the only app in this project family with cloud synchronization support.
 
-No third-party analytics or crash-reporting services are integrated by default. If you use a build that includes such services, check that version's settings and consents.
+Cloud synchronization is optional. It only transmits data to a server that you explicitly choose, configure, and pair with the app. This can be a self-hosted sync server operated by you. The repository contains the server tools and documentation needed for self-hosting.
 
-## Security
+If cloud synchronization is enabled, sync data is intended to be encrypted on the client before transmission. The server is designed to store opaque encrypted payloads and device/account metadata required for synchronization. The server operator should not need access to your plaintext task data or encryption keys.
 
-The app stores data locally. Reasonable technical and organizational measures are recommended (device lock, regular backups). If you store particularly sensitive data, use additional encryption or device‑level protection.
-All cloud synchronization is protected by end-to-end encryption: your data is encrypted on your device before it is transmitted, and the sync server stores only opaque encrypted blobs. This means the server operator cannot read your plaintext data or access your encryption keys — you remain in control of who can decrypt your information.
+You can avoid cloud synchronization entirely by not configuring a sync server.
 
-## Your rights
+## 6. Purpose and legal basis
 
-- Access to your stored data
-- Rectification of incorrect data
-- Deletion (unless retention is required by law)
-- Restriction of processing
-- Data portability
+Data is processed solely to provide the app features you use, including task management, reminders, local storage, backup/export, cleanup features, and optional synchronization with a server you choose.
 
-To exercise your rights or ask questions about data processing, please contact the data controller listed above.
+Processing is based on your voluntary use of the app and the necessity of storing data to provide the requested functionality.
 
-## Changes to this privacy policy
+## 7. Sharing with third parties
 
-This policy may be updated from time to time. The current version is available in this repository as `PRIVACY.md`.
+SimplePresent does not automatically share your data with third parties. No analytics, advertising, tracking, or crash-reporting services are integrated by default.
+
+If you export, copy, back up, synchronize, or share data yourself, the privacy terms of the chosen destination, server, or service may also apply.
+
+## 8. Permissions and technical services
+
+The app may use local file access for exports, backups, imports, or desktop/mobile integration features. Optional cloud synchronization requires network access to the server you configure.
+
+Self-hosted server operation is under your control. If you use a server operated by someone else, that operator may process encrypted sync payloads and technical metadata required to provide the service.
+
+## 9. Retention and deletion
+
+Data remains on your device until you delete it in the app, remove the app data, or uninstall the app. Optional cleanup settings can remove completed or trashed items after configured retention periods.
+
+Backup, export, and synchronized copies may remain wherever you stored or synchronized them. You may need to delete those copies separately.
+
+## 10. Security
+
+Local data should be protected by device-level security such as screen lock, disk encryption, and regular backups.
+
+If you enable cloud synchronization, use HTTPS and a trusted server. When self-hosting, keep the server, reverse proxy, TLS certificates, and system packages up to date. Protect configuration files, secrets, device tokens, and backup files.
+
+## 11. Your rights
+
+Subject to applicable law, you may have the right to:
+
+- access your personal data
+- correct inaccurate data
+- delete your data
+- restrict processing
+- receive a portable copy of your data
+
+To exercise your rights or ask questions about data processing, contact the controller listed above.
+
+## 12. Changes to this privacy policy
+
+This privacy policy may be updated if the app or its data processing changes. The current version is available in this repository as `PRIVACY.md`.
