@@ -1436,6 +1436,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String? _lastToastMessage;
   DateTime? _lastToastAt;
   final Set<String> _expanded = <String>{};
+  String? _selectedTaskId;
   final Set<String> _busyTaskIds = <String>{};
   // Action queue to prevent concurrent edits to the same task
   final Map<String, List<Future<void> Function()>> _taskActionQueues = {};
@@ -3192,6 +3193,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   if (!mounted) return;
                   setState(() {
                     _today.insert(0, newTask);
+                    _selectedTaskId = newTask.id;
                   });
                   await _saveToday();
                   unawaited(_updateListCounts());
@@ -3220,6 +3222,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   if (!mounted) return;
                   setState(() {
                     _today.insert(0, newTask);
+                    _selectedTaskId = newTask.id;
                   });
                   await _saveToday();
                   unawaited(_updateListCounts());
@@ -5053,6 +5056,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _switchFile(bool showDone) async {
     _clearNewTaskSearch();
+    _selectedTaskId = null;
     _showingDone = showDone;
     _showingBacklog = false;
     _showingTrash = false;
@@ -5081,6 +5085,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _switchToBacklog() async {
     _clearNewTaskSearch();
+    _selectedTaskId = null;
     _showingBacklog = true;
     _showingDone = false;
     _showingTrash = false;
@@ -5106,6 +5111,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _switchToTrash() async {
     _clearNewTaskSearch();
+    _selectedTaskId = null;
     _showingBacklog = false;
     _showingDone = false;
     _showingTrash = true;
@@ -6461,6 +6467,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _taskActionProcessing.contains(task.id)) {
       return;
     }
+    setState(() => _selectedTaskId = task.id);
     if ((Platform.isLinux || Platform.isWindows || Platform.isMacOS) &&
         _openTasksInSeparateDesktopWindow) {
       unawaited(_queueTaskAction(task.id, () async {
@@ -7871,6 +7878,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       unawaited(_appendRedoLog('duplicate',
           taskId: newId, details: {'source': item.id, 'target': targetFile}));
       setState(() {
+        _selectedTaskId = newId;
         _expanded.clear();
         _expanded.add(newId);
         _editControllers.putIfAbsent(newId, () {
@@ -8124,6 +8132,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     unawaited(_queueTaskAction(newId, () async {
       setState(() {
         _today.insert(0, newItem);
+        _selectedTaskId = newId;
         _controller.clear();
       });
       await _saveToday();
@@ -10019,6 +10028,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                         : Theme.of(context)
                                                             .colorScheme
                                                             .onSurfaceVariant;
+                                                final isSelected =
+                                                    _selectedTaskId == task.id;
+                                                final selectedColor = Color(
+                                                    _accentColorNotifier.value);
                                                 return Dismissible(
                                                   key:
                                                       ValueKey('${task.id}-$i'),
@@ -10252,12 +10265,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                     children: [
                                                       Card(
                                                         key: tileBodyKey,
-                                                        color: (task.inProgress
-                                                            ? Colors.green
+                                                        color: isSelected
+                                                            ? selectedColor
                                                                 .withAlpha(
-                                                                    (0.10 * 255)
+                                                                    (0.12 * 255)
                                                                         .round())
-                                                            : null),
+                                                            : (task.inProgress
+                                                                ? Colors.green
+                                                                    .withAlpha((0.10 *
+                                                                            255)
+                                                                        .round())
+                                                                : null),
+                                                        shape:
+                                                            RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(12),
+                                                          side: isSelected
+                                                              ? BorderSide(
+                                                                  color:
+                                                                      selectedColor,
+                                                                  width: 2,
+                                                                )
+                                                              : BorderSide.none,
+                                                        ),
                                                         child: ListTile(
                                                           contentPadding: EdgeInsets
                                                               .symmetric(
