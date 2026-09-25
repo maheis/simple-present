@@ -38,7 +38,7 @@
 - [ ] aufgaben fenster position und größe merken
 - [ ] Server Geheimnis (optinal rotierend) damit kein Client ohne Geheimnis auf den Server zugreifen bzw. registrieren kann!
 - [x] highlight der aktuelle selektierten aufgabe (wenn z.b. neue aufgabe angelegt wird)
-- [ ] suche bei neuanlage soll bei aufgaben im backlog nicht reaktivieren anbieten, sondern als aktion "move to today" anbieten
+- [x] suche bei neuanlage soll bei aufgaben im backlog nicht reaktivieren anbieten, sondern als aktion "move to today" anbieten
 - [ ] aufgaben suche (strg+f)
 
 ## notes

@@ -1594,6 +1594,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (index != -1) _toggleExpanded(index);
   }
 
+  Future<void> _moveBacklogSearchTaskToToday(TaskItem task) async {
+    _clearNewTaskSearch();
+    await _moveFromBacklog(task.id);
+  }
+
   Widget _buildNewTaskSearchResults() {
     if (_newTaskSearchQuery.isEmpty || _newTaskSearchResults.isEmpty) {
       return const SizedBox.shrink();
@@ -1642,14 +1647,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     ],
                   ),
                   trailing: OutlinedButton.icon(
-                    icon: const Icon(Icons.replay, size: 17),
-                    label: Text(
-                      entry.key == (_showingBacklog ? 'backlog' : 'today') &&
-                              !task.done
-                          ? 'use here'
-                          : 'reactivate',
+                    icon: Icon(
+                      entry.key == 'backlog'
+                          ? Icons.arrow_circle_left
+                          : Icons.replay,
+                      size: 17,
                     ),
-                    onPressed: () => _reactivateExistingTask(entry.key, task),
+                    label: Text(
+                      entry.key == 'backlog'
+                          ? 'move to today'
+                          : (entry.key ==
+                                      (_showingBacklog ? 'backlog' : 'today') &&
+                                  !task.done
+                              ? 'use here'
+                              : 'reactivate'),
+                    ),
+                    onPressed: () => entry.key == 'backlog'
+                        ? _moveBacklogSearchTaskToToday(task)
+                        : _reactivateExistingTask(entry.key, task),
                   ),
                   onTap: () => _openExistingTask(entry.key, task),
                 ),
