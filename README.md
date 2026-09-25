@@ -35,6 +35,12 @@ The app also includes a stopwatch, manual time tracking, reminders, swipe action
 
 Linux Server: The app can sync with a self-hosted server. The repository contains the tools and instructions needed to set up your own sync server.
 
+## Legal and Privacy
+
+The source code is licensed under the MIT License. The name, logo, icons, and other brand assets are protected separately; see `LICENSE`, `TRADEMARK.md`, and `THIRD_PARTY_LICENSES.md`.
+
+SimplePresent is local-first. Optional cloud synchronization only uses servers you explicitly choose and pair with, including self-hosted servers. See `PRIVACY.md` for details.
+
 ## Technical Documentation
 
 For internal settings, runtime parameters, and debugging options (including debugWriteLog), see TECHNICAL_README.md.
