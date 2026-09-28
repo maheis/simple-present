@@ -40,6 +40,8 @@
 - [x] highlight der aktuelle selektierten aufgabe (wenn z.b. neue aufgabe angelegt wird)
 - [x] suche bei neuanlage soll bei aufgaben im backlog nicht reaktivieren anbieten, sondern als aktion "move to today" anbieten
 - [x] aufgaben suche (strg+f)
+- [x] strg+f suche für android (button im burgermenü?)
+- [x] deselektieren wwenn man ins leere klickt
 
 ## notes
 

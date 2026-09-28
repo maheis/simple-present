@@ -9450,6 +9450,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         onScaleUpdate: (_) {},
                         behavior: HitTestBehavior.translucent,
                         onTap: () {
+                          if (_selectedTaskId != null) {
+                            setState(() => _selectedTaskId = null);
+                          }
                           if (!Platform.isAndroid) _requestInputFocusIfIdle();
                           _registerActivity();
                         },
@@ -9629,7 +9632,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                             .value)),
                                                 onSelected: (v) async {
                                                   await _finalizeAllEdits();
-                                                  if (v == 'stats')
+                                                  if (v == 'search') {
+                                                    await _showGlobalTaskSearch();
+                                                  } else if (v == 'stats')
                                                     await _openStats();
                                                   else if (v == 'settings')
                                                     await _openSettings();
@@ -9682,6 +9687,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                 itemBuilder: (ctx) {
                                                   final items = <PopupMenuEntry<
                                                       String>>[];
+                                                  if (Platform.isAndroid) {
+                                                    items.add(PopupMenuItem(
+                                                        value: 'search',
+                                                        child: Row(children: [
+                                                          Icon(Icons.search,
+                                                              size: 18,
+                                                              color: Color(
+                                                                  _accentColorNotifier
+                                                                      .value)),
+                                                          const SizedBox(
+                                                              width: 8),
+                                                          const Text(
+                                                              'search tasks')
+                                                        ])));
+                                                  }
                                                   items.add(PopupMenuItem(
                                                       value: 'stats',
                                                       child: Row(children: [
