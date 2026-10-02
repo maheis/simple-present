@@ -1645,6 +1645,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             }
           }
 
+          Future<void> openTask(String sourceList, TaskItem task) async {
+            Navigator.of(dialogContext).pop();
+            await _openExistingTask(sourceList, task);
+          }
+
           return AlertDialog(
             title: const Text('Search tasks'),
             content: SizedBox(
@@ -1704,8 +1709,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                   ? 'reactivate'
                                                   : 'open')),
                                         ),
-                                        onTap: () =>
-                                            handleAction(entry.key, task),
+                                        onTap: () => openTask(entry.key, task),
                                       ),
                                   ],
                                 ],
@@ -9625,6 +9629,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                           Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
+                                              IconButton(
+                                                tooltip: 'notes',
+                                                icon: _menuSvgIcon(
+                                                  context,
+                                                  'assets/icons/white_transparent_notes.svg',
+                                                ),
+                                                onPressed: () async {
+                                                  await _finalizeAllEdits();
+                                                  await _openNotes();
+                                                },
+                                              ),
                                               PopupMenuButton<String>(
                                                 icon: Icon(Icons.more_vert,
                                                     color: Color(
@@ -9719,15 +9734,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                         const SizedBox(
                                                             width: 8),
                                                         const Text('settings')
-                                                      ])));
-                                                  items.add(PopupMenuItem(
-                                                      value: 'notes',
-                                                      child: Row(children: [
-                                                        _menuSvgIcon(ctx,
-                                                            'assets/icons/white_transparent_notes.svg'),
-                                                        const SizedBox(
-                                                            width: 8),
-                                                        const Text('notes')
                                                       ])));
                                                   items.add(PopupMenuItem(
                                                       value: 'redo',
@@ -11381,6 +11387,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                 border:
                                                     const OutlineInputBorder(),
                                               ),
+                                              onTap: () {
+                                                if (_selectedTaskId != null) {
+                                                  setState(() =>
+                                                      _selectedTaskId = null);
+                                                }
+                                              },
                                               onChanged:
                                                   _searchExistingTasksForNewTask,
                                               onSubmitted: _showingDone

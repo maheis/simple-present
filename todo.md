@@ -42,6 +42,9 @@
 - [x] aufgaben suche (strg+f)
 - [x] strg+f suche für android (button im burgermenü?)
 - [x] deselektieren wwenn man ins leere klickt
+- [x] deselektion auch wenn man z.b. in neue aufgabe springt
+- [x] suche nach aufgaben soll die aufgabe öffnen können (Weil man z.b. infos nachschauen mag)
+- [x] notes button aus dem burgermenü raus und daneben verschieben
 
 ## notes
 
