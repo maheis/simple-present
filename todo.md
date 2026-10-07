@@ -45,6 +45,9 @@
 - [x] deselektion auch wenn man z.b. in neue aufgabe springt
 - [x] suche nach aufgaben soll die aufgabe öffnen können (Weil man z.b. infos nachschauen mag)
 - [x] notes button aus dem burgermenü raus und daneben verschieben
+- [x] Fokus auch weg wenn app kein Fokus
+- [x] animierer fokus (kurz vergrößern) der nach zeit verschwindet/verblasst
+- [ ] suchfenster muss beim anlegen einer neuen aufgabe geschlossen werden.
 
 ## notes
 
