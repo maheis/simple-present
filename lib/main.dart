@@ -8288,6 +8288,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // other focused edit fields provide conflicting text.
     final input = _controller.text.trim();
     if (input.isEmpty) return;
+    _clearNewTaskSearch();
     // Prevent controller/index mismatch: collapse expanded editors and dispose their controllers
     if (_expanded.isNotEmpty) {
       for (final id in _editControllers.keys) {
@@ -8323,6 +8324,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     unawaited(_queueTaskAction(newId, () async {
       setState(() {
         _today.insert(0, newItem);
+        _newTaskSearchQuery = '';
+        _newTaskSearchResults = const {};
         _controller.clear();
       });
       _showTaskFocus(newId);

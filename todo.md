@@ -47,7 +47,7 @@
 - [x] notes button aus dem burgermenü raus und daneben verschieben
 - [x] Fokus auch weg wenn app kein Fokus
 - [x] animierer fokus (kurz vergrößern) der nach zeit verschwindet/verblasst
-- [ ] suchfenster muss beim anlegen einer neuen aufgabe geschlossen werden.
+- [x] suchfenster muss beim anlegen einer neuen aufgabe geschlossen werden.
 
 ## notes
 
