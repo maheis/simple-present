@@ -48,6 +48,9 @@
 - [x] Fokus auch weg wenn app kein Fokus
 - [x] animierer fokus (kurz vergrößern) der nach zeit verschwindet/verblasst
 - [x] suchfenster muss beim anlegen einer neuen aufgabe geschlossen werden.
+- [ ] cloud sync entfernen/ausbauen?
+- [ ] nur windows?
+- [x] stundenerfassung pro tag!
 
 ## notes
 

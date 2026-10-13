@@ -5,6 +5,37 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sembast/sembast_io.dart';
 
+int dailyTimeEntryDelta(int currentTotal, int previousTotal) {
+  return currentTotal > previousTotal ? currentTotal - previousTotal : 0;
+}
+
+Map<String, dynamic> normalizeLegacyTimeEntry(
+  Map<String, dynamic> entry, {
+  required int previousStopwatchSeconds,
+  required int previousWorkMinutes,
+}) {
+  final normalized = Map<String, dynamic>.from(entry);
+  final stopwatchTotal =
+      int.tryParse((entry['total_stopwatch_seconds'] ?? '').toString());
+  final workTotal =
+      int.tryParse((entry['total_work_minutes'] ?? '').toString());
+  final stopwatchValue =
+      int.tryParse((entry['stopwatch_seconds'] ?? 0).toString()) ?? 0;
+  final workValue = int.tryParse((entry['work_minutes'] ?? 0).toString()) ?? 0;
+
+  if (stopwatchTotal == null) {
+    normalized['stopwatch_seconds'] =
+        dailyTimeEntryDelta(stopwatchValue, previousStopwatchSeconds);
+    normalized['total_stopwatch_seconds'] = stopwatchValue;
+  }
+  if (workTotal == null) {
+    normalized['work_minutes'] =
+        dailyTimeEntryDelta(workValue, previousWorkMinutes);
+    normalized['total_work_minutes'] = workValue;
+  }
+  return normalized;
+}
+
 /// A simple Sembast-backed storage for task lists, raw blobs, and time entries.
 /// It keeps an in-memory cache so read methods remain synchronous.
 class SembastStorage {
@@ -78,6 +109,7 @@ class SembastStorage {
         }
       }
     } catch (_) {}
+    _migrateLegacyTimeEntries();
   }
 
   Future<void> refresh() async {
@@ -133,6 +165,47 @@ class SembastStorage {
         }
       }
     } catch (_) {}
+    _migrateLegacyTimeEntries();
+  }
+
+  void _migrateLegacyTimeEntries() {
+    final dates = _timeCache.keys.toList()..sort();
+    final stopwatchTotals = <String, int>{};
+    final workTotals = <String, int>{};
+    for (final date in dates) {
+      final entries = _timeCache[date] ?? const <Map<String, dynamic>>[];
+      var changed = false;
+      final normalizedEntries = <Map<String, dynamic>>[];
+      for (final entry in entries) {
+        final taskId = entry['task_id']?.toString() ?? '';
+        final normalized = normalizeLegacyTimeEntry(
+          entry,
+          previousStopwatchSeconds: stopwatchTotals[taskId] ?? 0,
+          previousWorkMinutes: workTotals[taskId] ?? 0,
+        );
+        changed = changed ||
+            !entry.containsKey('total_stopwatch_seconds') ||
+            !entry.containsKey('total_work_minutes');
+        final stopwatchTotal = int.tryParse(
+                normalized['total_stopwatch_seconds']?.toString() ?? '') ??
+            0;
+        final workTotal =
+            int.tryParse(normalized['total_work_minutes']?.toString() ?? '') ??
+                0;
+        if (taskId.isNotEmpty) {
+          stopwatchTotals[taskId] = stopwatchTotal;
+          workTotals[taskId] = workTotal;
+        }
+        normalizedEntries.add(normalized);
+      }
+      if (!changed) continue;
+      _timeCache[date] = normalizedEntries;
+      unawaited(() async {
+        try {
+          await _timeStore.record(date).put(_db!, normalizedEntries);
+        } catch (_) {}
+      }());
+    }
   }
 
   List<Map<String, dynamic>> readTaskList(String listName) {
@@ -210,17 +283,62 @@ class SembastStorage {
     required int stopwatchSeconds,
     required int workMinutes,
     int? recordedAt,
+    bool valuesAreDaily = false,
+    int? totalStopwatchSeconds,
+    int? totalWorkMinutes,
   }) {
     unawaited(() async {
       final now = recordedAt ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
       final list = _timeCache[date] ?? <Map<String, dynamic>>[];
+      var previousStopwatchSeconds = 0;
+      var previousWorkMinutes = 0;
+      if (!valuesAreDaily) {
+        final previousDates = _timeCache.keys
+            .where((entryDate) => entryDate.compareTo(date) < 0)
+            .toList()
+          ..sort((a, b) => b.compareTo(a));
+        for (final previousDate in previousDates) {
+          final previousEntries = _timeCache[previousDate] ?? const [];
+          Map<String, dynamic>? previousEntry;
+          for (final candidate in previousEntries) {
+            if (candidate['task_id']?.toString() == taskId) {
+              previousEntry = candidate;
+              break;
+            }
+          }
+          if (previousEntry == null) continue;
+          previousStopwatchSeconds = int.tryParse(
+                  (previousEntry['total_stopwatch_seconds'] ??
+                          previousEntry['stopwatch_seconds'] ??
+                          0)
+                      .toString()) ??
+              0;
+          previousWorkMinutes = int.tryParse(
+                  (previousEntry['total_work_minutes'] ??
+                          previousEntry['work_minutes'] ??
+                          0)
+                      .toString()) ??
+              0;
+          break;
+        }
+      }
+      final cumulativeStopwatchSeconds =
+          totalStopwatchSeconds ?? stopwatchSeconds;
+      final cumulativeWorkMinutes = totalWorkMinutes ?? workMinutes;
       final entry = <String, dynamic>{
         'task_id': taskId,
         'task_text': taskText,
         'task_done': taskDone ? 1 : 0,
         'task_in_progress': taskInProgress ? 1 : 0,
-        'stopwatch_seconds': stopwatchSeconds,
-        'work_minutes': workMinutes,
+        'stopwatch_seconds': valuesAreDaily
+            ? stopwatchSeconds
+            : dailyTimeEntryDelta(
+                cumulativeStopwatchSeconds, previousStopwatchSeconds),
+        'work_minutes': valuesAreDaily
+            ? workMinutes
+            : dailyTimeEntryDelta(cumulativeWorkMinutes, previousWorkMinutes),
+        'total_stopwatch_seconds': cumulativeStopwatchSeconds,
+        'total_work_minutes': cumulativeWorkMinutes,
         'recorded_at': now,
       };
       final newList = List<Map<String, dynamic>>.from(list);

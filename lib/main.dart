@@ -4149,6 +4149,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       final client = _cloudClientForSync();
       final entryDate = date ?? DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final storedEntry = _sembastStorage
+          .getTimeEntriesForDate(entryDate)
+          .where((entry) => entry['task_id']?.toString() == task.id)
+          .firstOrNull;
       final modifiedAt = DateTime.now().millisecondsSinceEpoch;
       _cloudStateVersion += 1;
 
@@ -4161,8 +4165,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             'task_text': task.text,
             'task_done': task.done,
             'task_in_progress': task.inProgress,
-            'stopwatch_seconds': task.stopwatchAccumulatedSeconds,
-            'work_minutes': task.workMinutes,
+            'stopwatch_seconds': storedEntry?['stopwatch_seconds'] ??
+                task.stopwatchAccumulatedSeconds,
+            'work_minutes': storedEntry?['work_minutes'] ?? task.workMinutes,
+            'total_stopwatch_seconds':
+                storedEntry?['total_stopwatch_seconds'] ??
+                    task.stopwatchAccumulatedSeconds,
+            'total_work_minutes':
+                storedEntry?['total_work_minutes'] ?? task.workMinutes,
             'recorded_at': modifiedAt,
           },
         },
@@ -5006,6 +5016,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               workMinutes: (entry['work_minutes'] is num)
                   ? (entry['work_minutes'] as num).toInt()
                   : int.tryParse(entry['work_minutes']?.toString() ?? '') ?? 0,
+              valuesAreDaily: entry.containsKey('total_stopwatch_seconds') ||
+                  entry.containsKey('total_work_minutes'),
+              totalStopwatchSeconds: (entry['total_stopwatch_seconds'] is num)
+                  ? (entry['total_stopwatch_seconds'] as num).toInt()
+                  : int.tryParse(
+                      entry['total_stopwatch_seconds']?.toString() ?? ''),
+              totalWorkMinutes: (entry['total_work_minutes'] is num)
+                  ? (entry['total_work_minutes'] as num).toInt()
+                  : int.tryParse(entry['total_work_minutes']?.toString() ?? ''),
               recordedAt: (entry['recorded_at'] is num)
                   ? (entry['recorded_at'] as num).toInt()
                   : int.tryParse(entry['recorded_at']?.toString() ?? ''),
