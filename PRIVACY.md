@@ -1,6 +1,6 @@
 # Privacy Policy for SimplePresent
 
-Last updated: 2026-09-25
+Last updated: 2026-10-13
 
 ## 1. Controller
 
@@ -11,7 +11,7 @@ The person responsible for data processing in connection with SimplePresent is:
 
 ## 2. About the app
 
-SimplePresent is a local task, presentation, note, and productivity helper. It is designed to work locally first. Cloud synchronization is optional and is only used if you explicitly configure and pair a sync server.
+SimplePresent is a local task, presentation, note, and productivity helper. Task data is stored on your device. The app has no account, cloud synchronization, or project-operated data service.
 
 ## 3. What data is processed
 
@@ -22,7 +22,6 @@ The app may store the following data if you enter or create it:
 - local notes and app state
 - app settings such as font, text size, theme mode, colors, backup settings, and cleanup settings
 - optional backup and export files
-- optional cloud sync configuration such as server URL, account/device identifiers, pairing state, sync status, and encrypted sync payload metadata
 
 Depending on how you use the app, this data may include personal or sensitive information. You decide what you store in the app.
 
@@ -32,15 +31,9 @@ By default, data is stored locally on your device. SimplePresent uses local app 
 
 The app does not send your data to a project-operated cloud by default.
 
-## 5. Optional self-hosted cloud synchronization
+## 5. Backup and export
 
-SimplePresent is currently the only app in this project family with cloud synchronization support.
-
-Cloud synchronization is optional. It only transmits data to a server that you explicitly choose, configure, and pair with the app. This can be a self-hosted sync server operated by you. The repository contains the server tools and documentation needed for self-hosting.
-
-If cloud synchronization is enabled, sync data is intended to be encrypted on the client before transmission. The server is designed to store opaque encrypted payloads and device/account metadata required for synchronization. The server operator should not need access to your plaintext task data or encryption keys.
-
-You can avoid cloud synchronization entirely by not configuring a sync server.
+You can create local backups or export task data with the app's built-in tools. Exported or shared files are handled by the destination you choose and may be stored outside the app's private storage. Importing a file is initiated by you.
 
 ## 6. Purpose and legal basis
 
@@ -50,27 +43,25 @@ Processing is based on your voluntary use of the app and the necessity of storin
 
 ## 7. Sharing with third parties
 
-SimplePresent does not automatically share your data with third parties. No analytics, advertising, tracking, or crash-reporting services are integrated by default.
+SimplePresent does not send task data to a sync service or automatically share it with third parties. No analytics, advertising, tracking, or crash-reporting services are integrated by default.
 
 If you export, copy, back up, synchronize, or share data yourself, the privacy terms of the chosen destination, server, or service may also apply.
 
 ## 8. Permissions and technical services
 
-The app may use local file access for exports, backups, imports, or desktop/mobile integration features. Optional cloud synchronization requires network access to the server you configure.
-
-Self-hosted server operation is under your control. If you use a server operated by someone else, that operator may process encrypted sync payloads and technical metadata required to provide the service.
+The app may use local file access for exports, backups, imports, or desktop/mobile integration features. Sharing or saving an exported file is controlled by the destination you select.
 
 ## 9. Retention and deletion
 
 Data remains on your device until you delete it in the app, remove the app data, or uninstall the app. Optional cleanup settings can remove completed or trashed items after configured retention periods.
 
-Backup, export, and synchronized copies may remain wherever you stored or synchronized them. You may need to delete those copies separately.
+Backup and export copies may remain wherever you saved or shared them. You may need to delete those copies separately.
 
 ## 10. Security
 
 Local data should be protected by device-level security such as screen lock, disk encryption, and regular backups.
 
-If you enable cloud synchronization, use HTTPS and a trusted server. When self-hosting, keep the server, reverse proxy, TLS certificates, and system packages up to date. Protect configuration files, secrets, device tokens, and backup files.
+Protect local data and exported backups with device-level security such as screen lock, disk encryption, and regular backups to a destination you trust.
 
 ## 11. Your rights
 

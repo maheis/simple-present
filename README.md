@@ -9,9 +9,9 @@ A **simple** task management system focused on **present** tasks.
 SimplePresent helps you manage tasks across three lists: Today, Backlog, and Done. It supports important and in-progress flags, notes, subtasks, scheduled dates and times, and automatic sorting so current work stays in focus.
 Perfect for people who like to work on multiple things at once and who can quickly get scattered across many different topics. It helps you keep an overview of your current items and stay focused on what matters now.
 
-Protecting your privacy and keeping control over your data are core goals of SimplePresent. You retain full control: cloud synchronization is entirely optional and only transmits data to servers you explicitly choose and pair with. If you prefer maximum control, you may run your own sync server — the repository contains the tools and instructions needed to self-host. Choosing your own server or avoiding cloud sync entirely ensures your data stays under your control.
+Protecting your privacy and keeping control over your data are core goals of SimplePresent. Tasks and settings are stored locally on your device. Use export/import or automatic backups to protect or move your data; the app does not require an account or sync server.
 
-The app also includes a stopwatch, manual time tracking, reminders, swipe actions, cloud synchronization, and Android notifications.
+The app also includes a stopwatch, manual time tracking, reminders, swipe actions, and Android notifications.
 
 ## Key features
 
@@ -20,7 +20,7 @@ The app also includes a stopwatch, manual time tracking, reminders, swipe action
 - Notes, subtasks, and scheduled date/time
 - Stopwatch and manual time entry
 - Automatic sorting and delayed reordering
-- Cloud sync with pairing and device management
+- Local storage, export/import, and automatic backups
 - Android notifications and desktop notifications
 - Reminders and alarms
 
@@ -31,15 +31,15 @@ The app also includes a stopwatch, manual time tracking, reminders, swipe action
 - Linux -> Download on GitHub
 - Web (Flutter web) via browser - Coming soon (?)
 
-## Cloud Sync
+## Local data and backups
 
-Linux Server: The app can sync with a self-hosted server. The repository contains the tools and instructions needed to set up your own sync server.
+SimplePresent stores task data on the device. Export or back up your data using the built-in tools in the app.
 
 ## Legal and Privacy
 
 The source code is licensed under the MIT License. The name, logo, icons, and other brand assets are protected separately; see `LICENSE`, `TRADEMARK.md`, and `THIRD_PARTY_LICENSES.md`.
 
-SimplePresent is local-first. Optional cloud synchronization only uses servers you explicitly choose and pair with, including self-hosted servers. See `PRIVACY.md` for details.
+SimplePresent processes task data locally. See `PRIVACY.md` for details.
 
 ## Technical Documentation
 

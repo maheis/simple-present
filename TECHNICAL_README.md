@@ -34,22 +34,6 @@ Technische Dokumentation zu internen Parametern, Settings-Datei und Debug-Verhal
   - Definiert einen benutzerdefinierten Speicherpfad.
   - Bei leer nutzt die App den Standardordner (siehe oben).
 
-### cloudAllowInsecureTls
-
-- Typ: bool
-- Default: false
-- Wirkung:
-  - Erlaubt unsichere Zertifikate fuer Cloud-Sync (nur wenn explizit aktiviert).
-
-### cloudDeviceName
-
-- Typ: string
-- Default:
-  - Android: android
-  - Sonst: Hostname (Fallback desktop bei leer/localhost)
-- Wirkung:
-  - Geraetename fuer Register/Pair im Cloud-Sync.
-
 ### maxTasksToday / maxTasksBacklog
 
 - Typ: int
@@ -77,10 +61,6 @@ Die Settings-Datei speichert zusaetzlich unter anderem:
   - inactivityReminders
 - UI-Parameter:
   - uiTextScaleFactor, fontFamily, swipeEnabled
-- Cloud-Statusdaten:
-  - cloudServerUrl, cloudAccountId, cloudDeviceId, cloudToken
-  - cloudStateVersion, cloudLastSyncModifiedAt, cloudLastSyncSuccessAt
-  - cloudSyncFailed, cloudSyncLastError
 
 ## Betriebsnotizen
 

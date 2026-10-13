@@ -93,7 +93,6 @@ class MainActivity : FlutterActivity() {
 				}
 			}
 
-		// Cloud Sync HTTP client channel removed - not needed with proper Apache config
 		flushPendingTaskActions()
 		flushPendingOpenTasks()
 		handleIntent(intent)

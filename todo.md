@@ -26,17 +26,10 @@
             Zentrale Datenbank (z.B. Firebase, Supabase, eigene API) 
 - [ ] Worklog an Aufgaben...
 - [ ] Reihenfolge auch über andere Gruppen hinaus und dann optisch einsortieren
-- [ ] sync: self signed certs prüfen (ca-chain)
-- [ ] sync: nur ein gerät sollte automatisches löschen aktiv haben! (primärgerät-definieren?)
 - [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
-- [ ] ausführliches sync testen! kommt ständig zu fehlern, die nicht reproduzierbar sind!
-      - [ ] aufgaben doppeln sich, bei tages beginn. es kommt die konfliktabfrage.
-      - [ ] was ist ein konflikt? konflikt sollte nur sein, wenn zwei clients unterschiedliche änderungen machen.
-      - [ ] sync muss vor tagesmigration erfolgen?! (siehe punkt 1)
 - [ ] Anzeigen wenn es Notes gibt?
 - [ ] aufgaben fenster position und größe merken
-- [ ] Server Geheimnis (optinal rotierend) damit kein Client ohne Geheimnis auf den Server zugreifen bzw. registrieren kann!
 - [x] highlight der aktuelle selektierten aufgabe (wenn z.b. neue aufgabe angelegt wird)
 - [x] suche bei neuanlage soll bei aufgaben im backlog nicht reaktivieren anbieten, sondern als aktion "move to today" anbieten
 - [x] aufgaben suche (strg+f)
@@ -48,7 +41,7 @@
 - [x] Fokus auch weg wenn app kein Fokus
 - [x] animierer fokus (kurz vergrößern) der nach zeit verschwindet/verblasst
 - [x] suchfenster muss beim anlegen einer neuen aufgabe geschlossen werden.
-- [ ] cloud sync entfernen/ausbauen?
+- [x] Cloud-Sync inklusive Servercode entfernen
 - [ ] nur windows?
 - [x] stundenerfassung pro tag!
 

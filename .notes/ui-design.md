@@ -156,7 +156,6 @@ Wichtige Icons und ihre Bedeutung in der App:
 | `Icons.calendar_today` | Datum |
 | `Icons.timelapse` | Zeiterfassung |
 | `Icons.delete` / `Icons.delete_forever` | Löschen / endgültig löschen |
-| `Icons.sync` | Cloud-Sync |
 | `Icons.more_vert` | Kontextmenü |
 
 ---

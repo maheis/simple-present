@@ -110,9 +110,6 @@ Create `AppxManifest.xml` in your project root or build directory:
     <!-- Required for file access -->
     <Capability Name="documentsLibrary" />
     <Capability Name="picturesLibrary" />
-    <!-- Optional: for network sync -->
-    <Capability Name="internetClient" />
-    <Capability Name="internetClientServer" />
   </Capabilities>
 
 </Package>
@@ -187,7 +184,6 @@ Before submission, review Microsoft's policies:
   - ✅ Must not collect personal data without consent
   - ✅ Must have privacy policy (link in Store listing)
   - ✅ Must disclose any tracking/analytics
-  - ✅ Network sync must use HTTPS only
   - ✅ File access must be transparent to user
   - ❌ Must NOT auto-download large files
   - ❌ Must NOT modify system settings
@@ -195,7 +191,7 @@ Before submission, review Microsoft's policies:
 
 **Prepare privacy policy:**
 - Simple one-pager on SimplePresent website or GitHub
-- Explain: Cloud sync data handling, no ads, no tracking
+- Explain: local data storage and backup/export handling, no ads, no tracking
 
 ### Step 6: Submit for Review
 

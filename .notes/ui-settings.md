@@ -11,7 +11,6 @@ Die Einstellungen werden in funktionale Gruppen geteilt:
 - **Bedienung:** Swipe-Gesten und separates Desktop-Fenster.
 - **Datenpflege:** automatische Bereinigung von Done-/Papierkorb-Eintraegen.
 - **Export und Backup:** automatische Exporte, Intervalle und Aufbewahrung.
-- **Cloud-Synchronisation:** Server, Geraet, Kopplung, Status und Geraeteverwaltung.
 - **Vorlagen und Limits:** Subtask-Vorlagen sowie Aufgabenlimits.
 
 Settings sollen das Verhalten der Anwendung anpassen, ohne dass fachliche Daten verloren gehen oder die Hauptansicht mit Optionen ueberladen wird.
@@ -56,24 +55,6 @@ Zeit- und Alarmgruppen sollen in der UI jeweils zusammenbleiben. Pro Ereignisstu
 | `autoExportMaxBackups` | Maximale Anzahl von Sicherungen |
 | `subtaskTemplates` | Gespeicherte Checklisten-/Subtask-Vorlagen |
 
-### Cloud
-
-Die Cloud-Gruppe enthaelt unter anderem:
-
-- `cloudServerUrl`
-- `cloudAccountId`
-- `cloudDeviceId`
-- `cloudDeviceName`
-- `cloudToken`
-- `cloudWordPhrase`
-- `cloudPIN`
-- `cloudAllowInsecureTls`
-- `cloudLastSyncSuccessAt`
-- `cloudSyncFailed`
-- `cloudSyncLastError`
-
-Tokens, PINs und Kopplungsdaten muessen in der UI als sensible Daten behandelt werden. Sie duerfen nicht unnoetig angezeigt oder in Logs geschrieben werden. Die Option fuer unsichere TLS-Zertifikate darf nur bewusst und sichtbar angeboten werden.
-
 ## 3. Seitenaufbau
 
 Die aktuelle Settings-Seite ist eine scrollbare `ListView` in einem `Scaffold` mit `AppBar`.
@@ -84,17 +65,16 @@ Empfohlene Reihenfolge:
 2. Aufgaben und Erinnerungen
 3. Datenpflege
 4. Backup und Export
-5. Cloud-Synchronisation
-6. Vorschau bzw. Versions-/Statusinformationen
+5. Vorschau bzw. Versions-/Statusinformationen
 
 Komponenten:
 
 - `SwitchListTile` fuer Ein-/Aus-Zustaende.
 - `DropdownButton` fuer Schriftarten und Farben.
 - `Slider` fuer Textskalierung und numerische Bereiche.
-- `TextField` fuer Server- und Geraeteinformationen.
+- `TextField` fuer editierbare Einstellungswerte.
 - `Card` fuer Vorschau oder klar abgegrenzte Funktionsgruppen.
-- `AlertDialog` fuer Verwerfen, Entkoppeln und destruktive Aktionen.
+- `AlertDialog` fuer Verwerfen und destruktive Aktionen.
 - `Tooltip` fuer iconbasierte Aktionen.
 
 Die Seite arbeitet mit einem lokalen Entwurfszustand. Aenderungen werden erst durch **Speichern** an den Elternkontext zurueckgegeben. Beim Verlassen mit ungespeicherten Aenderungen erscheint eine Bestaetigung.
@@ -106,7 +86,7 @@ SettingsPage
     -> lokale Felder und Validierung
     -> Speichern
     -> Ergebnis-Map an Haupt-State
-    -> Theme/Timer/Sync/Backup anwenden
+    -> Theme/Timer/Backup anwenden
     -> JSON-Datei persistieren
 ```
 
