@@ -48,7 +48,7 @@
 - [x] statistik button oben neben notes
 - [ ] filter in simplepresent
 - [ ] selektion zum verschieben nimmt immer aufgabe unter dem ding..
-- [ ] subaufgaben in arbeit
+- [x] subaufgaben in arbeit
 - [ ] wenn eine aufgabe editiert wird, muss unten das neue aufgabenfeld. entweder weg oder umfunktioniert werden in subtasks anlegen
 
 ## notes

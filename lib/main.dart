@@ -1118,21 +1118,26 @@ class TaskStep {
     required this.id,
     required this.text,
     this.done = false,
+    this.inProgress = false,
   });
 
   final String id;
   final String text;
   final bool done;
+  final bool inProgress;
 
   TaskStep copyWith({
     String? id,
     String? text,
     bool? done,
+    bool? inProgress,
   }) {
+    final nextDone = done ?? (inProgress == true ? false : this.done);
     return TaskStep(
       id: id ?? this.id,
       text: text ?? this.text,
-      done: done ?? this.done,
+      done: nextDone,
+      inProgress: nextDone ? false : (inProgress ?? this.inProgress),
     );
   }
 
@@ -1140,6 +1145,7 @@ class TaskStep {
         'id': id,
         'text': text,
         'done': done,
+        'inProgress': inProgress,
       };
 
   static TaskStep fromJson(dynamic json) {
@@ -1157,6 +1163,7 @@ class TaskStep {
       id: useId,
       text: (map['text'] ?? '').toString(),
       done: map['done'] == true,
+      inProgress: map['inProgress'] == true,
     );
   }
 }
@@ -5230,6 +5237,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     String subtaskId, {
     String? text,
     bool? done,
+    bool? inProgress,
   }) {
     if (taskIndex < 0 || taskIndex >= _today.length) return Future.value();
     final taskId = _today[taskIndex].id;
@@ -5244,6 +5252,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return step.copyWith(
           text: text,
           done: done,
+          inProgress: inProgress,
         );
       }).toList();
       setState(() {
@@ -9422,6 +9431,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                                     mainAxisSize: MainAxisSize.min,
                                                                                     children: [
                                                                                       IconButton(
+                                                                                        tooltip: step.inProgress ? 'stop subtask' : 'start subtask',
+                                                                                        icon: Icon(step.inProgress ? Icons.stop : Icons.play_arrow),
+                                                                                        onPressed: () => _updateSubtask(i, step.id, inProgress: !step.inProgress),
+                                                                                      ),
+                                                                                      IconButton(
                                                                                         tooltip: 'delete step',
                                                                                         icon: const Icon(Icons.close),
                                                                                         onPressed: () => _removeSubtask(i, step.id),
@@ -10364,14 +10378,20 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
         ));
   }
 
-  void _updateSubtask(String subtaskId, {String? text, bool? done}) {
+  void _updateSubtask(
+    String subtaskId, {
+    String? text,
+    bool? done,
+    bool? inProgress,
+  }) {
     final task = _task;
     if (task == null) return;
     final updated = task.subtasks.map((step) {
       if (step.id != subtaskId) return step;
       return step.copyWith(
-        text: text ?? step.text,
-        done: done ?? step.done,
+        text: text,
+        done: done,
+        inProgress: inProgress,
       );
     }).toList();
     _updateTask((current) => current.copyWith(subtasks: updated));
@@ -10802,6 +10822,23 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
                                                     mainAxisSize:
                                                         MainAxisSize.min,
                                                     children: [
+                                                      IconButton(
+                                                        tooltip: step.inProgress
+                                                            ? 'stop subtask'
+                                                            : 'start subtask',
+                                                        icon: Icon(
+                                                          step.inProgress
+                                                              ? Icons.stop
+                                                              : Icons
+                                                                  .play_arrow,
+                                                        ),
+                                                        onPressed: () =>
+                                                            _updateSubtask(
+                                                          step.id,
+                                                          inProgress:
+                                                              !step.inProgress,
+                                                        ),
+                                                      ),
                                                       IconButton(
                                                         tooltip:
                                                             'delete subtask',
