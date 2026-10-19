@@ -8030,6 +8030,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                   await _openNotes();
                                                 },
                                               ),
+                                              IconButton(
+                                                tooltip: 'statistics',
+                                                icon: _menuSvgIcon(
+                                                  context,
+                                                  'assets/icons/white_transparent_statistic.svg',
+                                                ),
+                                                onPressed: () async {
+                                                  await _finalizeAllEdits();
+                                                  await _openStats();
+                                                },
+                                              ),
                                               PopupMenuButton<String>(
                                                 icon: Icon(Icons.more_vert,
                                                     color: Color(
@@ -8039,9 +8050,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                   await _finalizeAllEdits();
                                                   if (v == 'search') {
                                                     await _showGlobalTaskSearch();
-                                                  } else if (v == 'stats')
-                                                    await _openStats();
-                                                  else if (v == 'settings')
+                                                  } else if (v == 'settings')
                                                     await _openSettings();
                                                   else if (v == 'notes')
                                                     await _openNotes();
@@ -8107,15 +8116,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                               'search tasks')
                                                         ])));
                                                   }
-                                                  items.add(PopupMenuItem(
-                                                      value: 'stats',
-                                                      child: Row(children: [
-                                                        _menuSvgIcon(ctx,
-                                                            'assets/icons/white_transparent_statistic.svg'),
-                                                        const SizedBox(
-                                                            width: 8),
-                                                        const Text('statistics')
-                                                      ])));
                                                   items.add(PopupMenuItem(
                                                       value: 'settings',
                                                       child: Row(children: [

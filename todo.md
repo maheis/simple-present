@@ -44,6 +44,12 @@
 - [x] Cloud-Sync inklusive Servercode entfernen
 - [ ] nur windows?
 - [x] stundenerfassung pro tag!
+- [ ] export subtasks als template (text export in zwischenablage ausreichend)
+- [x] statistik button oben neben notes
+- [ ] filter in simplepresent
+- [ ] selektion zum verschieben nimmt immer aufgabe unter dem ding..
+- [ ] subaufgaben in arbeit
+- [ ] wenn eine aufgabe editiert wird, muss unten das neue aufgabenfeld. entweder weg oder umfunktioniert werden in subtasks anlegen
 
 ## notes
 
