@@ -9189,7 +9189,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                                 : 1.0,
                                                                             child:
                                                                                 ReorderableDragStartListener(
-                                                                              index: i,
+                                                                              index: vi,
                                                                               child: Icon(Icons.drag_handle, size: 18, color: _iconColor),
                                                                             ),
                                                                           ),

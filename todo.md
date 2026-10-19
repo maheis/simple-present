@@ -47,7 +47,7 @@
 - [ ] export subtasks als template (text export in zwischenablage ausreichend)
 - [x] statistik button oben neben notes
 - [ ] filter in simplepresent
-- [ ] selektion zum verschieben nimmt immer aufgabe unter dem ding..
+- [x] selektion zum verschieben nimmt immer aufgabe unter dem ding..
 - [x] subaufgaben in arbeit
 - [x] wenn eine aufgabe editiert wird, muss unten das neue aufgabenfeld entweder weg oder umfunktioniert werden um subtasks anzulegen
 
