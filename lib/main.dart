@@ -9754,75 +9754,84 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                               duration: const Duration(milliseconds: 220),
                               switchInCurve: Curves.easeOutCubic,
                               switchOutCurve: Curves.easeInCubic,
-                              child: SafeArea(
-                                key: const ValueKey('composer_visible'),
-                                top: false,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      _buildNewTaskSearchResults(),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: TextField(
-                                              controller: _controller,
-                                              focusNode: _inputFocus,
-                                              autofocus: !_showingDone &&
-                                                  !Platform.isAndroid,
-                                              enabled: !_showingDone,
-                                              textInputAction:
-                                                  TextInputAction.done,
-                                              decoration: InputDecoration(
-                                                hintText: _showingDone
-                                                    ? null
-                                                    : (_showingBacklog
-                                                        ? 'new task for later'
-                                                        : 'new task for today'),
-                                                border:
-                                                    const OutlineInputBorder(),
-                                              ),
-                                              onTap: () {
-                                                if (_selectedTaskId != null) {
-                                                  _selectionPopupTimer
-                                                      ?.cancel();
-                                                  _selectionFadeTimer?.cancel();
-                                                  setState(() =>
-                                                      _selectedTaskId = null);
-                                                }
-                                              },
-                                              onChanged:
-                                                  _searchExistingTasksForNewTask,
-                                              onSubmitted: _showingDone
-                                                  ? null
-                                                  : _addToToday,
-                                              onTapOutside: (_) {
-                                                if (!Platform.isAndroid)
-                                                  _requestInputFocusIfIdle();
-                                              },
+                              child: _expanded.isEmpty
+                                  ? SafeArea(
+                                      key: const ValueKey('composer_visible'),
+                                      top: false,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(8.0),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            _buildNewTaskSearchResults(),
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: TextField(
+                                                    controller: _controller,
+                                                    focusNode: _inputFocus,
+                                                    autofocus: !_showingDone &&
+                                                        !Platform.isAndroid,
+                                                    enabled: !_showingDone,
+                                                    textInputAction:
+                                                        TextInputAction.done,
+                                                    decoration: InputDecoration(
+                                                      hintText: _showingDone
+                                                          ? null
+                                                          : (_showingBacklog
+                                                              ? 'new task for later'
+                                                              : 'new task for today'),
+                                                      border:
+                                                          const OutlineInputBorder(),
+                                                    ),
+                                                    onTap: () {
+                                                      if (_selectedTaskId !=
+                                                          null) {
+                                                        _selectionPopupTimer
+                                                            ?.cancel();
+                                                        _selectionFadeTimer
+                                                            ?.cancel();
+                                                        setState(() =>
+                                                            _selectedTaskId =
+                                                                null);
+                                                      }
+                                                    },
+                                                    onChanged:
+                                                        _searchExistingTasksForNewTask,
+                                                    onSubmitted: _showingDone
+                                                        ? null
+                                                        : _addToToday,
+                                                    onTapOutside: (_) {
+                                                      if (!Platform.isAndroid)
+                                                        _requestInputFocusIfIdle();
+                                                    },
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    ElevatedButton(
+                                                      onPressed: _showingDone
+                                                          ? null
+                                                          : () => _addToToday(
+                                                              _controller.text),
+                                                      child:
+                                                          const Icon(Icons.add),
+                                                    ),
+                                                    const SizedBox(height: 6),
+                                                  ],
+                                                ),
+                                              ],
                                             ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              ElevatedButton(
-                                                onPressed: _showingDone
-                                                    ? null
-                                                    : () => _addToToday(
-                                                        _controller.text),
-                                                child: const Icon(Icons.add),
-                                              ),
-                                              const SizedBox(height: 6),
-                                            ],
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                                    )
+                                  : const SizedBox.shrink(
+                                      key: ValueKey('composer_hidden'),
+                                    ),
                             ),
                           ],
                         ),
