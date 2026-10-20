@@ -57,6 +57,12 @@ bool FlutterWindow::OnCreate()
       [this](const flutter::MethodCall<flutter::EncodableValue> &call,
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result)
       {
+        if (call.method_name() == "enableWindowGeometryTracking")
+        {
+          track_geometry_ = true;
+          result->Success(flutter::EncodableValue(true));
+          return;
+        }
         if (call.method_name().compare("flashTaskbar") == 0)
         {
           // Flash the taskbar icon (FlashWindowEx)
@@ -225,16 +231,10 @@ bool FlutterWindow::OnCreate()
                 {
                   maximized = std::get<bool>(itMax->second);
                 }
+                ShowWindow(hwnd, SW_RESTORE);
+                SetWindowPos(hwnd, NULL, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE);
                 if (maximized)
-                {
                   ShowWindow(hwnd, SW_MAXIMIZE);
-                }
-                else
-                {
-                  // Ensure not maximized before setting geometry
-                  ShowWindow(hwnd, SW_RESTORE);
-                  SetWindowPos(hwnd, NULL, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE);
-                }
                 result->Success(flutter::EncodableValue(true));
                 return;
               }
@@ -251,6 +251,23 @@ bool FlutterWindow::OnCreate()
             RECT r;
             if (GetWindowRect(hwnd, &r))
             {
+              if (IsZoomed(hwnd) || IsIconic(hwnd))
+              {
+                WINDOWPLACEMENT placement = {};
+                placement.length = sizeof(placement);
+                if (GetWindowPlacement(hwnd, &placement))
+                {
+                  r = placement.rcNormalPosition;
+                  const HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                  MONITORINFO monitor_info = {};
+                  monitor_info.cbSize = sizeof(monitor_info);
+                  if (GetMonitorInfo(monitor, &monitor_info))
+                  {
+                    OffsetRect(&r, monitor_info.rcWork.left - monitor_info.rcMonitor.left,
+                               monitor_info.rcWork.top - monitor_info.rcMonitor.top);
+                  }
+                }
+              }
               flutter::EncodableMap out;
               out[flutter::EncodableValue("x")] = flutter::EncodableValue(static_cast<int>(r.left));
               out[flutter::EncodableValue("y")] = flutter::EncodableValue(static_cast<int>(r.top));
@@ -272,6 +289,7 @@ bool FlutterWindow::OnCreate()
           if (hwnd)
           {
             // Queue the close so the method result can reach Dart first.
+            allow_close_ = true;
             PostMessageW(hwnd, WM_CLOSE, 0, 0);
             result->Success(flutter::EncodableValue(true));
             return;
@@ -315,6 +333,15 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept
 {
+  if (message == WM_CLOSE && track_geometry_ && !allow_close_ && method_channel_)
+  {
+    method_channel_->InvokeMethod("closeRequested", nullptr);
+    return 0;
+  }
+  if (message == WM_EXITSIZEMOVE && track_geometry_ && method_channel_)
+  {
+    method_channel_->InvokeMethod("windowGeometryChanged", nullptr);
+  }
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_)
   {

@@ -21,6 +21,34 @@ G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
 static GtkWindow *g_main_window = nullptr;
 static FlMethodChannel *g_window_channel = nullptr;
+static gboolean g_track_geometry = FALSE;
+static gboolean g_allow_close = FALSE;
+static GdkRectangle g_normal_geometry = {};
+
+static gboolean task_window_delete(GtkWidget *, GdkEvent *, gpointer)
+{
+  if (!g_track_geometry || g_allow_close)
+    return FALSE;
+  fl_method_channel_invoke_method(g_window_channel, "closeRequested", nullptr,
+                                  nullptr, nullptr, nullptr);
+  return TRUE;
+}
+
+static gboolean task_window_configure(GtkWidget *, GdkEvent *, gpointer)
+{
+  GdkWindow *native_window = gtk_widget_get_window(GTK_WIDGET(g_main_window));
+  if (native_window &&
+      !(gdk_window_get_state(native_window) &
+        (GDK_WINDOW_STATE_MAXIMIZED | GDK_WINDOW_STATE_ICONIFIED | GDK_WINDOW_STATE_FULLSCREEN)))
+  {
+    gtk_window_get_position(g_main_window, &g_normal_geometry.x, &g_normal_geometry.y);
+    gtk_window_get_size(g_main_window, &g_normal_geometry.width, &g_normal_geometry.height);
+  }
+  if (g_track_geometry)
+    fl_method_channel_invoke_method(g_window_channel, "windowGeometryChanged", nullptr,
+                                    nullptr, nullptr, nullptr);
+  return FALSE;
+}
 
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication *self, FlView *view)
@@ -36,6 +64,20 @@ static void window_method_call(FlMethodChannel *channel,
   const gchar *method = fl_method_call_get_name(method_call);
   FlValue *args = fl_method_call_get_args(method_call);
   g_autoptr(FlMethodResponse) response = nullptr;
+
+  if (g_str_equal(method, "enableWindowGeometryTracking"))
+  {
+    g_track_geometry = TRUE;
+    fl_method_call_respond_success(method_call, fl_value_new_bool(TRUE), nullptr);
+    return;
+  }
+  if (g_str_equal(method, "closeWindow"))
+  {
+    g_allow_close = TRUE;
+    fl_method_call_respond_success(method_call, fl_value_new_bool(TRUE), nullptr);
+    gtk_window_close(g_main_window);
+    return;
+  }
 
   if (g_str_equal(method, "flashTaskbar"))
   {
@@ -184,6 +226,7 @@ static void window_method_call(FlMethodChannel *channel,
         const int y = fl_value_get_int(vy);
         const int w = fl_value_get_int(vw);
         const int h = fl_value_get_int(vh);
+        g_normal_geometry = {x, y, w, h};
         gtk_window_unmaximize(g_main_window);
         gtk_window_move(g_main_window, x, y);
         gtk_window_resize(g_main_window, w, h);
@@ -206,6 +249,16 @@ static void window_method_call(FlMethodChannel *channel,
       int x, y, w, h;
       gtk_window_get_position(g_main_window, &x, &y);
       gtk_window_get_size(g_main_window, &w, &h);
+      GdkWindow *native_window = gtk_widget_get_window(GTK_WIDGET(g_main_window));
+      if (native_window && g_normal_geometry.width > 0 &&
+          (gdk_window_get_state(native_window) &
+           (GDK_WINDOW_STATE_MAXIMIZED | GDK_WINDOW_STATE_ICONIFIED)))
+      {
+        x = g_normal_geometry.x;
+        y = g_normal_geometry.y;
+        w = g_normal_geometry.width;
+        h = g_normal_geometry.height;
+      }
       FlValue *map = fl_value_new_map();
       fl_value_set_string_take(map, "x", fl_value_new_int(x));
       fl_value_set_string_take(map, "y", fl_value_new_int(y));
@@ -413,6 +466,8 @@ static void my_application_activate(GApplication *application)
   g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
   g_window_channel = fl_method_channel_new(messenger, "simple_present/window", FL_METHOD_CODEC(codec));
   fl_method_channel_set_method_call_handler(g_window_channel, window_method_call, nullptr, nullptr);
+  g_signal_connect(window, "delete-event", G_CALLBACK(task_window_delete), nullptr);
+  g_signal_connect(window, "configure-event", G_CALLBACK(task_window_configure), nullptr);
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
 

@@ -26,10 +26,10 @@
             Zentrale Datenbank (z.B. Firebase, Supabase, eigene API) 
 - [ ] Worklog an Aufgaben...
 - [ ] Reihenfolge auch über andere Gruppen hinaus und dann optisch einsortieren
-- [ ] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
+- [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] SimplePresent -> simple present | dateinamen: simple-present
 - [ ] Anzeigen wenn es Notes gibt?
-- [ ] aufgaben fenster position und größe merken
+- [x] aufgaben fenster position und größe merken
 - [x] highlight der aktuelle selektierten aufgabe (wenn z.b. neue aufgabe angelegt wird)
 - [x] suche bei neuanlage soll bei aufgaben im backlog nicht reaktivieren anbieten, sondern als aktion "move to today" anbieten
 - [x] aufgaben suche (strg+f)
@@ -42,7 +42,7 @@
 - [x] animierer fokus (kurz vergrößern) der nach zeit verschwindet/verblasst
 - [x] suchfenster muss beim anlegen einer neuen aufgabe geschlossen werden.
 - [x] Cloud-Sync inklusive Servercode entfernen
-- [ ] nur windows?
+- [-] nur windows?
 - [x] stundenerfassung pro tag!
 - [ ] export subtasks als template (text export in zwischenablage ausreichend)
 - [x] statistik button oben neben notes

@@ -2329,6 +2329,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         <String>['--desktop-task-window=${task.id}'],
         mode: ProcessStartMode.normal,
         runInShell: false,
+        environment: Platform.isLinux &&
+                (Platform.environment['DISPLAY'] ?? '').isNotEmpty
+            ? const {'GDK_BACKEND': 'x11'}
+            : null,
       ).then((process) => process.exitCode);
       if (mounted) {
         await _sembastStorage.refresh();
@@ -9891,6 +9895,9 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   bool _refreshSignalWritten = false;
   String? _lastWindowGeometrySignature;
   bool _windowGeometryRestoreScheduled = false;
+  bool _windowGeometryReady = false;
+  Future<void> _geometryWriteChain = Future.value();
+  bool _closingWindow = false;
   static const String _taskWindowGeometryFileName =
       'simplepresent_task_window_geometry.json';
 
@@ -9901,6 +9908,14 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     _notesController = TextEditingController();
     _workMinutesController = TextEditingController();
     _newSubtaskController = TextEditingController();
+    _nativeWindowChannel.setMethodCallHandler((call) async {
+      if (call.method == 'closeRequested') {
+        await _closeWindow();
+      } else if (call.method == 'windowGeometryChanged' &&
+          _windowGeometryReady) {
+        await _persistWindowGeometryIfNeeded();
+      }
+    });
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted && (_task?.stopwatchRunning ?? false)) {
         setState(() {});
@@ -9957,14 +9972,6 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   Future<File> _fileFor(String name) async {
     final dir = await _appDir;
     return File('${dir.path}/$name');
-  }
-
-  Future<void> _writeSettingsMap(Map<String, dynamic> data) async {
-    try {
-      final file = await _fileFor(_settingsFileName);
-      final encoded = const JsonEncoder.withIndent('  ').convert(data);
-      await file.writeAsString(encoded);
-    } catch (_) {}
   }
 
   static const String _settingsFileName = 'simplepresent_settings.json';
@@ -10038,8 +10045,12 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return;
       await _restoreWindowGeometryFromSettings();
+      try {
+        await _nativeWindowChannel.invokeMethod('enableWindowGeometryTracking');
+      } catch (_) {}
     } finally {
       if (mounted) {
+        _windowGeometryReady = true;
         _geometryTimer = Timer.periodic(
           const Duration(seconds: 1),
           (_) => unawaited(_persistWindowGeometryIfNeeded()),
@@ -10131,7 +10142,14 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   }
 
   Future<void> _persistWindowGeometryIfNeeded() async {
-    if (!mounted) return;
+    _geometryWriteChain = _geometryWriteChain
+        .catchError((_) {})
+        .then((_) => _writeWindowGeometry());
+    await _geometryWriteChain;
+  }
+
+  Future<void> _writeWindowGeometry() async {
+    if (!mounted || !_windowGeometryReady) return;
     try {
       final result =
           await _nativeWindowChannel.invokeMethod('getWindowGeometry');
@@ -10145,21 +10163,15 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       };
       final sig = _geometrySignature(geom);
       if (sig == _lastWindowGeometrySignature) return;
-      _lastWindowGeometrySignature = sig;
 
       // Store geometry in a dedicated file to avoid cross-process overwrites
       // from main settings writes.
-      try {
-        final file = await _fileFor(_taskWindowGeometryFileName);
-        await file.writeAsString(
-          const JsonEncoder.withIndent('  ').convert(geom),
-        );
-      } catch (_) {}
-
-      // Keep legacy settings key in sync for backward compatibility.
-      final settings = await _readSettingsMap();
-      settings['taskWindowGeometry'] = geom;
-      await _writeSettingsMap(settings);
+      final file = await _fileFor(_taskWindowGeometryFileName);
+      await file.writeAsString(
+        const JsonEncoder.withIndent('  ').convert(geom),
+        flush: true,
+      );
+      _lastWindowGeometrySignature = sig;
     } catch (_) {}
   }
 
@@ -10603,7 +10615,10 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   }
 
   Future<void> _closeWindow() async {
+    if (_closingWindow) return;
+    _closingWindow = true;
     if (_hasChanges && !await _saveTask()) {
+      _closingWindow = false;
       return;
     }
     if (!mounted) return;
@@ -10612,7 +10627,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       await _writeRefreshSignal();
     }
     if (widget.closeAppOnExit) {
-      if (Platform.isWindows) {
+      if (Platform.isWindows || Platform.isLinux) {
         try {
           final closeRequested =
               await _nativeWindowChannel.invokeMethod<bool>('closeWindow');

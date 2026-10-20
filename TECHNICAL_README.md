@@ -65,7 +65,10 @@ Die Settings-Datei speichert zusaetzlich unter anderem:
 ## Betriebsnotizen
 
 - lastRunDate wird in der JSON-Settings-Datei erhalten, damit Tagesmigration nur einmal pro Tag laeuft.
-- Window-Position/Geometry wird nicht persistiert (absichtlich deaktiviert).
+- Das Hauptfenster verwendet weiterhin seine Startposition und Startgroesse.
+- Separate Aufgabenfenster speichern ihre letzte Position, Normalgroesse und den Maximierungszustand gemeinsam in `simplepresent_task_window_geometry.json` im jeweiligen App-Datenordner. Alte Werte aus `taskWindowGeometry` werden weiterhin gelesen.
+- Aenderungen werden beim Verschieben/Skalieren und vor dem nativen Schliessen gespeichert; ein periodischer Abgleich bleibt als Fallback aktiv.
+- Unter Linux starten separate Aufgabenfenster bei vorhandenem `DISPLAY` ueber X11/XWayland, damit ihre Position wiederhergestellt werden kann. Ohne X11 bestimmt der Wayland-Compositor die Position; die App kann sie dort nicht erzwingen.
 
 ## Empfehlung fuer Debugging
 
