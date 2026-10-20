@@ -14,6 +14,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:simple_present/storage/json_storage.dart';
 import 'package:simple_present/storage/sembast_storage.dart';
+import 'package:simple_present/task_worklog_page.dart';
 import 'package:file_selector/file_selector.dart' as fs;
 
 // sentinel to indicate "no change" in copyWith optional parameters
@@ -2190,7 +2191,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       if (_useSembast) {
         if (!_sembastStorage.taskListExists(filename)) {
-          _sembastStorage
+          await _sembastStorage
               .writeTaskList(filename, const <Map<String, dynamic>>[]);
         }
         return;
@@ -3251,7 +3252,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             'saveList start: $filename count=${source.length} sembast=$_useSembast listdir=${_isListDir(filename)}'));
         final encoder = const JsonEncoder.withIndent('  ');
         if (_useSembast) {
-          _sembastStorage.writeTaskList(
+          await _sembastStorage.writeTaskList(
             filename,
             source.map((e) => e.toJson()).toList(),
           );
@@ -3426,6 +3427,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'backlog': backlogList.map((t) => t.toJson()).toList(),
         'done': doneList.map((t) => t.toJson()).toList(),
         'trash': trashList.map((t) => t.toJson()).toList(),
+        if (_useSembast) 'worklog': await _sembastStorage.exportWorklogs(),
       };
 
       final f = File(path);
@@ -3507,6 +3509,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _storage('simplepresent_backlog.json'), importedBacklog);
       await applyListImport(_storage('simplepresent_done.json'), importedDone);
       await applyListImport('simplepresent_trash.json', importedTrash);
+      if (_useSembast && data['worklog'] is Map) {
+        await _sembastStorage.importWorklogs(
+          Map<String, dynamic>.from(data['worklog']),
+        );
+      }
 
       // reload current view and counts
       try {
@@ -4544,6 +4551,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       'backlog': backlogList.map((t) => t.toJson()).toList(),
       'done': doneList.map((t) => t.toJson()).toList(),
       'trash': trashList.map((t) => t.toJson()).toList(),
+      if (_useSembast) 'worklog': await _sembastStorage.exportWorklogs(),
     };
     return const JsonEncoder.withIndent('  ').convert(exportData);
   }
@@ -9603,6 +9611,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                     ),
                                                                     IconButton(
                                                                       tooltip:
+                                                                          'worklog',
+                                                                      icon: const Icon(
+                                                                          Icons
+                                                                              .history),
+                                                                      onPressed:
+                                                                          () async {
+                                                                        await _finalizeAllEdits();
+                                                                        if (!mounted)
+                                                                          return;
+                                                                        await Navigator.of(context)
+                                                                            .push(MaterialPageRoute(
+                                                                          builder: (_) =>
+                                                                              TaskWorklogPage(
+                                                                            taskTitle:
+                                                                                task.text,
+                                                                            loadEntries: () =>
+                                                                                _sembastStorage.readTaskWorklog(task.id),
+                                                                          ),
+                                                                        ));
+                                                                      },
+                                                                    ),
+                                                                    IconButton(
+                                                                      tooltip:
                                                                           'set schedule',
                                                                       icon: const Icon(
                                                                           Icons
@@ -9897,6 +9928,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   bool _windowGeometryRestoreScheduled = false;
   bool _windowGeometryReady = false;
   Future<void> _geometryWriteChain = Future.value();
+  Future<void> _taskActionWriteChain = Future.value();
   bool _closingWindow = false;
   static const String _taskWindowGeometryFileName =
       'simplepresent_task_window_geometry.json';
@@ -10250,6 +10282,40 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
         _syncSubtaskControllers(_task!.subtasks);
       }
     });
+    final effective = _effectiveTask;
+    final snapshot = effective?.copyWith(
+      text: effective.text.isEmpty ? task.text : effective.text,
+    );
+    final listName = _sourceList;
+    if (snapshot == null) return;
+    _taskActionWriteChain = _taskActionWriteChain.then((_) async {
+      final rows = _storage.readTaskList(listName);
+      final index = rows.indexWhere((row) => row['id'] == snapshot.id);
+      if (index == -1) return;
+      final previous = rows[index];
+      rows[index] = snapshot.toJson();
+      await _storage.writeTaskList(listName, rows);
+      await _recordTimeChange(snapshot, previous);
+    }).catchError((Object error) {
+      if (mounted) setState(() => _status = 'save failed: $error');
+    });
+  }
+
+  Future<void> _recordTimeChange(
+      TaskItem task, Map<String, dynamic> previous) async {
+    if (previous['work_minutes'] == task.workMinutes &&
+        previous['stopwatch_seconds'] == task.stopwatchAccumulatedSeconds) {
+      return;
+    }
+    await _storage.upsertTimeEntry(
+      taskId: task.id,
+      taskText: task.text,
+      date: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+      taskDone: task.done,
+      taskInProgress: task.inProgress,
+      stopwatchSeconds: task.stopwatchAccumulatedSeconds,
+      workMinutes: task.workMinutes,
+    );
   }
 
   void _syncSubtaskControllers(List<TaskStep> subtasks) {
@@ -10510,6 +10576,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   }
 
   Future<void> _moveTaskToList(String targetList) async {
+    await _taskActionWriteChain;
     final task = _effectiveTask;
     if (task == null || _saving) return;
     try {
@@ -10564,6 +10631,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   }
 
   Future<bool> _saveTask() async {
+    await _taskActionWriteChain;
     final task = _effectiveTask;
     if (task == null || _saving) return false;
     final newText = _titleController.text.trim();
@@ -10593,8 +10661,10 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
         notes: _notesController.text,
         workMinutes: _parseWorkMinutes(),
       );
+      final previous = rows[idx];
       rows[idx] = updated.toJson();
       await _storage.writeTaskList(_sourceList, rows);
+      await _recordTimeChange(updated, previous);
       if (!mounted) return true;
       setState(() {
         _task = updated;
@@ -10617,6 +10687,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   Future<void> _closeWindow() async {
     if (_closingWindow) return;
     _closingWindow = true;
+    await _taskActionWriteChain;
     if (_hasChanges && !await _saveTask()) {
       _closingWindow = false;
       return;
@@ -10685,6 +10756,23 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
                 ),
                 title: const SizedBox.shrink(),
                 actions: [
+                  IconButton(
+                    tooltip: 'worklog',
+                    icon: const Icon(Icons.history),
+                    onPressed: _task == null || _saving
+                        ? null
+                        : () async {
+                            if (_hasChanges && !await _saveTask()) return;
+                            if (!mounted) return;
+                            await Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => TaskWorklogPage(
+                                taskTitle: _task!.text,
+                                loadEntries: () =>
+                                    _storage.readTaskWorklog(widget.taskId),
+                              ),
+                            ));
+                          },
+                  ),
                   FilledButton(
                     onPressed: _saving
                         ? null
@@ -12995,7 +13083,7 @@ class _RedoLogPageState extends State<RedoLogPage> {
       final encoder = const JsonEncoder.withIndent('  ');
       final content = encoder.convert(list);
       if (_storageReady) {
-        _sembastStorage.writeTaskList(_storageName(name), list);
+        await _sembastStorage.writeTaskList(_storageName(name), list);
         // When using Sembast, also export per-task JSON files for the
         // Android widget if we just wrote the `today` list.
         try {

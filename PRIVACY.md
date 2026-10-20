@@ -1,6 +1,6 @@
 # Privacy Policy for SimplePresent
 
-Last updated: 2026-10-13
+Last updated: 2026-10-20
 
 ## 1. Controller
 
@@ -18,6 +18,7 @@ SimplePresent is a local task, presentation, note, and productivity helper. Task
 The app may store the following data if you enter or create it:
 
 - tasks, task status, ordering, timestamps, notes, subtasks, and reminders
+- task worklogs containing change timestamps, list movements, time bookings, and previous and new field values
 - backlog, done, trash, and related task metadata
 - local notes and app state
 - app settings such as font, text size, theme mode, colors, backup settings, and cleanup settings
@@ -37,7 +38,7 @@ You can create local backups or export task data with the app's built-in tools. 
 
 ## 6. Purpose and legal basis
 
-Data is processed solely to provide the app features you use, including task management, reminders, local storage, backup/export, cleanup features, and optional synchronization with a server you choose.
+Data is processed solely to provide the app features you use, including task management, worklogs, reminders, local storage, backup/export, and cleanup features.
 
 Processing is based on your voluntary use of the app and the necessity of storing data to provide the requested functionality.
 
@@ -54,6 +55,8 @@ The app may use local file access for exports, backups, imports, or desktop/mobi
 ## 9. Retention and deletion
 
 Data remains on your device until you delete it in the app, remove the app data, or uninstall the app. Optional cleanup settings can remove completed or trashed items after configured retention periods.
+
+Task worklogs retain previous task content and change history even after a task is removed from a list or purged. Deleting a task does not erase these historical records. To remove this retained history, remove the local app data, including its database, and any exported copies. On desktop systems, uninstalling the executable may leave data in the application documents folder.
 
 Backup and export copies may remain wherever you saved or shared them. You may need to delete those copies separately.
 

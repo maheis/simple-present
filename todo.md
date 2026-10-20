@@ -24,7 +24,7 @@
                   |
                   v
             Zentrale Datenbank (z.B. Firebase, Supabase, eigene API) 
-- [ ] Worklog an Aufgaben...
+- [x] Worklog an Aufgaben...
 - [ ] Reihenfolge auch über andere Gruppen hinaus und dann optisch einsortieren
 - [?] Zeiterfassung muss granularer sein, damit die Zeiten pro Tag passen!
 - [ ] SimplePresent -> simple present | dateinamen: simple-present

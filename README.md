@@ -19,6 +19,7 @@ The app also includes a stopwatch, manual time tracking, reminders, swipe action
 - Important and in-progress task states
 - Notes, subtasks, and scheduled date/time
 - Stopwatch and manual time entry
+- Per-task worklog with timestamped status, content, time, subtask, and list changes
 - Automatic sorting and delayed reordering
 - Local storage, export/import, and automatic backups
 - Android notifications and desktop notifications

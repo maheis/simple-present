@@ -70,6 +70,16 @@ Die Settings-Datei speichert zusaetzlich unter anderem:
 - Aenderungen werden beim Verschieben/Skalieren und vor dem nativen Schliessen gespeichert; ein periodischer Abgleich bleibt als Fallback aktiv.
 - Unter Linux starten separate Aufgabenfenster bei vorhandenem `DISPLAY` ueber X11/XWayland, damit ihre Position wiederhergestellt werden kann. Ohne X11 bestimmt der Wayland-Compositor die Position; die App kann sie dort nicht erzwingen.
 
+## Aufgaben-Worklog
+
+- Das History-Symbol (`worklog`) in der aufgeklappten Aufgabe bzw. im separaten Aufgabenfenster oeffnet die Historie dieser Aufgabe, neueste Eintraege zuerst.
+- Aufgaben-Schreibvorgaenge und Worklog werden gemeinsam in einer Sembast-Transaktion gespeichert. Erfasst werden Anlage, Status, Wichtigkeit, Inhalte, Unteraufgaben, Termine, Wiederholungen, Listenwechsel, Listenentfernung und Aenderungen der Reihenfolge. Feldwerte vor und nach einer Aenderung bleiben im Worklog erhalten.
+- Zeitbuchungen enthalten zusaetzlich den Buchungstag und die davor/danach gebuchten Minuten bzw. Sekunden. Ein unveraenderter Speichervorgang erzeugt keinen Eintrag.
+- In separaten Aufgabenfenstern werden Zustandsaenderungen bereits waehrend der Bearbeitung geordnet gespeichert. Dadurch bleiben beispielsweise Start und Stopp als einzelne Ereignisse erhalten, auch wenn erst spaeter geschlossen wird.
+- Sembast-Stores: `task_worklog` enthaelt Eintraege pro Aufgaben-ID; `task_worklog_state` haelt den letzten Zustand fuer Listenwechsel und Feldvergleiche. Die Historie bleibt auch nach Entfernen einer Aufgabe erhalten.
+- JSON-Export und automatische Backups enthalten den Schluessel `worklog`. Beim Import werden vorhandene Eintraege anhand ihrer IDs zusammengefuehrt, nicht verdoppelt. Alte Exporte ohne Worklog bleiben lesbar.
+- Die vollstaendige Erfassung beginnt mit dieser Version. Bereits existierende Aufgaben erhalten keine erfundenen Erstellungsereignisse; aeltere, nicht protokollierte Vorgaenge lassen sich nicht nachtraeglich rekonstruieren. Ungespeicherte und verworfene Texteingaben werden nicht als Aenderung protokolliert.
+
 ## Empfehlung fuer Debugging
 
 1. debugWriteLog auf true setzen.

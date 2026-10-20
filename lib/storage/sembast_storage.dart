@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -49,6 +50,8 @@ class SembastStorage {
   final _rawStore = StoreRef<String, Object?>('raw');
   // 'time_entries' -> map date -> List<dynamic>
   final _timeStore = StoreRef<String, Object?>('time_entries');
+  final _worklogStore = StoreRef<String, Object?>('task_worklog');
+  final _worklogStateStore = StoreRef<String, Object?>('task_worklog_state');
 
   // In-memory caches to keep APIs synchronous where the app expects it.
   final Map<String, List<Map<String, dynamic>>> _listsCache = {};
@@ -218,17 +221,162 @@ class SembastStorage {
   }
 
   Future<void> writeTaskList(
-      String listName, List<Map<String, dynamic>> items) {
+      String listName, List<Map<String, dynamic>> items) async {
     final key = _canonicalKey(listName);
-    // update cache
-    _listsCache[key] = List<Map<String, dynamic>>.from(
-        items.map((m) => Map<String, dynamic>.from(m)));
-    // persist async
-    return () async {
-      try {
-        await _listsStore.record(key).put(_db!, items);
-      } catch (_) {}
-    }();
+    final snapshot = (jsonDecode(jsonEncode(items)) as List)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+    await _db!.transaction((transaction) async {
+      final stored = await _listsStore.record(key).get(transaction);
+      final previousItems = stored is List
+          ? stored.whereType<Map>().map(Map<String, dynamic>.from).toList()
+          : <Map<String, dynamic>>[];
+      final previousById = {
+        for (final item in previousItems) item['id']?.toString(): item,
+      };
+      final currentIds = snapshot.map((item) => item['id']?.toString()).toSet();
+      final sameMembers = previousItems.length == snapshot.length &&
+          previousById.keys.toSet().containsAll(currentIds);
+      final timestamp = DateTime.now().toUtc().toIso8601String();
+
+      Future<void> append(String taskId, Map<String, dynamic> event) async {
+        await _appendWorklogEntry(transaction, taskId, {
+          'timestamp': timestamp,
+          ...event,
+        });
+      }
+
+      for (var index = 0; index < snapshot.length; index++) {
+        final item = snapshot[index];
+        final taskId = item['id']?.toString() ?? '';
+        if (taskId.isEmpty) continue;
+        final rawState =
+            await _worklogStateStore.record(taskId).get(transaction);
+        Map<String, dynamic>? state =
+            rawState is Map ? Map<String, dynamic>.from(rawState) : null;
+        if (state == null) {
+          final lists = await _listsStore.find(transaction);
+          for (final list in lists) {
+            if (list.value is! List) continue;
+            for (final candidate in (list.value as List).whereType<Map>()) {
+              if (candidate['id']?.toString() == taskId) {
+                state = {'task': candidate, 'list': list.key, 'present': true};
+                break;
+              }
+            }
+            if (state != null) break;
+          }
+        }
+        final before = state?['task'] is Map
+            ? Map<String, dynamic>.from(state!['task'] as Map)
+            : <String, dynamic>{};
+        final changes = <String, dynamic>{};
+        for (final field in {...before.keys, ...item.keys}..remove('id')) {
+          if (jsonEncode(before[field]) != jsonEncode(item[field])) {
+            changes[field] = {'before': before[field], 'after': item[field]};
+          }
+        }
+        final moved = state != null && state['list'] != key;
+        final restored = state != null && !moved && state['present'] == false;
+        final oldIndex = previousItems
+            .indexWhere((previous) => previous['id']?.toString() == taskId);
+        final reordered = sameMembers && oldIndex >= 0 && oldIndex != index;
+        if (state == null ||
+            moved ||
+            restored ||
+            changes.isNotEmpty ||
+            reordered) {
+          await append(taskId, {
+            'action': state == null
+                ? 'created'
+                : moved
+                    ? 'moved'
+                    : restored
+                        ? 'restored'
+                        : reordered && changes.isEmpty
+                            ? 'reordered'
+                            : 'changed',
+            'task_text': item['text'],
+            'list': key,
+            if (moved) 'from_list': state['list'],
+            if (reordered) 'position': {'before': oldIndex, 'after': index},
+            'changes': changes,
+          });
+        }
+        await _worklogStateStore.record(taskId).put(transaction, {
+          'task': item,
+          'list': key,
+          'present': true,
+        });
+      }
+      for (final previous in previousItems) {
+        final taskId = previous['id']?.toString() ?? '';
+        if (taskId.isEmpty || currentIds.contains(taskId)) continue;
+        final state = await _worklogStateStore.record(taskId).get(transaction);
+        if (state is Map && state['list'] != key) continue;
+        await append(taskId, {
+          'action': 'removed',
+          'task_text': previous['text'],
+          'list': key,
+          'changes': <String, dynamic>{},
+        });
+        await _worklogStateStore.record(taskId).put(transaction, {
+          'task': previous,
+          'list': key,
+          'present': false,
+        });
+      }
+      await _listsStore.record(key).put(transaction, snapshot);
+    });
+    _listsCache[key] = snapshot;
+  }
+
+  Future<List<Map<String, dynamic>>> readTaskWorklog(String taskId) async {
+    final raw = await _worklogStore.record(taskId).get(_db!);
+    return raw is List
+        ? raw.whereType<Map>().map(Map<String, dynamic>.from).toList()
+        : [];
+  }
+
+  Future<void> _appendWorklogEntry(
+      DatabaseClient client, String taskId, Map<String, dynamic> event) async {
+    final raw = await _worklogStore.record(taskId).get(client);
+    final entries = raw is List ? List<Object?>.from(raw) : <Object?>[];
+    entries.add({
+      'id':
+          '${DateTime.now().microsecondsSinceEpoch}-$taskId-${entries.length}',
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
+      ...event,
+    });
+    await _worklogStore.record(taskId).put(client, entries);
+  }
+
+  Future<Map<String, dynamic>> exportWorklogs() async {
+    final records = await _worklogStore.find(_db!);
+    return {for (final record in records) record.key: record.value};
+  }
+
+  Future<void> importWorklogs(Map<String, dynamic> histories) async {
+    await _db!.transaction((transaction) async {
+      for (final history in histories.entries) {
+        if (history.value is! List) continue;
+        final raw = await _worklogStore.record(history.key).get(transaction);
+        final entries = raw is List
+            ? raw.whereType<Map>().map(Map<String, dynamic>.from).toList()
+            : <Map<String, dynamic>>[];
+        final knownIds = entries.map((entry) => entry['id']).toSet();
+        for (final entry in (history.value as List).whereType<Map>()) {
+          final id = entry['id'];
+          if (id is! String || id.isEmpty || !knownIds.add(id)) continue;
+          if (DateTime.tryParse((entry['timestamp'] ?? '').toString()) ==
+              null) {
+            continue;
+          }
+          entries.add(Map<String, dynamic>.from(entry));
+        }
+        await _worklogStore.record(history.key).put(transaction, entries);
+      }
+    });
   }
 
   bool taskListExists(String listName) {
@@ -274,7 +422,7 @@ class SembastStorage {
     }());
   }
 
-  void upsertTimeEntry({
+  Future<void> upsertTimeEntry({
     required String taskId,
     required String taskText,
     required String date,
@@ -287,7 +435,7 @@ class SembastStorage {
     int? totalStopwatchSeconds,
     int? totalWorkMinutes,
   }) {
-    unawaited(() async {
+    return () async {
       final now = recordedAt ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
       final list = _timeCache[date] ?? <Map<String, dynamic>>[];
       var previousStopwatchSeconds = 0;
@@ -355,9 +503,30 @@ class SembastStorage {
       }
       _timeCache[date] = newList;
       try {
-        await _timeStore.record(date).put(_db!, newList);
+        await _db!.transaction((transaction) async {
+          final changes = <String, dynamic>{};
+          final previous = existingIndex >= 0 ? list[existingIndex] : null;
+          for (final field in ['stopwatch_seconds', 'work_minutes']) {
+            final before = previous?[field] ?? 0;
+            if (before != entry[field]) {
+              changes['booked_$field'] = {
+                'before': before,
+                'after': entry[field]
+              };
+            }
+          }
+          if (changes.isNotEmpty) {
+            await _appendWorklogEntry(transaction, taskId, {
+              'action': 'time_booked',
+              'date': date,
+              'task_text': taskText,
+              'changes': changes,
+            });
+          }
+          await _timeStore.record(date).put(transaction, newList);
+        });
       } catch (_) {}
-    }());
+    }();
   }
 
   List<Map<String, dynamic>> getTimeEntriesForDate(String date) {
