@@ -84,7 +84,7 @@ class _TaskTimeControlsState extends State<TaskTimeControls> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Zeiterfassung fehlgeschlagen')),
+          const SnackBar(content: Text('Time tracking failed')),
         );
       }
     } finally {
@@ -104,7 +104,7 @@ class _TaskTimeControlsState extends State<TaskTimeControls> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Buchung fehlgeschlagen')),
+          const SnackBar(content: Text('Booking failed')),
         );
       }
     }
@@ -125,17 +125,17 @@ class _TaskTimeControlsState extends State<TaskTimeControls> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Stoppuhr zurücksetzen?'),
+        title: const Text('Reset stopwatch?'),
         content: const Text(
-            'Alle mit der Stoppuhr erfassten Buchungen dieser Aufgabe werden gelöscht. Manuelle Buchungen bleiben erhalten.'),
+            'All stopwatch bookings for this task will be deleted. Manual bookings will be kept.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Abbrechen'),
+            child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Zurücksetzen'),
+            child: const Text('Reset'),
           ),
         ],
       ),
@@ -148,7 +148,7 @@ class _TaskTimeControlsState extends State<TaskTimeControls> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Zurücksetzen fehlgeschlagen')),
+          const SnackBar(content: Text('Reset failed')),
         );
       }
     } finally {
@@ -184,12 +184,12 @@ class _TaskTimeControlsState extends State<TaskTimeControls> {
           onPressed: _busy || (!_running && _seconds == 0) ? null : _reset,
         ),
         IconButton(
-          tooltip: 'Zeit manuell buchen',
+          tooltip: 'Add manual booking',
           icon: const Icon(Icons.more_time),
           onPressed: _busy ? null : _bookManually,
         ),
         IconButton(
-          tooltip: 'Buchungen anzeigen',
+          tooltip: 'Show bookings',
           icon: const Icon(Icons.receipt_long_outlined),
           onPressed: _busy ? null : _showBookings,
         ),

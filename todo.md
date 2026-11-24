@@ -52,13 +52,18 @@
 - [x] wenn eine aufgabe editiert wird, muss unten das neue aufgabenfeld entweder weg oder umfunktioniert werden um subtasks anzulegen
 - [ ] stundenerfassung suboptimal
   - [?] pro tag!
-  - [?] anzeige an der aufgabe
+  - [x] anzeige an der aufgabe
   - [?] buchung manuell soll als manuell erfasst werden (als eintrag)
-  - [?] buchung mit einheit m h
-  - [?] manuelle buchungen auf 15m aufrunden
+  - [x] buchung mit einheit m h
+  - [x] manuelle buchungen auf 15m aufrunden
   - [?] stundenerfassung nur wenn die app läuft!
-- [?] links an punkten (jira-links generieren, bzw. pattern zum generieren)
+  - [?] zeiterfassung tabelle umbennen in englisch
+  - [?] filter für tabelle
+  - [?] statistik seite zeigt "fertige" aufgaben nicht mehr richtig an!
+  - [ß] horizontale skrallbar in tabellePLS
+- [x] links an punkten (jira-links generieren, bzw. pattern zum generieren)
 - [x] fällig uhrzeit bei punkten behalten für follow-up
+- [ ] wird in "new task" ein vorhandener ausgewählt, muss die leiste danach leer sein
 
 ## notes
 

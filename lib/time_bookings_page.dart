@@ -35,11 +35,131 @@ class TimeBookingsPage extends StatefulWidget {
 
 class _TimeBookingsPageState extends State<TimeBookingsPage> {
   late Future<List<TimeBooking>> _bookingsFuture;
+  final _searchController = TextEditingController();
+  final _horizontalController = ScrollController();
+  String _query = '';
+  String _source = 'all';
+  DateTimeRange? _dateRange;
 
   @override
   void initState() {
     super.initState();
     _bookingsFuture = widget.storage.readTimeBookings();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _horizontalController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectDateRange() async {
+    final selected = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100, 12, 31),
+      initialDateRange: _dateRange,
+    );
+    if (selected != null && mounted) setState(() => _dateRange = selected);
+  }
+
+  void _clearFilters() {
+    _searchController.clear();
+    setState(() {
+      _query = '';
+      _source = 'all';
+      _dateRange = null;
+    });
+  }
+
+  bool _matchesFilters(TimeBooking booking) {
+    if (_source != 'all' && booking.source != _source) return false;
+    final range = _dateRange;
+    if (range != null) {
+      final start = DateFormat('yyyy-MM-dd').format(range.start);
+      final end = DateFormat('yyyy-MM-dd').format(range.end);
+      if (booking.bookingDate.compareTo(start) < 0 ||
+          booking.bookingDate.compareTo(end) > 0) return false;
+    }
+    final query = _query.trim().toLowerCase();
+    return query.isEmpty ||
+        [
+          booking.taskText,
+          booking.bookingDate,
+          booking.bookingTime,
+          _sourceLabel(booking.source),
+          _durationLabel(_bookingMinutes(booking))
+        ].any((value) => value.toLowerCase().contains(query));
+  }
+
+  Widget _buildFilters() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  key: const ValueKey('booking-search'),
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    labelText: 'Search bookings',
+                    prefixIcon: Icon(Icons.search),
+                    isDense: true,
+                  ),
+                  onChanged: (value) => setState(() => _query = value),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Tooltip(
+                message: 'Booking type',
+                child: DropdownButton<String>(
+                  key: const ValueKey('booking-type-filter'),
+                  value: _source,
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('All types')),
+                    DropdownMenuItem(value: 'manual', child: Text('Manual')),
+                    DropdownMenuItem(
+                        value: 'stopwatch', child: Text('Stopwatch')),
+                    DropdownMenuItem(value: 'legacy', child: Text('Legacy')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setState(() => _source = value);
+                  },
+                ),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: _selectDateRange,
+                  icon: const Icon(Icons.date_range),
+                  label: Text(
+                      _dateRange == null
+                          ? 'All dates'
+                          : '${DateFormat('dd.MM.yyyy').format(_dateRange!.start)} - ${DateFormat('dd.MM.yyyy').format(_dateRange!.end)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Clear filters',
+                onPressed:
+                    _query.isEmpty && _source == 'all' && _dateRange == null
+                        ? null
+                        : _clearFilters,
+                icon: const Icon(Icons.filter_alt_off),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _reload() async {
@@ -66,16 +186,16 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Buchung löschen?'),
+        title: const Text('Delete booking?'),
         content: Text('${booking.taskText} · ${booking.bookingDate}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Abbrechen'),
+            child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Löschen'),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -94,10 +214,13 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
     return '$sign$hours h $remainder min';
   }
 
+  int _bookingMinutes(TimeBooking booking) =>
+      booking.bookedMinutes + ((booking.trackedSeconds + 59) ~/ 60);
+
   String _sourceLabel(String source) => switch (source) {
-        'stopwatch' => 'Stoppuhr',
-        'legacy' => 'Altbestand',
-        _ => 'Manuell',
+        'stopwatch' => 'Stopwatch',
+        'legacy' => 'Legacy',
+        _ => 'Manual',
       };
 
   @override
@@ -106,19 +229,19 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
       appBar: AppBar(
         title: Text(
           widget.taskId == null
-              ? 'Zeiterfassung'
-              : 'Buchungen: ${widget.taskOptions[widget.taskId] ?? ''}',
+              ? 'Time tracking'
+              : 'Bookings: ${widget.taskOptions[widget.taskId] ?? ''}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
           IconButton(
-            tooltip: 'Aktualisieren',
+            tooltip: 'Refresh',
             onPressed: _reload,
             icon: const Icon(Icons.refresh),
           ),
           IconButton(
-            tooltip: 'Buchung hinzufügen',
+            tooltip: 'Add booking',
             onPressed: () => _editBooking(),
             icon: const Icon(Icons.add),
           ),
@@ -132,97 +255,106 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
           }
           if (snapshot.hasError) {
             return Center(
-                child: Text(
-                    'Buchungen konnten nicht geladen werden: ${snapshot.error}'));
+                child: Text('Could not load bookings: ${snapshot.error}'));
           }
-          final bookings = (snapshot.data ?? const <TimeBooking>[])
+          final allBookings = (snapshot.data ?? const <TimeBooking>[])
               .where((booking) =>
                   widget.taskId == null || booking.taskId == widget.taskId)
               .toList();
-          if (bookings.isEmpty) {
-            return Center(
-              child: FilledButton.icon(
-                onPressed: () => _editBooking(),
-                icon: const Icon(Icons.add),
-                label: const Text('Erste Buchung erfassen'),
-              ),
-            );
-          }
+          final bookings = allBookings.where(_matchesFilters).toList();
           final totalMinutes = bookings.fold<int>(
-              0,
-              (total, booking) =>
-                  total +
-                  booking.bookedMinutes +
-                  ((booking.trackedSeconds + 59) ~/ 60));
+              0, (total, booking) => total + _bookingMinutes(booking));
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _buildFilters(),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: Text(
-                  '${bookings.length} ${bookings.length == 1 ? 'Buchung' : 'Buchungen'} · ${_durationLabel(totalMinutes)}',
+                  '${bookings.length} ${bookings.length == 1 ? 'booking' : 'bookings'} · ${_durationLabel(totalMinutes)}',
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
               const Divider(height: 1),
               Expanded(
-                child: Scrollbar(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SingleChildScrollView(
-                      child: DataTable(
-                        columnSpacing: 28,
-                        columns: const [
-                          DataColumn(label: Text('Buchungsdatum')),
-                          DataColumn(label: Text('Buchungszeit')),
-                          DataColumn(label: Text('Gebuchte Zeit')),
-                          DataColumn(label: Text('Art')),
-                          DataColumn(label: Text('Aufgabe')),
-                          DataColumn(label: Text('')),
-                        ],
-                        rows: [
-                          for (final booking in bookings)
-                            DataRow(
-                              cells: [
-                                DataCell(Text(booking.bookingDate)),
-                                DataCell(Text(booking.bookingTime)),
-                                DataCell(Text(_durationLabel(booking
-                                        .bookedMinutes +
-                                    ((booking.trackedSeconds + 59) ~/ 60)))),
-                                DataCell(Text(_sourceLabel(booking.source))),
-                                DataCell(
-                                  ConstrainedBox(
-                                    constraints:
-                                        const BoxConstraints(maxWidth: 360),
-                                    child: Text(
-                                      booking.taskText,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ),
-                                DataCell(Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      tooltip: 'Bearbeiten',
-                                      onPressed: () => _editBooking(booking),
-                                      icon: const Icon(Icons.edit_outlined),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Löschen',
-                                      onPressed: () => _deleteBooking(booking),
-                                      icon: const Icon(Icons.delete_outline),
-                                    ),
+                child: allBookings.isEmpty
+                    ? Center(
+                        child: FilledButton.icon(
+                          onPressed: () => _editBooking(),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add first booking'),
+                        ),
+                      )
+                    : bookings.isEmpty
+                        ? const Center(child: Text('No matching bookings'))
+                        : Scrollbar(
+                            key:
+                                const ValueKey('bookings-horizontal-scrollbar'),
+                            controller: _horizontalController,
+                            thumbVisibility: true,
+                            trackVisibility: true,
+                            child: SingleChildScrollView(
+                              key: const ValueKey('bookings-horizontal-scroll'),
+                              controller: _horizontalController,
+                              scrollDirection: Axis.horizontal,
+                              child: SingleChildScrollView(
+                                child: DataTable(
+                                  columnSpacing: 28,
+                                  columns: const [
+                                    DataColumn(label: Text('Date')),
+                                    DataColumn(label: Text('Time')),
+                                    DataColumn(label: Text('Duration')),
+                                    DataColumn(label: Text('Type')),
+                                    DataColumn(label: Text('Task')),
+                                    DataColumn(label: Text('')),
                                   ],
-                                )),
-                              ],
+                                  rows: [
+                                    for (final booking in bookings)
+                                      DataRow(
+                                        cells: [
+                                          DataCell(Text(booking.bookingDate)),
+                                          DataCell(Text(booking.bookingTime)),
+                                          DataCell(Text(_durationLabel(
+                                              _bookingMinutes(booking)))),
+                                          DataCell(Text(
+                                              _sourceLabel(booking.source))),
+                                          DataCell(
+                                            ConstrainedBox(
+                                              constraints: const BoxConstraints(
+                                                  maxWidth: 360),
+                                              child: Text(
+                                                booking.taskText,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                tooltip: 'Edit',
+                                                onPressed: () =>
+                                                    _editBooking(booking),
+                                                icon: const Icon(
+                                                    Icons.edit_outlined),
+                                              ),
+                                              IconButton(
+                                                tooltip: 'Delete',
+                                                onPressed: () =>
+                                                    _deleteBooking(booking),
+                                                icon: const Icon(
+                                                    Icons.delete_outline),
+                                              ),
+                                            ],
+                                          )),
+                                        ],
+                                      ),
+                                  ],
+                                ),
+                              ),
                             ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+                          ),
               ),
             ],
           );
@@ -343,8 +475,9 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
 
   String? _validateDuration(String? value) {
     final duration = _parseDuration();
-    if (duration == null) return 'Zahl mit optional m oder h eingeben';
-    if (duration == 0) return 'Die Dauer darf nicht 0 sein';
+    if (duration == null)
+      return 'Enter a number, optionally followed by m or h';
+    if (duration == 0) return 'Duration cannot be zero';
     return null;
   }
 
@@ -361,7 +494,7 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
       taskOptions[booking.taskId] = booking.taskText;
     }
     return AlertDialog(
-      title: Text(booking == null ? 'Buchung erfassen' : 'Buchung bearbeiten'),
+      title: Text(booking == null ? 'Add booking' : 'Edit booking'),
       content: SizedBox(
         width: 440,
         child: Form(
@@ -373,7 +506,7 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
               children: [
                 DropdownButtonFormField<String>(
                   initialValue: _taskId,
-                  decoration: const InputDecoration(labelText: 'Aufgabe'),
+                  decoration: const InputDecoration(labelText: 'Task'),
                   items: [
                     for (final entry in taskOptions.entries)
                       DropdownMenuItem(
@@ -388,8 +521,7 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
                   onChanged: taskOptions.isEmpty
                       ? null
                       : (value) => setState(() => _taskId = value),
-                  validator: (value) =>
-                      value == null ? 'Aufgabe auswählen' : null,
+                  validator: (value) => value == null ? 'Select a task' : null,
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -416,12 +548,12 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
                   controller: _durationController,
                   keyboardType: TextInputType.text,
                   decoration: InputDecoration(
-                    labelText: 'Gebuchte Zeit',
+                    labelText: 'Duration',
                     hintText: '30m / 1h',
                     helperText: duration != null &&
                             duration != originalMinutes &&
                             duration != rounded
-                        ? 'Buchung: $rounded min'
+                        ? 'Booking: $rounded min'
                         : null,
                   ),
                   onChanged: (_) => setState(() {}),
@@ -435,9 +567,9 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen'),
+          child: const Text('Cancel'),
         ),
-        FilledButton(onPressed: _save, child: const Text('Speichern')),
+        FilledButton(onPressed: _save, child: const Text('Save')),
       ],
     );
   }

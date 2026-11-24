@@ -1357,6 +1357,17 @@ class TaskItem {
   }
 }
 
+List<TaskItem> completedTasksForStatistics(
+    Iterable<Iterable<TaskItem>> taskLists) {
+  final byId = <String, TaskItem>{};
+  for (final tasks in taskLists) {
+    for (final task in tasks) {
+      byId[task.id] = task;
+    }
+  }
+  return byId.values.where((task) => task.done).toList();
+}
+
 class _LoadingGlowBlob extends StatelessWidget {
   const _LoadingGlowBlob({required this.color, required this.size});
 
@@ -4621,10 +4632,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _openStats() async {
     final List<TaskItem> doneList = [];
+    final List<TaskItem> todayList = [];
+    final List<TaskItem> backlogList = [];
     await _loadList(_storage('simplepresent_done.json'), doneList);
+    await _loadList(_storage('simplepresent_today.json'), todayList);
+    await _loadList(_storage('simplepresent_backlog.json'), backlogList);
+    final completed = completedTasksForStatistics([
+      doneList,
+      backlogList,
+      todayList,
+      if (!_showingTrash) _today,
+    ]);
 
     // Normalize: tasks marked done but missing completedAt are considered completed now
-    final normalized = doneList.map((t) {
+    final normalized = completed.map((t) {
       if (t.done && t.completedAt == null) {
         return t.copyWith(completedAt: DateTime.now());
       }
@@ -4635,7 +4656,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     List<TimeEntry> allTimeEntries = [];
     if (_useSembast) {
       try {
-        final doneTaskIds = normalized.map((task) => task.id).toSet();
+        final completionDates = {
+          for (final task in normalized)
+            if (task.completedAt != null)
+              task.id:
+                  DateFormat('yyyy-MM-dd').format(task.completedAt!.toLocal()),
+        };
         final bookings =
             await _sembastStorage.readTimeBookings(includeRunning: true);
         for (final booking in bookings) {
@@ -4643,7 +4669,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             taskId: booking.taskId,
             taskText: booking.taskText,
             date: booking.bookingDate,
-            taskDone: doneTaskIds.contains(booking.taskId),
+            taskDone: completionDates[booking.taskId] != null &&
+                booking.bookingDate
+                        .compareTo(completionDates[booking.taskId]!) >=
+                    0,
             taskInProgress: false,
             stopwatchSeconds: booking.trackedSeconds,
             workMinutes: booking.bookedMinutes,
@@ -8061,7 +8090,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                         const SizedBox(
                                                             width: 8),
                                                         const Text(
-                                                            'Zeiterfassung')
+                                                            'Time tracking')
                                                       ])));
                                                   items.add(PopupMenuItem(
                                                       value: 'redo',

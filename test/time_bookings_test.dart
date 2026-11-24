@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -334,6 +335,139 @@ Future<void> main(List<String> args) async {
     expect(find.textContaining('510 min'), findsNothing);
   });
 
+  test('statistics include completed tasks in today and deduplicate lists', () {
+    final tasks = app.completedTasksForStatistics([
+      [
+        app.TaskItem(id: 'old', text: 'Old', done: true),
+        app.TaskItem(id: 'reopened', text: 'Reopened', done: true),
+      ],
+      [app.TaskItem(id: 'today', text: 'Finished today', done: true)],
+      [app.TaskItem(id: 'reopened', text: 'Reopened', done: false)],
+    ]);
+    expect(tasks.map((task) => task.id), containsAll(['old', 'today']));
+    expect(tasks.map((task) => task.id), isNot(contains('reopened')));
+    expect(tasks, hasLength(2));
+  });
+
+  testWidgets('statistics include tasks completed in today and done lists',
+      (tester) async {
+    await tester.runAsync(() async {
+      final directory =
+          await Directory.systemTemp.createTemp('stats-completed-');
+      final appDirectory = Directory('${directory.path}/simplepresent-debug');
+      await appDirectory.create();
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final yesterday = DateTime(now.year, now.month, now.day - 1);
+      String dateKey(DateTime date) =>
+          '${date.year.toString().padLeft(4, '0')}-'
+          '${date.month.toString().padLeft(2, '0')}-'
+          '${date.day.toString().padLeft(2, '0')}';
+      await File('${appDirectory.path}/simplepresent_settings.json')
+          .writeAsString(jsonEncode({'lastRunDate': dateKey(today)}));
+      final database = await databaseFactoryIo
+          .openDatabase('${appDirectory.path}/simplepresent.db');
+      final lists = StoreRef<String, Object?>('lists');
+      await lists.record('simplepresent_today.json').put(database, [
+        {
+          'id': 'today',
+          'text': 'Completed today',
+          'done': true,
+          'completed_at': now.toIso8601String()
+        },
+      ]);
+      await lists.record('simplepresent_done.json').put(database, [
+        {
+          'id': 'done',
+          'text': 'Archived completed',
+          'done': true,
+          'completed_at': now.toIso8601String()
+        },
+      ]);
+      final bookings = StoreRef<String, Object?>('time_bookings');
+      for (final (id, date) in [
+        ('today-booking', today),
+        ('old-booking', yesterday)
+      ]) {
+        await bookings.record(id).put(
+            database,
+            TimeBooking(
+              id: id,
+              bookingDate: dateKey(date),
+              bookingTime: '10:00',
+              bookedMinutes: 15,
+              taskId: 'today',
+              taskText: 'Completed today',
+            ).toJson());
+      }
+      await database.close();
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      final audioDisposed = Completer<void>();
+      messenger.setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (_) async => directory.path);
+      messenger.setMockMethodCallHandler(
+          const MethodChannel('simple_present/window'), (_) async => true);
+      messenger.setMockMethodCallHandler(
+          const MethodChannel('xyz.luan/audioplayers.global'),
+          (_) async => null);
+      messenger.setMockMethodCallHandler(
+          const MethodChannel('xyz.luan/audioplayers.global/events'),
+          (_) async => null);
+      messenger.setMockMethodCallHandler(
+          const MethodChannel('xyz.luan/audioplayers'), (call) async {
+        if (call.method == 'create') {
+          final playerId = (call.arguments as Map)['playerId'];
+          messenger.setMockMethodCallHandler(
+              MethodChannel('xyz.luan/audioplayers/events/$playerId'),
+              (_) async => null);
+        }
+        if (call.method == 'dispose' && !audioDisposed.isCompleted)
+          audioDisposed.complete();
+        return null;
+      });
+      try {
+        await tester.pumpWidget(const app.SimplePresentApp());
+        for (var attempt = 0; attempt < 200; attempt++) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          await tester.pump();
+          if (find.byTooltip('statistics').evaluate().isNotEmpty) break;
+        }
+        await tester.tap(find.byTooltip('statistics'));
+        for (var attempt = 0; attempt < 100; attempt++) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          await tester.pump();
+          if (find.byType(app.StatsPage).evaluate().isNotEmpty) break;
+        }
+        await tester.pump(const Duration(milliseconds: 500));
+        final statsText = (String text) => find.descendant(
+            of: find.byType(app.StatsPage), matching: find.text(text));
+        expect(statsText('Completed today'), findsOneWidget);
+        expect(statsText('Archived completed'), findsOneWidget);
+        expect(find.textContaining('Erledigt: 2'), findsOneWidget);
+        expect(find.textContaining('Gesamt Zeit: 15 min'), findsOneWidget);
+        await tester.tap(find.byTooltip('Vorheriger Tag'));
+        await tester.pump();
+        expect(find.textContaining('Erledigt: 0'), findsOneWidget);
+        expect(find.text('Laufend (nicht abgeschlossen)'), findsOneWidget);
+        expect(statsText('Completed today'), findsOneWidget);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await audioDisposed.future.timeout(const Duration(seconds: 10));
+        for (final channel in const [
+          'plugins.flutter.io/path_provider',
+          'simple_present/window',
+          'xyz.luan/audioplayers.global',
+          'xyz.luan/audioplayers.global/events',
+          'xyz.luan/audioplayers',
+        ]) {
+          messenger.setMockMethodCallHandler(MethodChannel(channel), null);
+        }
+      }
+    });
+  });
+
   testWidgets('statistics include manual corrections on their booking day',
       (tester) async {
     final now = DateTime.now();
@@ -545,15 +679,148 @@ Future<void> main(List<String> args) async {
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Buchung hinzufügen'));
+    await tester.tap(find.byTooltip('Add booking'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), '1h 30m');
-    await tester.tap(find.text('Speichern'));
+    await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
     expect(find.text('Past-day task'), findsOneWidget);
     expect(find.text('1 h 30 min'), findsOneWidget);
     expect(await storage.readTimeBookings(), hasLength(1));
+  });
+
+  testWidgets('booking filters combine search and type and can be cleared',
+      (tester) async {
+    final storage = _MemoryBookingStorage();
+    storage.bookings.addAll(const [
+      TimeBooking(
+          id: 'a',
+          bookingDate: '2026-04-03',
+          bookingTime: '10:00',
+          bookedMinutes: 30,
+          taskId: 'a',
+          taskText: 'Alpha',
+          source: 'manual'),
+      TimeBooking(
+          id: 'b',
+          bookingDate: '2026-04-04',
+          bookingTime: '11:00',
+          bookedMinutes: 0,
+          trackedSeconds: 3600,
+          taskId: 'b',
+          taskText: 'Beta',
+          source: 'stopwatch'),
+    ]);
+    await tester.pumpWidget(MaterialApp(
+      home: TimeBookingsPage(
+          storage: storage, taskOptions: const {'a': 'Alpha', 'b': 'Beta'}),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('2 bookings · 1 h 30 min'), findsOneWidget);
+
+    await tester.enterText(
+        find.byKey(const ValueKey('booking-search')), 'beta');
+    await tester.pumpAndSettle();
+    expect(find.text('Beta'), findsOneWidget);
+    expect(find.text('Alpha'), findsNothing);
+    expect(find.textContaining('1 booking · 1 h'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('booking-type-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Manual').last);
+    await tester.pumpAndSettle();
+    expect(find.text('No matching bookings'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Clear filters'));
+    await tester.pumpAndSettle();
+    expect(find.text('Alpha'), findsOneWidget);
+    expect(find.text('Beta'), findsOneWidget);
+    expect(find.textContaining('2 bookings · 1 h 30 min'), findsOneWidget);
+  });
+
+  testWidgets(
+      'booking table has a visible horizontal scrollbar on narrow screens',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final storage = _MemoryBookingStorage();
+    storage.bookings.add(const TimeBooking(
+      id: 'a',
+      bookingDate: '2026-04-03',
+      bookingTime: '10:00',
+      bookedMinutes: 30,
+      taskId: 'a',
+      taskText: 'A task with a long title',
+    ));
+    await tester.pumpWidget(MaterialApp(
+      home: TimeBookingsPage(
+          storage: storage, taskOptions: const {'a': 'A task'}),
+    ));
+    await tester.pumpAndSettle();
+    final scrollbar = tester.widget<Scrollbar>(
+        find.byKey(const ValueKey('bookings-horizontal-scrollbar')));
+    final scroll = tester.widget<SingleChildScrollView>(
+        find.byKey(const ValueKey('bookings-horizontal-scroll')));
+    expect(scrollbar.thumbVisibility, isTrue);
+    expect(scrollbar.controller, same(scroll.controller));
+    expect(scroll.controller!.position.maxScrollExtent, greaterThan(0));
+    await tester.drag(find.byKey(const ValueKey('bookings-horizontal-scroll')),
+        const Offset(-500, 0));
+    await tester.pumpAndSettle();
+    expect(scroll.controller!.offset, greaterThan(0));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('booking date range filters entries and totals', (tester) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = DateTime(now.year, now.month, now.day - 1);
+    String dateKey(DateTime date) => '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+    final storage = _MemoryBookingStorage();
+    storage.bookings.addAll([
+      TimeBooking(
+          id: 'today',
+          bookingDate: dateKey(today),
+          bookingTime: '10:00',
+          bookedMinutes: 30,
+          taskId: 'today',
+          taskText: 'Today task'),
+      TimeBooking(
+          id: 'yesterday',
+          bookingDate: dateKey(yesterday),
+          bookingTime: '10:00',
+          bookedMinutes: 60,
+          taskId: 'yesterday',
+          taskText: 'Yesterday task'),
+    ]);
+    await tester.pumpWidget(MaterialApp(
+      home: TimeBookingsPage(storage: storage, taskOptions: const {
+        'today': 'Today task',
+        'yesterday': 'Yesterday task',
+      }),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('All dates'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('${today.day}').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('${today.day}').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('${today.day}').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('Today task'), findsOneWidget);
+    expect(find.text('Yesterday task'), findsNothing);
+    expect(find.textContaining('1 booking · 30 min'), findsOneWidget);
+    await tester.tap(find.byTooltip('Clear filters'));
+    await tester.pumpAndSettle();
+    expect(find.text('Yesterday task'), findsOneWidget);
   });
 
   testWidgets(
@@ -572,12 +839,12 @@ Future<void> main(List<String> args) async {
     await tester.pump();
 
     for (final value in ['30', '30m', '-30m']) {
-      await tester.tap(find.byTooltip('Zeit manuell buchen'));
+      await tester.tap(find.byTooltip('Add manual booking'));
       await tester.pumpAndSettle();
       final fields = find.byType(TextFormField);
       expect(tester.widget<TextFormField>(fields).controller!.text, '');
       await tester.enterText(fields, value);
-      await tester.tap(find.text('Speichern'));
+      await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
     }
 
@@ -587,11 +854,11 @@ Future<void> main(List<String> args) async {
         ['manual', 'manual', 'manual']);
     expect(find.text('stopwatch: 00:30:00'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Buchungen anzeigen'));
+    await tester.tap(find.byTooltip('Show bookings'));
     await tester.pumpAndSettle();
-    expect(find.text('Manuell'), findsNWidgets(3));
+    expect(find.text('Manual'), findsNWidgets(3));
     expect(find.text('-30 min'), findsOneWidget);
-    expect(find.textContaining('3 Buchungen · 30 min'), findsOneWidget);
+    expect(find.textContaining('3 bookings · 30 min'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -616,10 +883,10 @@ Future<void> main(List<String> args) async {
       ('-1h', -60),
       ('1h 30m', 90),
     ]) {
-      await tester.tap(find.byTooltip('Zeit manuell buchen'));
+      await tester.tap(find.byTooltip('Add manual booking'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField), input);
-      await tester.tap(find.text('Speichern'));
+      await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(storage.bookings.last.bookedMinutes, expectedMinutes,
           reason: input);
@@ -649,14 +916,14 @@ Future<void> main(List<String> args) async {
       ('-15m', -15),
       ('-16m', -30),
     ]) {
-      await tester.tap(find.byTooltip('Zeit manuell buchen'));
+      await tester.tap(find.byTooltip('Add manual booking'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField), input);
       await tester.pump();
       if (input == '16m') {
-        expect(find.text('Buchung: 30 min'), findsOneWidget);
+        expect(find.text('Booking: 30 min'), findsOneWidget);
       }
-      await tester.tap(find.text('Speichern'));
+      await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(storage.bookings.last.bookedMinutes, expectedMinutes,
           reason: input);
@@ -685,9 +952,9 @@ Future<void> main(List<String> args) async {
       ),
     ));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byTooltip('Bearbeiten'));
+    await tester.ensureVisible(find.byTooltip('Edit'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Bearbeiten'));
+    await tester.tap(find.byTooltip('Edit'));
     await tester.pumpAndSettle();
     expect(
         tester
@@ -695,7 +962,7 @@ Future<void> main(List<String> args) async {
             .controller!
             .text,
         '2m');
-    await tester.tap(find.text('Speichern'));
+    await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(storage.bookings.single.trackedSeconds, 91);
     expect(storage.bookings.single.source, 'stopwatch');
@@ -721,14 +988,14 @@ Future<void> main(List<String> args) async {
     ));
     await tester.pumpAndSettle();
     for (final input in [null, '16m']) {
-      await tester.ensureVisible(find.byTooltip('Bearbeiten'));
+      await tester.ensureVisible(find.byTooltip('Edit'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Bearbeiten'));
+      await tester.tap(find.byTooltip('Edit'));
       await tester.pumpAndSettle();
       if (input != null) {
         await tester.enterText(find.byType(TextFormField), input);
       }
-      await tester.tap(find.text('Speichern'));
+      await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(storage.bookings.single.bookedMinutes, input == null ? 7 : 30);
     }
@@ -767,7 +1034,7 @@ Future<void> main(List<String> args) async {
     await tester.tap(find.byTooltip('stop'));
     await tester.pump();
     expect(storage.runningTaskId, isNull);
-    expect(find.byTooltip('Zeit manuell buchen'), findsOneWidget);
+    expect(find.byTooltip('Add manual booking'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -800,23 +1067,23 @@ Future<void> main(List<String> args) async {
       ),
     ));
     await tester.pump();
-    await tester.tap(find.byTooltip('Buchungen anzeigen'));
+    await tester.tap(find.byTooltip('Show bookings'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Buchungen: Example'), findsOneWidget);
+    expect(find.text('Bookings: Example'), findsOneWidget);
     expect(find.text('2026-04-03'), findsOneWidget);
     expect(find.text('2026-04-04'), findsNothing);
-    expect(find.textContaining('1 Buchung · 15 min'), findsOneWidget);
-    expect(find.byTooltip('Bearbeiten'), findsOneWidget);
-    expect(find.byTooltip('Löschen'), findsOneWidget);
-    await tester.ensureVisible(find.byTooltip('Löschen'));
+    expect(find.textContaining('1 booking · 15 min'), findsOneWidget);
+    expect(find.byTooltip('Edit'), findsOneWidget);
+    expect(find.byTooltip('Delete'), findsOneWidget);
+    await tester.ensureVisible(find.byTooltip('Delete'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Löschen'));
+    await tester.tap(find.byTooltip('Delete'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Löschen').last);
+    await tester.tap(find.text('Delete').last);
     await tester.pumpAndSettle();
     expect(storage.bookings.single.taskId, 'other');
-    expect(find.text('Erste Buchung erfassen'), findsOneWidget);
+    expect(find.text('Add first booking'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 }
