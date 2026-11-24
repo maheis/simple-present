@@ -13,11 +13,14 @@ import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:simple_present/link_pattern_settings.dart';
+import 'package:simple_present/link_patterns.dart';
 import 'package:simple_present/storage/json_storage.dart';
 import 'package:simple_present/storage/sembast_storage.dart';
 import 'package:simple_present/recurrence.dart' as recurrence;
 import 'package:simple_present/task_worklog_page.dart';
 import 'package:simple_present/task_time_controls.dart';
+import 'package:simple_present/task_links.dart';
 import 'package:simple_present/time_bookings_page.dart';
 import 'package:file_selector/file_selector.dart' as fs;
 
@@ -1415,6 +1418,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Map<String, TextEditingController> _subtaskInputControllers = {};
   final Map<String, FocusNode> _subtaskFocusNodes = {};
   List<Map<String, dynamic>> _subtaskTemplates = <Map<String, dynamic>>[];
+  List<LinkPattern> _linkPatterns = [];
 
   Future<Map<String, List<TaskItem>>> _findTasks(String value) async {
     final query = value.trim().toLowerCase();
@@ -4071,6 +4075,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _reminderMinutes = readInt('reminderMinutes', _reminderMinutes);
         _urgentMinutes = readInt('urgentMinutes', _urgentMinutes);
         final rawTemplates = data['subtaskTemplates'];
+        _linkPatterns = linkPatternsFromJson(data['linkPatterns']);
         if (rawTemplates is List) {
           _subtaskTemplates = rawTemplates
               .whereType<Map>()
@@ -4263,6 +4268,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'autoExportTimes': _autoExportTimes,
         'autoExportMaxBackups': _autoExportMaxBackups,
         'subtaskTemplates': _subtaskTemplates,
+        'linkPatterns': _linkPatterns.map((rule) => rule.toJson()).toList(),
         'lastAutoExportChecksum': _lastAutoExportChecksum,
         'lastRunDate': _lastRunDate ?? '',
         'useTrash': _useTrash,
@@ -4753,6 +4759,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             'maxTasksToday': _maxTasksToday,
             'maxTasksBacklog': _maxTasksBacklog,
             'subtaskTemplates': _subtaskTemplates,
+            'linkPatterns': _linkPatterns.map((rule) => rule.toJson()).toList(),
           },
           onShareDebugLog: _shareDebugLog,
         ),
@@ -4830,6 +4837,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             .whereType<Map>()
             .map((template) => Map<String, dynamic>.from(template))
             .toList();
+      }
+      if (result['linkPatterns'] is List) {
+        _linkPatterns = linkPatternsFromJson(result['linkPatterns']);
       }
       if (result['inactivityReminders'] is List) {
         try {
@@ -8934,8 +8944,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                             crossAxisAlignment:
                                                                                 CrossAxisAlignment.start,
                                                                             children: [
-                                                                              Text(
-                                                                                task.text,
+                                                                              TaskLinkText(
+                                                                                text: task.text,
+                                                                                rules: _linkPatterns,
                                                                                 style: _fontTextStyle(
                                                                                   TextStyle(
                                                                                     fontSize: _baseFontSize,
@@ -9150,6 +9161,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                       _saveEditedTitle(
                                                                           i),
                                                                 ),
+                                                                TaskLinkActions(
+                                                                  controller:
+                                                                      _editControllers[
+                                                                          task.id],
+                                                                  rules:
+                                                                      _linkPatterns,
+                                                                ),
                                                                 // (Important button moved to recurrence row)
                                                                 const SizedBox(
                                                                     height: 8),
@@ -9188,6 +9206,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                   onSubmitted: (_) =>
                                                                       _saveEditedTitle(
                                                                           i),
+                                                                ),
+                                                                TaskLinkActions(
+                                                                  controller:
+                                                                      _notesControllers[
+                                                                          task.id],
+                                                                  rules:
+                                                                      _linkPatterns,
                                                                 ),
                                                                 const SizedBox(
                                                                     height: 12),
@@ -9320,6 +9345,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                                             decoration: const InputDecoration(border: InputBorder.none, isDense: true),
                                                                                             onChanged: (value) => _updateSubtask(i, step.id, text: value),
                                                                                           ),
+                                                                                        ),
+                                                                                  subtitle: findTaskLinks(step.text, _linkPatterns).isEmpty
+                                                                                      ? null
+                                                                                      : TaskLinkActions(
+                                                                                          text: step.text,
+                                                                                          rules: _linkPatterns,
                                                                                         ),
                                                                                   trailing: Row(
                                                                                     mainAxisSize: MainAxisSize.min,
@@ -9679,6 +9710,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   late final TextEditingController _newSubtaskController;
   final Map<String, TextEditingController> _subtaskControllers = {};
   List<Map<String, dynamic>> _subtaskTemplates = <Map<String, dynamic>>[];
+  List<LinkPattern> _linkPatterns = [];
   Timer? _geometryTimer;
   TaskItem? _initialTask;
   TaskItem? _task;
@@ -9797,6 +9829,10 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   Future<void> _loadAppearanceSettings() async {
     try {
       final data = await _readSettingsMap();
+      if (mounted) {
+        setState(
+            () => _linkPatterns = linkPatternsFromJson(data['linkPatterns']));
+      }
       final rawTemplates = data['subtaskTemplates'];
       if (rawTemplates is List && mounted) {
         setState(() {
@@ -10531,6 +10567,10 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
                                         ),
                                         onChanged: (_) => setState(() {}),
                                       ),
+                                      TaskLinkActions(
+                                        controller: _titleController,
+                                        rules: _linkPatterns,
+                                      ),
                                       const SizedBox(height: 12),
                                       TextField(
                                         controller: _notesController,
@@ -10541,6 +10581,10 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
                                           border: OutlineInputBorder(),
                                         ),
                                         onChanged: (_) => setState(() {}),
+                                      ),
+                                      TaskLinkActions(
+                                        controller: _notesController,
+                                        rules: _linkPatterns,
                                       ),
                                       const SizedBox(height: 12),
                                       Row(
@@ -10629,6 +10673,17 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
                                                       text: value,
                                                     ),
                                                   ),
+                                                  subtitle: findTaskLinks(
+                                                              step.text,
+                                                              _linkPatterns)
+                                                          .isEmpty
+                                                      ? null
+                                                      : TaskLinkActions(
+                                                          controller:
+                                                              _subtaskControllers[
+                                                                  step.id],
+                                                          rules: _linkPatterns,
+                                                        ),
                                                   trailing: Row(
                                                     mainAxisSize:
                                                         MainAxisSize.min,
@@ -10892,6 +10947,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late int trashRetentionDays;
   late List<Map<String, dynamic>> subtaskTemplates;
   late String _initialSubtaskTemplates;
+  late List<LinkPattern> linkPatterns;
+  late String _initialLinkPatterns;
   late int doneRetentionDays;
   late int maxTasksToday;
   late int maxTasksBacklog;
@@ -11033,6 +11090,9 @@ class _SettingsPageState extends State<SettingsPage> {
     maxTasksToday = readInt('maxTasksToday', 25).clamp(1, 9999);
     maxTasksBacklog = readInt('maxTasksBacklog', 50).clamp(1, 9999);
     final rawTemplates = widget.initial['subtaskTemplates'];
+    linkPatterns = linkPatternsFromJson(widget.initial['linkPatterns']);
+    _initialLinkPatterns =
+        jsonEncode(linkPatterns.map((rule) => rule.toJson()).toList());
     subtaskTemplates = rawTemplates is List
         ? rawTemplates
             .whereType<Map>()
@@ -11164,6 +11224,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     .toList(),
                 'autoExportMaxBackups': autoExportMaxBackups,
                 'subtaskTemplates': subtaskTemplates,
+                'linkPatterns':
+                    linkPatterns.map((rule) => rule.toJson()).toList(),
               });
             },
             child: const Text('save'),
@@ -11221,7 +11283,9 @@ class _SettingsPageState extends State<SettingsPage> {
         autoExportOnStart != _initialAutoExportOnStart ||
         autoExportIntervalMinutes != _initialAutoExportIntervalMinutes ||
         autoExportTimesCsv != _initialAutoExportTimesCsv ||
-        jsonEncode(subtaskTemplates) != _initialSubtaskTemplates;
+        jsonEncode(subtaskTemplates) != _initialSubtaskTemplates ||
+        jsonEncode(linkPatterns.map((rule) => rule.toJson()).toList()) !=
+            _initialLinkPatterns;
   }
 
   Future<void> _editSubtaskTemplate([int? index]) async {
@@ -11430,6 +11494,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           .toList(),
                       'autoExportMaxBackups': autoExportMaxBackups,
                       'subtaskTemplates': subtaskTemplates,
+                      'linkPatterns':
+                          linkPatterns.map((rule) => rule.toJson()).toList(),
                     });
                   },
                   child: Text(
@@ -11446,6 +11512,11 @@ class _SettingsPageState extends State<SettingsPage> {
             body: ListView(
               padding: const EdgeInsets.all(12),
               children: [
+                LinkPatternSettings(
+                  rules: linkPatterns,
+                  onChanged: (rules) => setState(() => linkPatterns = rules),
+                ),
+                const Divider(thickness: 1),
                 _buildSubtaskTemplatesSection(),
                 const Divider(thickness: 1),
                 const Text('font',

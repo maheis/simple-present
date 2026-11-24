@@ -57,7 +57,7 @@
   - [?] buchung mit einheit m h
   - [?] manuelle buchungen auf 15m aufrunden
   - [?] stundenerfassung nur wenn die app läuft!
-- [ ] links an punkten (jira-links generieren, bzw. pattern zum generieren)
+- [?] links an punkten (jira-links generieren, bzw. pattern zum generieren)
 - [x] fällig uhrzeit bei punkten behalten für follow-up
 
 ## notes

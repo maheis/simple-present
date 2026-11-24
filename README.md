@@ -19,6 +19,7 @@ The app also includes a stopwatch, manual time tracking, reminders, swipe action
 - Important and in-progress task states
 - Notes, subtasks, and scheduled date/time
 - Stopwatch and manual time entry
+- Configurable ticket links in task titles, notes, and subtasks
 - Per-task worklog with timestamped status, content, time, subtask, and list changes
 - Automatic sorting and delayed reordering
 - Local storage, export/import, and automatic backups
@@ -45,6 +46,12 @@ negative corrections, the absolute duration is rounded up. Each manual entry is 
 separately with its selected date and can use minutes or hours (for example,
 `30m` or `1h`). A number without a unit is interpreted as minutes. Negative
 entries such as `-30m` are corrections.
+
+Under Settings, add a ticket link rule with a regular expression such as
+`PLS-\d+` and an HTTP(S) URL template such as
+`https://example.com/jira/%PID%`. `%PID%` is replaced by the matched ticket
+key. Links appear in task titles and alongside editable titles, notes, and
+subtasks; multiple rules can be configured.
 
 Stopwatches run only while an app window is open. They stop when the last window
 closes and must be started again after reopening the app. After an unexpected

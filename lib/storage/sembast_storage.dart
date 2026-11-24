@@ -378,8 +378,8 @@ class SembastStorage {
       for (final record in records) {
         if (record.value is! Map) continue;
         final timer = Map<String, dynamic>.from(record.value as Map);
-        final previous = DateTime.tryParse(
-            timer['last_checkpoint_at']?.toString() ?? '');
+        final previous =
+            DateTime.tryParse(timer['last_checkpoint_at']?.toString() ?? '');
         if (previous != null && !checkpoint.isAfter(previous)) continue;
         timer['last_checkpoint_at'] = checkpoint.toIso8601String();
         await _activeTimersStore.record(record.key).put(transaction, timer);
@@ -393,16 +393,16 @@ class SembastStorage {
       for (final record in records) {
         if (record.value is! Map) continue;
         final timer = Map<String, dynamic>.from(record.value as Map);
-        final lastCheckpoint = DateTime.tryParse(
-                timer['last_checkpoint_at']?.toString() ?? '') ??
-            DateTime.tryParse(timer['started_at']?.toString() ?? '');
+        final lastCheckpoint =
+            DateTime.tryParse(timer['last_checkpoint_at']?.toString() ?? '') ??
+                DateTime.tryParse(timer['started_at']?.toString() ?? '');
         if (lastCheckpoint != null) {
           for (final booking in _timerBookings(timer, lastCheckpoint)) {
             final existing =
                 await _timeBookingsStore.record(booking.id).get(transaction);
             if (existing is Map) {
-              final saved = TimeBooking.fromJson(
-                  Map<String, dynamic>.from(existing));
+              final saved =
+                  TimeBooking.fromJson(Map<String, dynamic>.from(existing));
               if (saved.source != 'stopwatch' ||
                   saved.trackedSeconds >= booking.trackedSeconds) {
                 continue;
@@ -487,12 +487,12 @@ class SembastStorage {
           if (timer.value is Map) {
             final timerData = Map<String, dynamic>.from(timer.value as Map);
             final end = _timeTrackingRuntimeRequired &&
-                _timeTrackingLock == null
-              ? (DateTime.tryParse(
-                  timerData['last_checkpoint_at']?.toString() ?? '') ??
-                DateTime.tryParse(
-                  timerData['started_at']?.toString() ?? '') ??
-                now)
+                    _timeTrackingLock == null
+                ? (DateTime.tryParse(
+                        timerData['last_checkpoint_at']?.toString() ?? '') ??
+                    DateTime.tryParse(
+                        timerData['started_at']?.toString() ?? '') ??
+                    now)
                 : now;
             for (final booking in _timerBookings(timerData, end)) {
               byId[booking.id] = booking;
