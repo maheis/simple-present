@@ -44,6 +44,11 @@ class SembastStorage {
   late final String _storageRoot;
   late final String _dbPath;
   Database? _db;
+  RandomAccessFile? _timeTrackingLock;
+  Timer? _timeTrackingHeartbeat;
+  Future<void>? _timeTrackingCheckpoint;
+  Future<void>? _timeTrackingStop;
+  bool _timeTrackingRuntimeRequired = false;
 
   // Stores: 'lists' -> map filename -> List<dynamic>
   final _listsStore = StoreRef<String, Object?>('lists');
@@ -277,6 +282,9 @@ class SembastStorage {
     required String taskText,
     DateTime? now,
   }) async {
+    if (_timeTrackingRuntimeRequired && _timeTrackingLock == null) {
+      throw StateError('Time tracking runtime is not active');
+    }
     final startedAt = now ?? DateTime.now();
     await _db!.transaction((transaction) async {
       if (await _activeTimersStore.record(taskId).get(transaction) != null) {
@@ -287,6 +295,7 @@ class SembastStorage {
         'task_id': taskId,
         'task_text': taskText,
         'started_at': startedAt.toIso8601String(),
+        'last_checkpoint_at': startedAt.toIso8601String(),
       });
     });
   }
@@ -294,6 +303,119 @@ class SembastStorage {
   Future<Map<String, dynamic>?> readTaskTimer(String taskId) async {
     final value = await _activeTimersStore.record(taskId).get(_db!);
     return value is Map ? Map<String, dynamic>.from(value) : null;
+  }
+
+  Future<void> startTimeTrackingRuntime() async {
+    _timeTrackingRuntimeRequired = true;
+    await _timeTrackingStop;
+    if (_timeTrackingLock != null) return;
+    final lock = await File(p.join(_storageRoot, 'time_tracking.lock'))
+        .open(mode: FileMode.append);
+    var isFirstProcess = false;
+    try {
+      try {
+        await lock.lock(FileLock.exclusive);
+        isFirstProcess = true;
+      } on FileSystemException {
+        await lock.lock(FileLock.blockingShared);
+      }
+      if (isFirstProcess) {
+        try {
+          await recoverInterruptedTimers();
+        } finally {
+          await lock.unlock();
+        }
+        await lock.lock(FileLock.blockingShared);
+      }
+      _timeTrackingLock = lock;
+      _timeTrackingHeartbeat = Timer.periodic(const Duration(seconds: 5), (_) {
+        if (_timeTrackingCheckpoint != null) return;
+        final checkpoint = checkpointActiveTimers();
+        _timeTrackingCheckpoint = checkpoint;
+        unawaited(checkpoint.catchError((_) {}).whenComplete(() {
+          if (identical(_timeTrackingCheckpoint, checkpoint)) {
+            _timeTrackingCheckpoint = null;
+          }
+        }));
+      });
+    } catch (_) {
+      await lock.close();
+      rethrow;
+    }
+  }
+
+  Future<void> stopTimeTrackingRuntime({DateTime? now}) async {
+    final pendingStop = _timeTrackingStop;
+    if (pendingStop != null) return pendingStop;
+    _timeTrackingHeartbeat?.cancel();
+    _timeTrackingHeartbeat = null;
+    final lock = _timeTrackingLock;
+    if (lock == null) return;
+    _timeTrackingLock = null;
+    final stop = () async {
+      try {
+        try {
+          await _timeTrackingCheckpoint;
+        } catch (_) {}
+        await checkpointActiveTimers(now: now);
+      } finally {
+        await lock.unlock();
+        await lock.close();
+      }
+    }();
+    _timeTrackingStop = stop;
+    try {
+      await stop;
+    } finally {
+      _timeTrackingStop = null;
+    }
+  }
+
+  Future<void> checkpointActiveTimers({DateTime? now}) async {
+    final checkpoint = now ?? DateTime.now();
+    await _db!.transaction((transaction) async {
+      final records = await _activeTimersStore.find(transaction);
+      for (final record in records) {
+        if (record.value is! Map) continue;
+        final timer = Map<String, dynamic>.from(record.value as Map);
+        final previous = DateTime.tryParse(
+            timer['last_checkpoint_at']?.toString() ?? '');
+        if (previous != null && !checkpoint.isAfter(previous)) continue;
+        timer['last_checkpoint_at'] = checkpoint.toIso8601String();
+        await _activeTimersStore.record(record.key).put(transaction, timer);
+      }
+    });
+  }
+
+  Future<void> recoverInterruptedTimers() async {
+    await _db!.transaction((transaction) async {
+      final records = await _activeTimersStore.find(transaction);
+      for (final record in records) {
+        if (record.value is! Map) continue;
+        final timer = Map<String, dynamic>.from(record.value as Map);
+        final lastCheckpoint = DateTime.tryParse(
+                timer['last_checkpoint_at']?.toString() ?? '') ??
+            DateTime.tryParse(timer['started_at']?.toString() ?? '');
+        if (lastCheckpoint != null) {
+          for (final booking in _timerBookings(timer, lastCheckpoint)) {
+            final existing =
+                await _timeBookingsStore.record(booking.id).get(transaction);
+            if (existing is Map) {
+              final saved = TimeBooking.fromJson(
+                  Map<String, dynamic>.from(existing));
+              if (saved.source != 'stopwatch' ||
+                  saved.trackedSeconds >= booking.trackedSeconds) {
+                continue;
+              }
+            }
+            await _timeBookingsStore
+                .record(booking.id)
+                .put(transaction, booking.toJson());
+          }
+        }
+        await _activeTimersStore.record(record.key).delete(transaction);
+      }
+    });
   }
 
   List<TimeBooking> _timerBookings(Map<String, dynamic> timer, DateTime now) {
@@ -309,6 +431,9 @@ class SembastStorage {
   }
 
   Future<void> stopTaskTimer(String taskId, {DateTime? now}) async {
+    if (_timeTrackingRuntimeRequired && _timeTrackingLock == null) {
+      throw StateError('Time tracking runtime is not active');
+    }
     final stoppedAt = now ?? DateTime.now();
     await _db!.transaction((transaction) async {
       final raw = await _activeTimersStore.record(taskId).get(transaction);
@@ -360,8 +485,16 @@ class SembastStorage {
         final timers = await _activeTimersStore.find(transaction);
         for (final timer in timers) {
           if (timer.value is Map) {
-            for (final booking in _timerBookings(
-                Map<String, dynamic>.from(timer.value as Map), now)) {
+            final timerData = Map<String, dynamic>.from(timer.value as Map);
+            final end = _timeTrackingRuntimeRequired &&
+                _timeTrackingLock == null
+              ? (DateTime.tryParse(
+                  timerData['last_checkpoint_at']?.toString() ?? '') ??
+                DateTime.tryParse(
+                  timerData['started_at']?.toString() ?? '') ??
+                now)
+                : now;
+            for (final booking in _timerBookings(timerData, end)) {
               byId[booking.id] = booking;
             }
           }
@@ -621,6 +754,9 @@ class SembastStorage {
 
   void dispose() {
     unawaited(() async {
+      try {
+        await stopTimeTrackingRuntime();
+      } catch (_) {}
       try {
         await _db?.close();
       } catch (_) {}

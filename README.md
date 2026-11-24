@@ -46,6 +46,11 @@ separately with its selected date and can use minutes or hours (for example,
 `30m` or `1h`). A number without a unit is interpreted as minutes. Negative
 entries such as `-30m` are corrections.
 
+Stopwatches run only while an app window is open. They stop when the last window
+closes and must be started again after reopening the app. After an unexpected
+exit, time is recovered through the last successfully saved checkpoint, normally
+updated every five seconds.
+
 ## Legal and Privacy
 
 The source code is licensed under the MIT License. The name, logo, icons, and other brand assets are protected separately; see `LICENSE`, `TRADEMARK.md`, and `THIRD_PARTY_LICENSES.md`.

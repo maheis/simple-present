@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -101,6 +102,181 @@ void main() {
           .toList();
       expect(stopped.length, live.length);
     } finally {
+      storage.dispose();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+              const MethodChannel('plugins.flutter.io/path_provider'), null);
+      await directory.delete(recursive: true);
+    }
+  });
+
+  test('interrupted timers stop at the last app checkpoint', () async {
+    final directory = await mockDocumentsDirectory('timer-checkpoint-');
+    final storage = SembastStorage();
+    try {
+      await storage.init(debugMode: true);
+      await storage.startTaskTimer(
+          taskId: 'task',
+          taskText: 'Example',
+          now: DateTime(2026, 4, 3, 23, 50));
+      await storage.checkpointActiveTimers(now: DateTime(2026, 4, 4, 0, 15));
+      await storage.recoverInterruptedTimers();
+      await storage.recoverInterruptedTimers();
+      final bookings = await storage.readTimeBookings(includeRunning: true);
+      expect(bookings, hasLength(2));
+      expect(bookings.map((entry) => entry.trackedSeconds), [900, 600]);
+      expect(await storage.readTaskTimer('task'), isNull);
+    } finally {
+      storage.dispose();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+              const MethodChannel('plugins.flutter.io/path_provider'), null);
+      await directory.delete(recursive: true);
+    }
+  });
+
+  test('recovery does not shorten a saved timer snapshot', () async {
+    final directory = await mockDocumentsDirectory('timer-snapshot-');
+    final storage = SembastStorage();
+    try {
+      await storage.init(debugMode: true);
+      final start = DateTime(2026, 4, 3, 10);
+      await storage.startTaskTimer(
+          taskId: 'task', taskText: 'Example', now: start);
+      await storage.checkpointActiveTimers(now: DateTime(2026, 4, 3, 10, 15));
+      await storage.saveTimeBooking(TimeBooking(
+        id: '${start.microsecondsSinceEpoch}-task-2026-04-03',
+        bookingDate: '2026-04-03',
+        bookingTime: '10:00',
+        bookedMinutes: 0,
+        trackedSeconds: 20 * 60,
+        source: 'stopwatch',
+        taskId: 'task',
+        taskText: 'Example',
+      ));
+      await storage.recoverInterruptedTimers();
+      expect((await storage.readTimeBookings()).single.trackedSeconds, 20 * 60);
+    } finally {
+      storage.dispose();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+              const MethodChannel('plugins.flutter.io/path_provider'), null);
+      await directory.delete(recursive: true);
+    }
+  });
+
+  test('restarting the app closes timers at shutdown, not restart', () async {
+    final directory = await mockDocumentsDirectory('timer-runtime-');
+    final storage = SembastStorage();
+    try {
+      await storage.init(debugMode: true);
+      await storage.startTimeTrackingRuntime();
+      await storage.startTaskTimer(
+          taskId: 'task', taskText: 'Example', now: DateTime(2026, 4, 3, 10));
+      await Future.wait([
+        storage.stopTimeTrackingRuntime(now: DateTime(2026, 4, 3, 10, 15)),
+        storage.stopTimeTrackingRuntime(now: DateTime(2026, 4, 3, 10, 15)),
+      ]);
+      expect(await storage.readTaskTimer('task'), isNotNull);
+      expect(
+          (await storage.readTimeBookings(includeRunning: true))
+              .single
+              .trackedSeconds,
+          15 * 60);
+      await expectLater(storage.stopTaskTimer('task'), throwsStateError);
+      await storage.startTimeTrackingRuntime();
+      final booking = (await storage.readTimeBookings()).single;
+      expect(booking.bookingDate, '2026-04-03');
+      expect(booking.trackedSeconds, 15 * 60);
+      expect(await storage.readTaskTimer('task'), isNull);
+      await storage.stopTimeTrackingRuntime();
+    } finally {
+      storage.dispose();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+              const MethodChannel('plugins.flutter.io/path_provider'), null);
+      await directory.delete(recursive: true);
+    }
+  });
+
+  test('legacy running timers without checkpoints do not count offline time',
+      () async {
+    final directory = await mockDocumentsDirectory('timer-legacy-runtime-');
+    final appDirectory = Directory('${directory.path}/simplepresent-debug');
+    await appDirectory.create();
+    final database = await databaseFactoryIo
+        .openDatabase('${appDirectory.path}/simplepresent.db');
+    await StoreRef<String, Object?>('active_time_sessions')
+        .record('task')
+        .put(database, {
+      'id': 'legacy-session',
+      'task_id': 'task',
+      'task_text': 'Example',
+      'started_at': DateTime(2026, 4, 3, 10).toIso8601String(),
+    });
+    await database.close();
+    final storage = SembastStorage();
+    try {
+      await storage.init(debugMode: true);
+      await storage.startTimeTrackingRuntime();
+      expect(await storage.readTaskTimer('task'), isNull);
+      expect(await storage.readTimeBookings(), isEmpty);
+      await storage.stopTimeTrackingRuntime();
+    } finally {
+      storage.dispose();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+              const MethodChannel('plugins.flutter.io/path_provider'), null);
+      await directory.delete(recursive: true);
+    }
+  });
+
+  test('another running app process prevents interrupted timer recovery',
+      () async {
+    final directory = await mockDocumentsDirectory('timer-process-lock-');
+    final storage = SembastStorage();
+    Process? process;
+    try {
+      await storage.init(debugMode: true);
+      await storage.startTaskTimer(
+          taskId: 'task', taskText: 'Example', now: DateTime(2026, 4, 3, 10));
+      await storage.checkpointActiveTimers(now: DateTime(2026, 4, 3, 10, 15));
+      final script = File('${directory.path}/lock_holder.dart');
+      await script.writeAsString('''
+import 'dart:io';
+Future<void> main(List<String> args) async {
+  final file = await File(args.single).open(mode: FileMode.append);
+  await file.lock(FileLock.shared);
+  stdout.writeln('locked');
+  await stdin.first;
+  await file.unlock();
+  await file.close();
+}
+''');
+      process = await Process.start('dart', [
+        script.path,
+        '${directory.path}/simplepresent-debug/time_tracking.lock',
+      ]);
+      expect(
+          await process.stdout
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())
+              .first,
+          'locked');
+      await storage.startTimeTrackingRuntime();
+      expect(await storage.readTaskTimer('task'), isNotNull);
+      expect(await storage.readTimeBookings(), isEmpty);
+      await storage.stopTimeTrackingRuntime(now: DateTime(2026, 4, 3, 10, 15));
+      process.stdin.writeln('stop');
+      expect(await process.exitCode, 0);
+      process = null;
+      await storage.startTimeTrackingRuntime();
+      expect((await storage.readTimeBookings()).single.trackedSeconds, 900);
+      expect(await storage.readTaskTimer('task'), isNull);
+      await storage.stopTimeTrackingRuntime();
+    } finally {
+      process?.kill();
+      await storage.stopTimeTrackingRuntime();
       storage.dispose();
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(

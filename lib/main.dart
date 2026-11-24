@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' show AppExitResponse;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart';
@@ -1949,6 +1950,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Timer? _taskWindowRefreshTimer;
   final Set<String> _openDesktopTaskWindowIds = <String>{};
   String? _lastTaskWindowRefreshToken;
+  bool _closingMainWindow = false;
 
   final Stream<int> _loadingTickStream =
       Stream<int>.periodic(const Duration(milliseconds: 220), (x) => x);
@@ -2014,6 +2016,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
+      if (state == AppLifecycleState.detached && _initializationComplete) {
+        unawaited(_sembastStorage.stopTimeTrackingRuntime());
+      }
       _selectionFadeTimer?.cancel();
       _selectionPopupTimer?.cancel();
       _inputFocus.unfocus();
@@ -2024,6 +2029,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         });
       }
     }
+  }
+
+  @override
+  Future<AppExitResponse> didRequestAppExit() async {
+    if (_initializationComplete) {
+      await _sembastStorage.stopTimeTrackingRuntime();
+    }
+    return AppExitResponse.exit;
   }
 
   bool _hardwareKeyHandler(KeyEvent ev) {
@@ -2221,7 +2234,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _useSembast = true;
     try {
       await _sembastStorage.init(debugMode: kDebugMode);
+      await _sembastStorage.startTimeTrackingRuntime();
     } catch (_) {}
+    if (Platform.isLinux || Platform.isWindows) {
+      try {
+        await _nativeWindowChannel.invokeMethod('enableWindowGeometryTracking');
+      } catch (_) {}
+    }
     await Future.wait([
       for (final key in const [
         'cloudKnownTodayIds',
@@ -2369,6 +2388,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _handleNativeWindowMethodCall(MethodCall call) async {
+    if (call.method == 'closeRequested') {
+      if (_closingMainWindow) return;
+      _closingMainWindow = true;
+      try {
+        await _finalizeAllEdits();
+        await _sembastStorage.stopTimeTrackingRuntime();
+      } catch (_) {
+      } finally {
+        await _nativeWindowChannel.invokeMethod('closeWindow');
+      }
+      return;
+    }
     if (call.method == 'notificationTaskAction') {
       final args = call.arguments;
       if (args is! Map) return;
@@ -9957,6 +9988,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   Future<void> _loadTask() async {
     try {
       await _storage.init(debugMode: kDebugMode);
+      await _storage.startTimeTrackingRuntime();
       final found = _findTask(widget.taskId);
       if (!mounted) return;
       if (found == null) {
@@ -10358,6 +10390,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       _closingWindow = false;
       return;
     }
+    await _storage.stopTimeTrackingRuntime();
     if (!mounted) return;
     await _persistWindowGeometryIfNeeded();
     if (widget.closeAppOnExit) {
