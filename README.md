@@ -40,9 +40,11 @@ Start and stop the stopwatch on a task or add time manually. Time bookings are
 stored separately from tasks and can be reviewed and edited under Zeiterfassung.
 Stopwatch sessions spanning midnight are split by local calendar day. Statistics
 sum stopwatch seconds per task and day, then round up to 15-minute blocks;
-manual bookings retain their entered duration. Each manual entry is stored
+new or changed manual bookings are also rounded up to 15-minute blocks. For
+negative corrections, the absolute duration is rounded up. Each manual entry is stored
 separately with its selected date and can use minutes or hours (for example,
-`30m` or `1h`). Negative entries such as `-30m` are corrections.
+`30m` or `1h`). A number without a unit is interpreted as minutes. Negative
+entries such as `-30m` are corrections.
 
 ## Legal and Privacy
 

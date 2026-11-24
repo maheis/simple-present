@@ -371,8 +371,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Buchung hinzufügen'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField).at(0), '1');
-    await tester.enterText(find.byType(TextFormField).at(1), '30');
+    await tester.enterText(find.byType(TextFormField), '1h 30m');
     await tester.tap(find.text('Speichern'));
     await tester.pumpAndSettle();
 
@@ -396,13 +395,12 @@ void main() {
     ));
     await tester.pump();
 
-    for (final value in ['30m', '30m', '-30m']) {
+    for (final value in ['30', '30m', '-30m']) {
       await tester.tap(find.byTooltip('Zeit manuell buchen'));
       await tester.pumpAndSettle();
       final fields = find.byType(TextFormField);
-      expect(tester.widget<TextFormField>(fields.at(0)).controller!.text, '');
-      expect(tester.widget<TextFormField>(fields.at(1)).controller!.text, '');
-      await tester.enterText(fields.at(1), value);
+      expect(tester.widget<TextFormField>(fields).controller!.text, '');
+      await tester.enterText(fields, value);
       await tester.tap(find.text('Speichern'));
       await tester.pumpAndSettle();
     }
@@ -419,6 +417,145 @@ void main() {
     expect(find.text('-30 min'), findsOneWidget);
     expect(find.textContaining('3 Buchungen · 30 min'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('manual duration defaults to minutes and accepts m and h',
+      (tester) async {
+    final storage = _MemoryBookingStorage();
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: TaskTimeControls(
+          storage: storage,
+          taskId: 'task',
+          taskText: 'Example',
+        ),
+      ),
+    ));
+    await tester.pump();
+    for (final (input, expectedMinutes) in [
+      ('30', 30),
+      ('30m', 30),
+      ('1h', 60),
+      ('-30', -30),
+      ('-1h', -60),
+      ('1h 30m', 90),
+    ]) {
+      await tester.tap(find.byTooltip('Zeit manuell buchen'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField), input);
+      await tester.tap(find.text('Speichern'));
+      await tester.pumpAndSettle();
+      expect(storage.bookings.last.bookedMinutes, expectedMinutes,
+          reason: input);
+    }
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('manual bookings round up to signed 15 minute blocks',
+      (tester) async {
+    final storage = _MemoryBookingStorage();
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: TaskTimeControls(
+          storage: storage,
+          taskId: 'task',
+          taskText: 'Example',
+        ),
+      ),
+    ));
+    await tester.pump();
+    for (final (input, expectedMinutes) in [
+      ('1m', 15),
+      ('15m', 15),
+      ('16m', 30),
+      ('31m', 45),
+      ('-1m', -15),
+      ('-15m', -15),
+      ('-16m', -30),
+    ]) {
+      await tester.tap(find.byTooltip('Zeit manuell buchen'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField), input);
+      await tester.pump();
+      if (input == '16m') {
+        expect(find.text('Buchung: 30 min'), findsOneWidget);
+      }
+      await tester.tap(find.text('Speichern'));
+      await tester.pumpAndSettle();
+      expect(storage.bookings.last.bookedMinutes, expectedMinutes,
+          reason: input);
+    }
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('editing a timer entry preserves unchanged tracked seconds',
+      (tester) async {
+    final storage = _MemoryBookingStorage();
+    storage.bookings.add(const TimeBooking(
+      id: 'timer',
+      bookingDate: '2026-04-03',
+      bookingTime: '10:00',
+      bookedMinutes: 0,
+      trackedSeconds: 91,
+      source: 'stopwatch',
+      taskId: 'task',
+      taskText: 'Example',
+    ));
+    await tester.pumpWidget(MaterialApp(
+      home: TimeBookingsPage(
+        storage: storage,
+        taskOptions: const {'task': 'Example'},
+        taskId: 'task',
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byTooltip('Bearbeiten'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Bearbeiten'));
+    await tester.pumpAndSettle();
+    expect(
+        tester
+            .widget<TextFormField>(find.byType(TextFormField))
+            .controller!
+            .text,
+        '2m');
+    await tester.tap(find.text('Speichern'));
+    await tester.pumpAndSettle();
+    expect(storage.bookings.single.trackedSeconds, 91);
+    expect(storage.bookings.single.source, 'stopwatch');
+  });
+
+  testWidgets('existing manual duration changes only when edited',
+      (tester) async {
+    final storage = _MemoryBookingStorage();
+    storage.bookings.add(const TimeBooking(
+      id: 'existing',
+      bookingDate: '2026-04-03',
+      bookingTime: '10:00',
+      bookedMinutes: 7,
+      taskId: 'task',
+      taskText: 'Example',
+    ));
+    await tester.pumpWidget(MaterialApp(
+      home: TimeBookingsPage(
+        storage: storage,
+        taskOptions: const {'task': 'Example'},
+        taskId: 'task',
+      ),
+    ));
+    await tester.pumpAndSettle();
+    for (final input in [null, '16m']) {
+      await tester.ensureVisible(find.byTooltip('Bearbeiten'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Bearbeiten'));
+      await tester.pumpAndSettle();
+      if (input != null) {
+        await tester.enterText(find.byType(TextFormField), input);
+      }
+      await tester.tap(find.text('Speichern'));
+      await tester.pumpAndSettle();
+      expect(storage.bookings.single.bookedMinutes, input == null ? 7 : 30);
+    }
   });
 
   testWidgets('task stopwatch offers start, stop and manual booking',

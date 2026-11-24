@@ -250,8 +250,7 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
   late DateTime _date;
   late TimeOfDay _time;
   late String? _taskId;
-  late final TextEditingController _hoursController;
-  late final TextEditingController _minutesController;
+  late final TextEditingController _durationController;
 
   @override
   void initState() {
@@ -272,24 +271,14 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
         (widget.taskOptions.isEmpty ? null : widget.taskOptions.keys.first);
     final bookedMinutes = (booking?.bookedMinutes ?? 0) +
         (((booking?.trackedSeconds ?? 0) + 59) ~/ 60);
-    final absMinutes = bookedMinutes.abs();
-    final negative = bookedMinutes < 0 ? '-' : '';
-    _hoursController = TextEditingController(
-      text: bookedMinutes == 0 || absMinutes < 60
-          ? ''
-          : '$negative${absMinutes ~/ 60}',
-    );
-    _minutesController = TextEditingController(
-      text: bookedMinutes == 0
-          ? ''
-          : '${absMinutes < 60 ? negative : ''}${absMinutes % 60}',
+    _durationController = TextEditingController(
+      text: booking == null ? '' : '${bookedMinutes}m',
     );
   }
 
   @override
   void dispose() {
-    _hoursController.dispose();
-    _minutesController.dispose();
+    _durationController.dispose();
     super.dispose();
   }
 
@@ -325,7 +314,9 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
       bookingDate: DateFormat('yyyy-MM-dd').format(_date),
       bookingTime:
           '${_time.hour.toString().padLeft(2, '0')}:${_time.minute.toString().padLeft(2, '0')}',
-      bookedMinutes: keepOriginalDuration ? original.bookedMinutes : duration,
+      bookedMinutes: keepOriginalDuration
+          ? original.bookedMinutes
+          : _roundManualMinutes(duration),
       trackedSeconds: keepOriginalDuration ? original.trackedSeconds : 0,
       source: keepOriginalDuration ? original.source : 'manual',
       taskId: taskId,
@@ -335,24 +326,19 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
   }
 
   int? _parseDuration() {
-    final values = <int>[];
-    for (final (text, defaultUnit) in [
-      (_hoursController.text, 'h'),
-      (_minutesController.text, 'm'),
-    ]) {
-      final trimmed = text.trim().toLowerCase();
-      if (trimmed.isEmpty) continue;
-      final match = RegExp(r'^([+-]?\d+)\s*([mh]?)$').firstMatch(trimmed);
-      if (match == null) return null;
-      final number = int.tryParse(match.group(1)!);
-      if (number == null) return null;
-      final unit = match.group(2)!.isEmpty ? defaultUnit : match.group(2)!;
-      values.add(number * (unit == 'h' ? 60 : 1));
-    }
-    if (values.isEmpty) return null;
-    final negative = values.any((value) => value < 0);
-    final absolute = values.fold<int>(0, (sum, value) => sum + value.abs());
-    return negative ? -absolute : absolute;
+    final match = RegExp(r'^([+-]?)(?:(\d+)\s*h(?:\s*(\d+)\s*m)?|(\d+)\s*m?)$')
+        .firstMatch(_durationController.text.trim().toLowerCase());
+    if (match == null) return null;
+    final hours = int.tryParse(match.group(2) ?? '0');
+    final minutes = int.tryParse(match.group(3) ?? match.group(4) ?? '0');
+    if (hours == null || minutes == null) return null;
+    final duration = hours * 60 + minutes;
+    return match.group(1) == '-' ? -duration : duration;
+  }
+
+  int _roundManualMinutes(int duration) {
+    final rounded = ((duration.abs() + 14) ~/ 15) * 15;
+    return duration < 0 ? -rounded : rounded;
   }
 
   String? _validateDuration(String? value) {
@@ -366,6 +352,11 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
   Widget build(BuildContext context) {
     final taskOptions = Map<String, String>.from(widget.taskOptions);
     final booking = widget.booking;
+    final duration = _parseDuration();
+    final originalMinutes = booking == null
+        ? null
+        : booking.bookedMinutes + ((booking.trackedSeconds + 59) ~/ 60);
+    final rounded = duration == null ? null : _roundManualMinutes(duration);
     if (booking != null && !taskOptions.containsKey(booking.taskId)) {
       taskOptions[booking.taskId] = booking.taskText;
     }
@@ -421,29 +412,20 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Text('Gebuchte Zeit'),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _hoursController,
-                        keyboardType:
-                            const TextInputType.numberWithOptions(signed: true),
-                        decoration: const InputDecoration(labelText: 'Stunden'),
-                        validator: _validateDuration,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _minutesController,
-                        keyboardType:
-                            const TextInputType.numberWithOptions(signed: true),
-                        decoration: const InputDecoration(labelText: 'Minuten'),
-                        validator: _validateDuration,
-                      ),
-                    ),
-                  ],
+                TextFormField(
+                  controller: _durationController,
+                  keyboardType: TextInputType.text,
+                  decoration: InputDecoration(
+                    labelText: 'Gebuchte Zeit',
+                    hintText: '30m / 1h',
+                    helperText: duration != null &&
+                            duration != originalMinutes &&
+                            duration != rounded
+                        ? 'Buchung: $rounded min'
+                        : null,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                  validator: _validateDuration,
                 ),
               ],
             ),

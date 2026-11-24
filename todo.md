@@ -54,8 +54,8 @@
   - [?] pro tag!
   - [?] anzeige an der aufgabe
   - [?] buchung manuell soll als manuell erfasst werden (als eintrag)
-  - [ ] buchung mit einheit m h
-  - [ ] manuelle buchungen auf 15m aufrunden
+  - [?] buchung mit einheit m h
+  - [?] manuelle buchungen auf 15m aufrunden
   - [ ] stundenerfassung nur wenn die app läuft!
 - [ ] links an punkten (jira-links generieren, bzw. pattern zum generieren)
 - [x] fällig uhrzeit bei punkten behalten für follow-up
