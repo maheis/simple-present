@@ -257,6 +257,7 @@ class SembastStorage {
               bookingTime:
                   '${bookedAt.hour.toString().padLeft(2, '0')}:${bookedAt.minute.toString().padLeft(2, '0')}',
               bookedMinutes: bookedMinutes,
+              source: 'legacy',
               taskId: taskId,
               taskText: entry['task_text']?.toString() ?? '(gelöschte Aufgabe)',
             );
@@ -331,7 +332,7 @@ class SembastStorage {
         final booking = TimeBooking.fromJson(
             Map<String, dynamic>.from(record.value as Map));
         if (booking.taskId != taskId || booking.trackedSeconds <= 0) continue;
-        if (booking.bookedMinutes <= 0) {
+        if (booking.bookedMinutes == 0) {
           await _timeBookingsStore.record(record.key).delete(transaction);
         } else {
           final updated = Map<String, dynamic>.from(record.value as Map)
@@ -382,7 +383,7 @@ class SembastStorage {
         booking.taskId.isEmpty ||
         booking.bookingDate.isEmpty ||
         booking.bookingTime.isEmpty ||
-        (booking.bookedMinutes <= 0 && booking.trackedSeconds <= 0)) {
+        (booking.bookedMinutes == 0 && booking.trackedSeconds <= 0)) {
       throw ArgumentError('Invalid time booking');
     }
     await _timeBookingsStore.record(booking.id).put(_db!, booking.toJson());
@@ -405,7 +406,7 @@ class SembastStorage {
         final booking = TimeBooking.fromJson(Map<String, dynamic>.from(raw));
         if (booking.id.isEmpty ||
             booking.taskId.isEmpty ||
-            (booking.bookedMinutes <= 0 && booking.trackedSeconds <= 0)) {
+            (booking.bookedMinutes == 0 && booking.trackedSeconds <= 0)) {
           continue;
         }
         await _timeBookingsStore

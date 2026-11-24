@@ -7,6 +7,7 @@ class TimeBooking {
     required this.taskId,
     required this.taskText,
     this.trackedSeconds = 0,
+    this.source = 'manual',
   });
 
   final String id;
@@ -16,6 +17,7 @@ class TimeBooking {
   final String taskId;
   final String taskText;
   final int trackedSeconds;
+  final String source;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -24,6 +26,7 @@ class TimeBooking {
         'booked_minutes': bookedMinutes,
         'task_id': taskId,
         'task_text': taskText,
+        'source': source,
         if (trackedSeconds > 0) 'tracked_seconds': trackedSeconds,
       };
 
@@ -37,6 +40,14 @@ class TimeBooking {
         taskText: json['task_text']?.toString() ?? '',
         trackedSeconds:
             int.tryParse(json['tracked_seconds']?.toString() ?? '') ?? 0,
+        source: json['source']?.toString() ??
+            ((json['id']?.toString() ?? '').startsWith('legacy-')
+                ? 'legacy'
+                : (int.tryParse(json['tracked_seconds']?.toString() ?? '') ??
+                            0) >
+                        0
+                    ? 'stopwatch'
+                    : 'manual'),
       );
 }
 
@@ -65,6 +76,7 @@ List<TimeBooking> splitTrackedTime({
             '${start.minute.toString().padLeft(2, '0')}',
         bookedMinutes: 0,
         trackedSeconds: seconds,
+        source: 'stopwatch',
         taskId: taskId,
         taskText: taskText,
       ));

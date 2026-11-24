@@ -24,6 +24,18 @@ void main() {
     expect(bookings.map((booking) => booking.bookingDate),
         ['2026-04-03', '2026-04-04']);
     expect(bookings.map((booking) => booking.trackedSeconds), [600, 900]);
+    expect(bookings.every((booking) => booking.source == 'stopwatch'), isTrue);
+  });
+
+  test('older bookings retain identifiable origin', () {
+    expect(TimeBooking.fromJson({'id': 'manual', 'booked_minutes': 30}).source,
+        'manual');
+    expect(TimeBooking.fromJson({'id': 'timer', 'tracked_seconds': 60}).source,
+        'stopwatch');
+    expect(
+        TimeBooking.fromJson({'id': 'legacy-day-task', 'booked_minutes': 30})
+            .source,
+        'legacy');
   });
 
   Future<Directory> mockDocumentsDirectory(String prefix) async {
@@ -146,6 +158,39 @@ void main() {
     expect(find.textContaining('510 min'), findsNothing);
   });
 
+  testWidgets('statistics include manual corrections on their booking day',
+      (tester) async {
+    final now = DateTime.now();
+    final date = '${now.year.toString().padLeft(4, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+    await tester.pumpWidget(MaterialApp(
+      home: app.StatsPage(
+        doneList: [],
+        timeEntries: [
+          app.TimeEntry(
+              taskId: 'task',
+              taskText: 'Example',
+              date: date,
+              taskDone: false,
+              taskInProgress: false,
+              stopwatchSeconds: 0,
+              workMinutes: 60),
+          app.TimeEntry(
+              taskId: 'task',
+              taskText: 'Example',
+              date: date,
+              taskDone: false,
+              taskInProgress: false,
+              stopwatchSeconds: 0,
+              workMinutes: -30),
+        ],
+        textScale: 1,
+      ),
+    ));
+    expect(find.textContaining('Gesamt Zeit: 30 min'), findsOneWidget);
+  });
+
   test('booking CRUD preserves the independently selected booking date/time',
       () async {
     final directory = await mockDocumentsDirectory('time-booking-crud-');
@@ -183,6 +228,24 @@ void main() {
       await storage.importTimeBookings([booking.toJson()], merge: true);
       expect(
           (await storage.readTimeBookings()).single.toJson(), booking.toJson());
+
+      const correction = TimeBooking(
+        id: 'correction',
+        bookingDate: '2026-04-04',
+        bookingTime: '09:00',
+        bookedMinutes: -30,
+        taskId: 'task-1',
+        taskText: 'Prepare report',
+      );
+      await storage.saveTimeBooking(correction);
+      final backup = await storage.exportTimeBookings();
+      await storage.importTimeBookings(backup);
+      expect(
+        (await storage.readTimeBookings())
+            .singleWhere((entry) => entry.id == 'correction')
+            .bookedMinutes,
+        -30,
+      );
     } finally {
       storage.dispose();
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -190,6 +253,52 @@ void main() {
         const MethodChannel('plugins.flutter.io/path_provider'),
         null,
       );
+      await directory.delete(recursive: true);
+    }
+  });
+
+  test(
+      'manual bookings and corrections remain distinct across days and backups',
+      () async {
+    final directory = await mockDocumentsDirectory('manual-booking-days-');
+    final storage = SembastStorage();
+    try {
+      await storage.init(debugMode: true);
+      for (final (id, date, minutes) in [
+        ('today', '2026-04-03', 30),
+        ('tomorrow', '2026-04-04', 30),
+        ('correction', '2026-04-04', -30),
+      ]) {
+        await storage.saveTimeBooking(TimeBooking(
+          id: id,
+          bookingDate: date,
+          bookingTime: '10:00',
+          bookedMinutes: minutes,
+          taskId: 'task',
+          taskText: 'Example',
+        ));
+      }
+      final backup = await storage.exportTimeBookings();
+      await storage.importTimeBookings(backup);
+      await storage.resetTaskTimer('task');
+      final bookings = await storage.readTimeBookings();
+      expect(bookings, hasLength(3));
+      expect(
+          bookings
+              .where((entry) => entry.bookingDate == '2026-04-03')
+              .fold<int>(0, (total, entry) => total + entry.bookedMinutes),
+          30);
+      expect(
+          bookings
+              .where((entry) => entry.bookingDate == '2026-04-04')
+              .fold<int>(0, (total, entry) => total + entry.bookedMinutes),
+          0);
+      expect(bookings.every((entry) => entry.source == 'manual'), isTrue);
+    } finally {
+      storage.dispose();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+              const MethodChannel('plugins.flutter.io/path_provider'), null);
       await directory.delete(recursive: true);
     }
   });
@@ -270,6 +379,46 @@ void main() {
     expect(find.text('Past-day task'), findsOneWidget);
     expect(find.text('1 h 30 min'), findsOneWidget);
     expect(await storage.readTimeBookings(), hasLength(1));
+  });
+
+  testWidgets(
+      'manual bookings start empty and accept negative minute corrections',
+      (tester) async {
+    final storage = _MemoryBookingStorage();
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: TaskTimeControls(
+          storage: storage,
+          taskId: 'task',
+          taskText: 'Example',
+        ),
+      ),
+    ));
+    await tester.pump();
+
+    for (final value in ['30m', '30m', '-30m']) {
+      await tester.tap(find.byTooltip('Zeit manuell buchen'));
+      await tester.pumpAndSettle();
+      final fields = find.byType(TextFormField);
+      expect(tester.widget<TextFormField>(fields.at(0)).controller!.text, '');
+      expect(tester.widget<TextFormField>(fields.at(1)).controller!.text, '');
+      await tester.enterText(fields.at(1), value);
+      await tester.tap(find.text('Speichern'));
+      await tester.pumpAndSettle();
+    }
+
+    expect(storage.bookings.map((booking) => booking.bookedMinutes),
+        [30, 30, -30]);
+    expect(storage.bookings.map((booking) => booking.source),
+        ['manual', 'manual', 'manual']);
+    expect(find.text('stopwatch: 00:30:00'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Buchungen anzeigen'));
+    await tester.pumpAndSettle();
+    expect(find.text('Manuell'), findsNWidgets(3));
+    expect(find.text('-30 min'), findsOneWidget);
+    expect(find.textContaining('3 Buchungen · 30 min'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('task stopwatch offers start, stop and manual booking',

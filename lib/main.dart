@@ -12079,8 +12079,7 @@ class _StatsPageState extends State<StatsPage> {
     // Aggregate multiple recorded windows for the same task/date by summing
     // stopwatch seconds and manual work minutes so the stats reflect the
     // total time for that day only.
-    final rows = widget.timeEntries
-        .where((e) => e.date == dateStr && e.totalMinutes > 0);
+    final rows = widget.timeEntries.where((e) => e.date == dateStr);
     final Map<String, TimeEntry> agg = {};
     for (final e in rows) {
       final existing = agg[e.taskId];
@@ -12232,7 +12231,7 @@ class _StatsPageState extends State<StatsPage> {
                                 'Status: ${r.statusLabel}${r.completedAt != null ? ' | erledigt: ${DateFormat('HH:mm').format(r.completedAt!)}' : ''}',
                                 style: TextStyle(fontSize: 11 * scale),
                               ),
-                              trailing: r.minutes > 0
+                              trailing: r.minutes != 0
                                   ? Text('${r.minutes} min',
                                       style: TextStyle(fontSize: 12 * scale))
                                   : null,

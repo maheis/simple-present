@@ -158,13 +158,15 @@ class _TaskTimeControlsState extends State<TaskTimeControls> {
 
   @override
   Widget build(BuildContext context) {
-    final hours = (_seconds ~/ 3600).toString().padLeft(2, '0');
-    final minutes = ((_seconds % 3600) ~/ 60).toString().padLeft(2, '0');
-    final seconds = (_seconds % 60).toString().padLeft(2, '0');
+    final absoluteSeconds = _seconds.abs();
+    final sign = _seconds < 0 ? '-' : '';
+    final hours = (absoluteSeconds ~/ 3600).toString().padLeft(2, '0');
+    final minutes = ((absoluteSeconds % 3600) ~/ 60).toString().padLeft(2, '0');
+    final seconds = (absoluteSeconds % 60).toString().padLeft(2, '0');
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Text('stopwatch: $hours:$minutes:$seconds'),
+        Text('stopwatch: $sign$hours:$minutes:$seconds'),
         IconButton(
           tooltip: 'start',
           icon: const Icon(Icons.play_arrow),

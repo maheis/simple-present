@@ -86,12 +86,19 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
   }
 
   String _durationLabel(int minutes) {
-    final hours = minutes ~/ 60;
-    final remainder = minutes % 60;
-    if (hours == 0) return '$remainder min';
-    if (remainder == 0) return '$hours h';
-    return '$hours h $remainder min';
+    final sign = minutes < 0 ? '-' : '';
+    final hours = minutes.abs() ~/ 60;
+    final remainder = minutes.abs() % 60;
+    if (hours == 0) return '$sign$remainder min';
+    if (remainder == 0) return '$sign$hours h';
+    return '$sign$hours h $remainder min';
   }
+
+  String _sourceLabel(String source) => switch (source) {
+        'stopwatch' => 'Stoppuhr',
+        'legacy' => 'Altbestand',
+        _ => 'Manuell',
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -169,6 +176,7 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
                           DataColumn(label: Text('Buchungsdatum')),
                           DataColumn(label: Text('Buchungszeit')),
                           DataColumn(label: Text('Gebuchte Zeit')),
+                          DataColumn(label: Text('Art')),
                           DataColumn(label: Text('Aufgabe')),
                           DataColumn(label: Text('')),
                         ],
@@ -181,6 +189,7 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
                                 DataCell(Text(_durationLabel(booking
                                         .bookedMinutes +
                                     ((booking.trackedSeconds + 59) ~/ 60)))),
+                                DataCell(Text(_sourceLabel(booking.source))),
                                 DataCell(
                                   ConstrainedBox(
                                     constraints:
@@ -263,11 +272,17 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
         (widget.taskOptions.isEmpty ? null : widget.taskOptions.keys.first);
     final bookedMinutes = (booking?.bookedMinutes ?? 0) +
         (((booking?.trackedSeconds ?? 0) + 59) ~/ 60);
+    final absMinutes = bookedMinutes.abs();
+    final negative = bookedMinutes < 0 ? '-' : '';
     _hoursController = TextEditingController(
-      text: bookedMinutes == 0 ? '' : (bookedMinutes ~/ 60).toString(),
+      text: bookedMinutes == 0 || absMinutes < 60
+          ? ''
+          : '$negative${absMinutes ~/ 60}',
     );
     _minutesController = TextEditingController(
-      text: bookedMinutes == 0 ? '' : (bookedMinutes % 60).toString(),
+      text: bookedMinutes == 0
+          ? ''
+          : '${absMinutes < 60 ? negative : ''}${absMinutes % 60}',
     );
   }
 
@@ -297,42 +312,53 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
     if (!_formKey.currentState!.validate()) return;
     final taskId = _taskId;
     if (taskId == null) return;
-    final hours = int.tryParse(_hoursController.text.trim()) ?? 0;
-    final minutes = int.tryParse(_minutesController.text.trim()) ?? 0;
+    final duration = _parseDuration()!;
+    final original = widget.booking;
+    final previousMinutes = original == null
+        ? null
+        : original.bookedMinutes + ((original.trackedSeconds + 59) ~/ 60);
+    final keepOriginalDuration =
+        original != null && duration == previousMinutes;
     final booking = TimeBooking(
       id: widget.booking?.id ??
           DateTime.now().microsecondsSinceEpoch.toString(),
       bookingDate: DateFormat('yyyy-MM-dd').format(_date),
       bookingTime:
           '${_time.hour.toString().padLeft(2, '0')}:${_time.minute.toString().padLeft(2, '0')}',
-      bookedMinutes: widget.booking != null &&
-              widget.booking!.trackedSeconds > 0 &&
-              hours * 60 + minutes ==
-                  widget.booking!.bookedMinutes +
-                      ((widget.booking!.trackedSeconds + 59) ~/ 60)
-          ? widget.booking!.bookedMinutes
-          : hours * 60 + minutes,
-      trackedSeconds: widget.booking != null &&
-              widget.booking!.trackedSeconds > 0 &&
-              hours * 60 + minutes ==
-                  widget.booking!.bookedMinutes +
-                      ((widget.booking!.trackedSeconds + 59) ~/ 60)
-          ? widget.booking!.trackedSeconds
-          : 0,
+      bookedMinutes: keepOriginalDuration ? original.bookedMinutes : duration,
+      trackedSeconds: keepOriginalDuration ? original.trackedSeconds : 0,
+      source: keepOriginalDuration ? original.source : 'manual',
       taskId: taskId,
       taskText: widget.taskOptions[taskId] ?? widget.booking?.taskText ?? '',
     );
     Navigator.pop(context, booking);
   }
 
+  int? _parseDuration() {
+    final values = <int>[];
+    for (final (text, defaultUnit) in [
+      (_hoursController.text, 'h'),
+      (_minutesController.text, 'm'),
+    ]) {
+      final trimmed = text.trim().toLowerCase();
+      if (trimmed.isEmpty) continue;
+      final match = RegExp(r'^([+-]?\d+)\s*([mh]?)$').firstMatch(trimmed);
+      if (match == null) return null;
+      final number = int.tryParse(match.group(1)!);
+      if (number == null) return null;
+      final unit = match.group(2)!.isEmpty ? defaultUnit : match.group(2)!;
+      values.add(number * (unit == 'h' ? 60 : 1));
+    }
+    if (values.isEmpty) return null;
+    final negative = values.any((value) => value < 0);
+    final absolute = values.fold<int>(0, (sum, value) => sum + value.abs());
+    return negative ? -absolute : absolute;
+  }
+
   String? _validateDuration(String? value) {
-    final trimmed = value?.trim() ?? '';
-    final parsed = trimmed.isEmpty ? 0 : int.tryParse(trimmed);
-    if (parsed == null || parsed < 0) return 'Bitte eine Zahl ab 0 eingeben';
-    final hours = int.tryParse(_hoursController.text.trim()) ?? 0;
-    final minutes = int.tryParse(_minutesController.text.trim()) ?? 0;
-    if (minutes > 59) return 'Minuten müssen zwischen 0 und 59 liegen';
-    if (hours * 60 + minutes == 0) return 'Die Dauer muss größer als 0 sein';
+    final duration = _parseDuration();
+    if (duration == null) return 'Zahl mit optional m oder h eingeben';
+    if (duration == 0) return 'Die Dauer darf nicht 0 sein';
     return null;
   }
 
@@ -401,7 +427,8 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
                     Expanded(
                       child: TextFormField(
                         controller: _hoursController,
-                        keyboardType: TextInputType.number,
+                        keyboardType:
+                            const TextInputType.numberWithOptions(signed: true),
                         decoration: const InputDecoration(labelText: 'Stunden'),
                         validator: _validateDuration,
                       ),
@@ -410,7 +437,8 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
                     Expanded(
                       child: TextFormField(
                         controller: _minutesController,
-                        keyboardType: TextInputType.number,
+                        keyboardType:
+                            const TextInputType.numberWithOptions(signed: true),
                         decoration: const InputDecoration(labelText: 'Minuten'),
                         validator: _validateDuration,
                       ),
