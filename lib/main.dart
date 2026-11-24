@@ -1774,11 +1774,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                               ? 'use here'
                               : 'reactivate'),
                     ),
-                    onPressed: () => entry.key == 'backlog'
-                        ? _moveBacklogSearchTaskToToday(task)
-                        : _reactivateExistingTask(entry.key, task),
+                    onPressed: () {
+                      _clearNewTaskInput();
+                      if (entry.key == 'backlog') {
+                        unawaited(_moveBacklogSearchTaskToToday(task));
+                      } else {
+                        unawaited(_reactivateExistingTask(entry.key, task));
+                      }
+                    },
                   ),
-                  onTap: () => _openExistingTask(entry.key, task),
+                  onTap: () {
+                    _clearNewTaskInput();
+                    unawaited(_openExistingTask(entry.key, task));
+                  },
                 ),
               ),
           ],
@@ -1791,6 +1799,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _newTaskSearchGeneration++;
     _newTaskSearchQuery = '';
     _newTaskSearchResults = const {};
+  }
+
+  void _clearNewTaskInput() {
+    setState(() {
+      _controller.clear();
+      _clearNewTaskSearch();
+    });
   }
 
   void _requestInputFocusIfIdle() {

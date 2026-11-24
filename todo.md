@@ -60,7 +60,7 @@
   - [?] zeiterfassung tabelle umbennen in englisch
   - [?] filter für tabelle
   - [?] statistik seite zeigt "fertige" aufgaben nicht mehr richtig an!
-  - [ß] horizontale skrallbar in tabellePLS
+  - [?] horizontale skrallbar in tabellePLS
 - [x] links an punkten (jira-links generieren, bzw. pattern zum generieren)
 - [x] fällig uhrzeit bei punkten behalten für follow-up
 - [ ] wird in "new task" ein vorhandener ausgewählt, muss die leiste danach leer sein
