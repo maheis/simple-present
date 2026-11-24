@@ -16,6 +16,8 @@ import 'package:simple_present/storage/json_storage.dart';
 import 'package:simple_present/storage/sembast_storage.dart';
 import 'package:simple_present/recurrence.dart' as recurrence;
 import 'package:simple_present/task_worklog_page.dart';
+import 'package:simple_present/task_time_controls.dart';
+import 'package:simple_present/time_bookings_page.dart';
 import 'package:file_selector/file_selector.dart' as fs;
 
 // sentinel to indicate "no change" in copyWith optional parameters
@@ -1411,7 +1413,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Map<String, Timer?> _autosaveTimers = {};
   final Map<String, TextEditingController> _subtaskInputControllers = {};
   final Map<String, FocusNode> _subtaskFocusNodes = {};
-  final Map<String, TextEditingController> _workControllers = {};
   List<Map<String, dynamic>> _subtaskTemplates = <Map<String, dynamic>>[];
 
   Future<Map<String, List<TaskItem>>> _findTasks(String value) async {
@@ -1853,7 +1854,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   // for tasks that became due before the app was started.
   final DateTime _appStartedAt = DateTime.now();
   final Duration _autoSwitchDuration = const Duration(minutes: 3);
-  Timer? _stopwatchTicker;
   final Set<String> _notified15 = <String>{};
   final Set<String> _notifiedDue = <String>{};
   final Set<int> _swiping = <int>{};
@@ -2003,10 +2003,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       HardwareKeyboard.instance.addHandler(_hardwareKeyHandler);
     } catch (_) {}
-    // Start a short ticker to update stopwatch displays every second
-    _stopwatchTicker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
   }
 
   @override
@@ -2501,6 +2497,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final now = DateTime.now();
       final current = todayList[idx];
       if (action == 'done') {
+        await _sembastStorage.stopTaskTimer(taskId);
         todayList[idx] = current.copyWith(
           done: true,
           inProgress: false,
@@ -2510,12 +2507,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           stopwatchStartedAt: null,
         );
       } else if (action == 'in_progress') {
+        await _sembastStorage.startTaskTimer(
+            taskId: taskId, taskText: current.text);
         todayList[idx] = current.copyWith(
           done: false,
           inProgress: true,
           inProgressAt: current.inProgressAt ?? now,
-          stopwatchRunning: true,
-          stopwatchStartedAt: current.stopwatchStartedAt ?? now,
         );
       } else {
         return;
@@ -3420,6 +3417,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         'done': doneList.map((t) => t.toJson()).toList(),
         'trash': trashList.map((t) => t.toJson()).toList(),
         if (_useSembast) 'worklog': await _sembastStorage.exportWorklogs(),
+        if (_useSembast)
+          'timeBookings': await _sembastStorage.exportTimeBookings(),
       };
 
       final f = File(path);
@@ -3504,6 +3503,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (_useSembast && data['worklog'] is Map) {
         await _sembastStorage.importWorklogs(
           Map<String, dynamic>.from(data['worklog']),
+        );
+      }
+      if (_useSembast && data['timeBookings'] is List) {
+        await _sembastStorage.importTimeBookings(
+          data['timeBookings'] as List<dynamic>,
+          merge: merge,
         );
       }
 
@@ -4308,15 +4313,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         f.dispose();
       } catch (_) {}
     }
-    for (final c in _workControllers.values) {
-      c.dispose();
-    }
     try {
       _listScrollController.dispose();
     } catch (_) {}
     _toastTimer?.cancel();
     _toastEntry?.remove();
-    _stopwatchTicker?.cancel();
     _sembastStorage.dispose();
     super.dispose();
   }
@@ -4544,6 +4545,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       'done': doneList.map((t) => t.toJson()).toList(),
       'trash': trashList.map((t) => t.toJson()).toList(),
       if (_useSembast) 'worklog': await _sembastStorage.exportWorklogs(),
+      if (_useSembast)
+        'timeBookings': await _sembastStorage.exportTimeBookings(),
     };
     return const JsonEncoder.withIndent('  ').convert(exportData);
   }
@@ -4577,102 +4580,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
-  int _elapsedSecondsFor(TaskItem t) {
-    var acc = t.stopwatchAccumulatedSeconds;
-    if (t.stopwatchRunning && t.stopwatchStartedAt != null) {
-      acc += DateTime.now().difference(t.stopwatchStartedAt!).inSeconds;
-    }
-    return acc;
-  }
-
-  Future<void> _startStopwatch(int index) async {
-    final id = _today[index].id;
-    return _queueTaskAction(id, () async {
-      final idx = _today.indexWhere((t) => t.id == id);
-      if (idx == -1) return;
-      final t = _today[idx];
-      if (t.stopwatchRunning) return;
-      final now = DateTime.now();
-      // Enforce `inProgress` flag when stopwatch is running or inProgressAt exists.
-      for (var i = 0; i < _today.length; i++) {
-        final tt = _today[i];
-        if ((tt.stopwatchRunning || tt.inProgressAt != null) &&
-            !tt.inProgress &&
-            !tt.done) {
-          final inferredAt = tt.inProgressAt ?? tt.stopwatchStartedAt ?? now;
-          try {
-            unawaited(_queueTaskAction(tt.id, () async {
-              final j = _today.indexWhere((t) => t.id == tt.id);
-              if (j == -1) return;
-              setState(() => _today[j] = _today[j]
-                  .copyWith(inProgress: true, inProgressAt: inferredAt));
-              await _saveToday();
-            }));
-          } catch (_) {}
-        }
-      }
-      final before = _today[idx];
-      final after = before.copyWith(
-          stopwatchRunning: true,
-          stopwatchStartedAt: now,
-          inProgress: true,
-          inProgressAt: now);
-      setState(() => _today[idx] = after);
-      unawaited(_appendRedoLog('stopwatch_start',
-          taskId: before.id,
-          details: {'before': before.toJson(), 'after': after.toJson()}));
-      // Clear any staged toggle for this task since we applied it directly
-      _stagedInProgress.remove(t.id);
-      await _saveToday();
-      _scheduleDelayedReorder();
-      _registerActivity();
-    });
-  }
-
-  Future<void> _stopStopwatch(int index) async {
-    final id = _today[index].id;
-    return _queueTaskAction(id, () async {
-      final idx = _today.indexWhere((t) => t.id == id);
-      if (idx == -1) return;
-      final t = _today[idx];
-      if (!t.stopwatchRunning) return;
-      final started = t.stopwatchStartedAt ?? DateTime.now();
-      final added = DateTime.now().difference(started).inSeconds;
-      final newAccum = t.stopwatchAccumulatedSeconds + added;
-      final before = _today[idx];
-      final after = before.copyWith(
-          stopwatchRunning: false,
-          stopwatchStartedAt: null,
-          stopwatchAccumulatedSeconds: newAccum);
-      setState(() => _today[idx] = after);
-      unawaited(_appendRedoLog('stopwatch_stop',
-          taskId: before.id,
-          details: {'before': before.toJson(), 'after': after.toJson()}));
-      await _saveToday();
-      _scheduleDelayedReorder();
-      _upsertTimeEntry(_today[idx]);
-    });
-  }
-
-  Future<void> _resetStopwatch(int index) async {
-    final id = _today[index].id;
-    return _queueTaskAction(id, () async {
-      final idx = _today.indexWhere((t) => t.id == id);
-      if (idx == -1) return;
-      final t = _today[idx];
-      final before = t;
-      final after = t.copyWith(
-          stopwatchRunning: false,
-          stopwatchStartedAt: null,
-          stopwatchAccumulatedSeconds: 0);
-      setState(() => _today[idx] = after);
-      unawaited(_appendRedoLog('stopwatch_reset',
-          taskId: before.id,
-          details: {'before': before.toJson(), 'after': after.toJson()}));
-      await _saveToday();
-    });
-  }
-
   // Window watcher and magnet/snapping behavior removed.
 
   Future<void> _openStats() async {
@@ -4687,25 +4594,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return t;
     }).toList();
 
-    // Load all time entries from DB for all known dates, so the stats page
-    // can show historical data regardless of where the task currently lives.
+    // Load independent bookings so statistics use their actual booked dates.
     List<TimeEntry> allTimeEntries = [];
     if (_useSembast) {
       try {
-        final dates = _sembastStorage.getTimeEntryDates();
-        for (final date in dates) {
-          final rows = _sembastStorage.getTimeEntriesForDate(date);
-          for (final row in rows) {
-            allTimeEntries.add(TimeEntry(
-              taskId: row['task_id'] as String,
-              taskText: row['task_text'] as String,
-              date: date,
-              taskDone: (row['task_done'] as int?) == 1,
-              taskInProgress: (row['task_in_progress'] as int?) == 1,
-              stopwatchSeconds: (row['stopwatch_seconds'] as int?) ?? 0,
-              workMinutes: (row['work_minutes'] as int?) ?? 0,
-            ));
-          }
+        final doneTaskIds = normalized.map((task) => task.id).toSet();
+        final bookings =
+            await _sembastStorage.readTimeBookings(includeRunning: true);
+        for (final booking in bookings) {
+          allTimeEntries.add(TimeEntry(
+            taskId: booking.taskId,
+            taskText: booking.taskText,
+            date: booking.bookingDate,
+            taskDone: doneTaskIds.contains(booking.taskId),
+            taskInProgress: false,
+            stopwatchSeconds: booking.trackedSeconds,
+            workMinutes: booking.bookedMinutes,
+          ));
         }
       } catch (_) {}
     }
@@ -4740,6 +4645,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               timeEntries: allTimeEntries,
               textScale: _uiTextScaleFactor,
             )));
+  }
+
+  Future<void> _openTimeBookings() async {
+    if (!_useSembast) return;
+    final tasks = <TaskItem>[];
+    for (final listName in const [
+      'simplepresent_today.json',
+      'simplepresent_backlog.json',
+      'simplepresent_done.json',
+    ]) {
+      final currentList = <TaskItem>[];
+      await _loadList(_storage(listName), currentList);
+      tasks.addAll(currentList);
+    }
+    final taskOptions = <String, String>{};
+    for (final task in tasks) {
+      taskOptions.putIfAbsent(task.id, () => task.text);
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => TimeBookingsPage(
+        storage: _sembastStorage,
+        taskOptions: taskOptions,
+      ),
+    ));
   }
 
   Future<void> _openSettings() async {
@@ -5076,15 +5006,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final idx = _today.indexWhere((t) => t.id == taskId);
       if (idx == -1) return;
       setState(() {
-        var updated = _today[idx].copyWith(text: newText, notes: newNotes);
-        final workCtrl = _workControllers[updated.id];
-        if (workCtrl != null) {
-          final parsed = int.tryParse(workCtrl.text.trim());
-          if (parsed != null) {
-            updated = updated.copyWith(workMinutes: parsed);
-          }
-        }
-        _today[idx] = updated;
+        _today[idx] = _today[idx].copyWith(text: newText, notes: newNotes);
       });
 
       // Persist changes first (so _saveList writes the full state)
@@ -5093,7 +5015,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (_today[idx].done) unawaited(_cancelTaskNotification(taskId));
       } catch (_) {}
       _scheduleDelayedReorder();
-      _upsertTimeEntry(_today[idx]);
 
       // Now append a single log entry for this consolidated change if something changed
       try {
@@ -5135,24 +5056,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final idx = _today.indexWhere((t) => t.id == taskId);
       if (idx != -1) _saveEditedTitle(idx);
     });
-  }
-
-  /// Write (or overwrite) the time-entry row for [task] on today's date.
-  /// Only runs when Sembast is available; silently skipped otherwise.
-  void _upsertTimeEntry(TaskItem task) {
-    if (!_useSembast) return;
-    final date = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    try {
-      _sembastStorage.upsertTimeEntry(
-        taskId: task.id,
-        taskText: task.text,
-        date: date,
-        taskDone: task.done,
-        taskInProgress: task.inProgress,
-        stopwatchSeconds: task.stopwatchAccumulatedSeconds,
-        workMinutes: task.workMinutes,
-      );
-    } catch (_) {}
   }
 
   // If the task has a scheduled date and it's not today, move it to backlog.
@@ -5303,7 +5206,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         } catch (_) {}
       }
     }
-    // Apply staged inProgress changes and automatically start/stop stopwatch
+    // Apply staged inProgress changes without recording task-owned time.
     if (_stagedInProgress.isNotEmpty) {
       final stagedInProgress = Map<String, bool>.from(_stagedInProgress);
       _stagedInProgress.clear();
@@ -5312,26 +5215,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final val = entry.value;
         final idx = _today.indexWhere((t) => t.id == id);
         if (idx != -1) {
-          if (val == true) {
-            try {
-              await _startStopwatch(idx);
-            } catch (_) {}
-          } else {
-            try {
-              await _stopStopwatch(idx);
-            } catch (_) {}
-            // ensure inProgress flag is cleared via per-task queue
-            try {
-              final taskId = _today[idx].id;
-              unawaited(_queueTaskAction(taskId, () async {
-                final j = _today.indexWhere((t) => t.id == taskId);
-                if (j == -1) return;
-                setState(() => _today[j] =
-                    _today[j].copyWith(inProgress: false, inProgressAt: null));
-                await _saveToday();
-              }));
-            } catch (_) {}
-          }
+          final taskId = _today[idx].id;
+          unawaited(_queueTaskAction(taskId, () async {
+            final j = _today.indexWhere((t) => t.id == taskId);
+            if (j == -1) return;
+            if (val) {
+              await _sembastStorage.startTaskTimer(
+                  taskId: taskId, taskText: _today[j].text);
+            } else {
+              await _sembastStorage.stopTaskTimer(taskId);
+            }
+            if (!mounted) return;
+            setState(() => _today[j] = _today[j].copyWith(
+                  inProgress: val,
+                  inProgressAt:
+                      val ? (_today[j].inProgressAt ?? DateTime.now()) : null,
+                  stopwatchRunning: false,
+                  stopwatchStartedAt: null,
+                ));
+            await _saveToday();
+          }));
         }
       }
     }
@@ -5356,10 +5259,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           // apply the done/undone change to the task
           final now = val == true ? DateTime.now() : null;
           if (val == true) {
-            // stop any running stopwatch to avoid further time accumulation
-            try {
-              await _stopStopwatch(idx);
-            } catch (_) {}
+            await _sembastStorage.stopTaskTimer(taskId);
             // ensure inProgress is cleared when marking done — perform via queue so spinner shows
             unawaited(_queueTaskAction(taskId, () async {
               final idx2 = _today.indexWhere((t) => t.id == taskId);
@@ -6265,6 +6165,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     try {
       final item = _today[index];
+      await _sembastStorage.stopTaskTimer(item.id);
       // Remove via per-task queue so spinner appears on the task while removing
       await _queueTaskAction(item.id, () async {
         if (!mounted) return;
@@ -6274,20 +6175,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         });
         await _saveToday(); // persist removal from today
       });
-      // If stopwatch was running, stop it and record the accumulated seconds
-      TaskItem toStore = item;
-      if (item.stopwatchRunning) {
-        final started = item.stopwatchStartedAt ?? DateTime.now();
-        final added = DateTime.now().difference(started).inSeconds;
-        final newAccum = item.stopwatchAccumulatedSeconds + added;
-        toStore = item.copyWith(
-            stopwatchRunning: false,
-            stopwatchStartedAt: null,
-            stopwatchAccumulatedSeconds: newAccum,
-            inProgress: false);
-      } else {
-        toStore = item.copyWith(done: false, inProgress: false);
-      }
+      final toStore = item.copyWith(
+        done: false,
+        inProgress: false,
+        stopwatchRunning: false,
+        stopwatchStartedAt: null,
+      );
 
       // insert at top so task appears first in backlog via queued helper
       await _queueAppendToList('simplepresent_backlog.json', toStore,
@@ -6303,8 +6196,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       try {
         unawaited(_playThere());
       } catch (_) {}
-      // Persist time entry for this task (if using Sembast this appends a row)
-      _upsertTimeEntry(toStore);
       // If we're currently showing backlog, reload to reflect the new top item
       if (_showingBacklog ||
           _currentFile == _storage('simplepresent_backlog.json')) {
@@ -6336,26 +6227,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return;
       }
       final item = _today[index];
+      await _sembastStorage.stopTaskTimer(item.id);
       if (!mounted) return;
       setState(() {
         _today.removeWhere((task) => task.id == taskId);
         _expanded.clear();
       });
       await _saveToday();
-      // Stop running stopwatch and persist time if necessary
-      TaskItem toStore = item;
-      if (item.stopwatchRunning) {
-        final started = item.stopwatchStartedAt ?? DateTime.now();
-        final added = DateTime.now().difference(started).inSeconds;
-        final newAccum = item.stopwatchAccumulatedSeconds + added;
-        toStore = item.copyWith(
-            stopwatchRunning: false,
-            stopwatchStartedAt: null,
-            stopwatchAccumulatedSeconds: newAccum,
-            inProgress: false);
-      } else {
-        toStore = item.copyWith(done: false, inProgress: false);
-      }
+      final toStore = item.copyWith(
+        done: false,
+        inProgress: false,
+        stopwatchRunning: false,
+        stopwatchStartedAt: null,
+      );
 
       // insert at top so task appears first in backlog via queued helper
       await _queueAppendToList('simplepresent_backlog.json', toStore,
@@ -6368,7 +6252,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         unawaited(_appendRedoLog('reopen',
             taskId: toStore.id, details: {'text': toStore.text}));
       } catch (_) {}
-      _upsertTimeEntry(toStore);
       // If we're currently showing backlog, reload to reflect the new top item
       if (_showingBacklog ||
           _currentFile == _storage('simplepresent_backlog.json')) {
@@ -6404,16 +6287,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (_currentFile == _storage('simplepresent_backlog.json')) {
         targetFile = _storage('simplepresent_backlog.json');
         await _queueAppendToList(targetFile, newItem, insertTop: true);
-        _upsertTimeEntry(newItem);
       } else if (_currentFile == _storage('simplepresent_done.json')) {
         // when duplicating from Done, put the copy in Backlog and switch view to Backlog
         targetFile = _storage('simplepresent_backlog.json');
         await _queueAppendToList(targetFile, newItem, insertTop: true);
-        _upsertTimeEntry(newItem);
       } else {
         targetFile = _storage('simplepresent_today.json');
         await _queueAppendToList(targetFile, newItem, insertTop: true);
-        _upsertTimeEntry(newItem);
       }
 
       // Ensure the UI shows the target list and expand the new item for editing
@@ -6698,6 +6578,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _setDone(int index, bool value) async {
     // If we're in the Done view and the user unchecks done, move the task to Backlog
     final original = _today[index];
+    if (value) await _sembastStorage.stopTaskTimer(original.id);
     if (!value &&
         (_showingDone || _currentFile == _storage('simplepresent_done.json'))) {
       try {
@@ -6739,8 +6620,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         (_showingBacklog ||
             _currentFile == _storage('simplepresent_backlog.json'))) {
       try {
-        // stop running stopwatch for this task before moving to Done
-        await _stopStopwatch(index);
         final finalTask = _today[index];
         final moved =
             finalTask.copyWith(done: true, completedAt: DateTime.now());
@@ -6785,12 +6664,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _stagedInProgress.remove(t.id);
     }
     _scheduleDelayedReorder();
-    // If marked done, still stop the stopwatch now to avoid counting further time
-    if (value == true) {
-      try {
-        await _stopStopwatch(index);
-      } catch (_) {}
-    }
     // clear notification flags for this task (by id)
     final idPrefix = '${t.id}|';
     _notified15.removeWhere((k) => k.startsWith(idPrefix));
@@ -6860,9 +6733,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           await _queueTaskAction(taskId, () async {
             final idx = _today.indexWhere((x) => x.id == taskId);
             if (idx == -1) return;
+            await _sembastStorage.startTaskTimer(
+                taskId: taskId, taskText: _today[idx].text);
             _showTopToast('task marked in progress');
             _registerActivity();
-            await _startStopwatch(idx);
             final cur = _today.indexWhere((x) => x.id == taskId);
             if (cur != -1) {
               setState(() {
@@ -6879,9 +6753,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           await _queueTaskAction(taskId, () async {
             final idx = _today.indexWhere((x) => x.id == taskId);
             if (idx == -1) return;
-            try {
-              await _stopStopwatch(idx);
-            } catch (_) {}
+            await _sembastStorage.stopTaskTimer(taskId);
             try {
               final now = DateTime.now();
               final original = _today[idx];
@@ -6909,9 +6781,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               _notifiedDue.removeWhere((k) => k.startsWith(idPrefix));
             } catch (_) {}
             try {
-              _upsertTimeEntry(_today[idx]);
-            } catch (_) {}
-            try {
               await _playDading();
             } catch (_) {}
             try {
@@ -6929,9 +6798,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           await _queueTaskAction(taskId, () async {
             final idx = _today.indexWhere((x) => x.id == taskId);
             if (idx == -1) return;
-            try {
-              await _stopStopwatch(idx);
-            } catch (_) {}
+            await _sembastStorage.stopTaskTimer(taskId);
             try {
               unawaited(_queueTaskAction(_today[idx].id, () async {
                 final id2 = _today[idx].id;
@@ -8065,6 +7932,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                     await _showGlobalTaskSearch();
                                                   } else if (v == 'settings')
                                                     await _openSettings();
+                                                  else if (v == 'time_bookings')
+                                                    await _openTimeBookings();
                                                   else if (v == 'notes')
                                                     await _openNotes();
                                                   else if (v == 'export')
@@ -8137,6 +8006,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                         const SizedBox(
                                                             width: 8),
                                                         const Text('settings')
+                                                      ])));
+                                                  items.add(PopupMenuItem(
+                                                      value: 'time_bookings',
+                                                      child: Row(children: [
+                                                        Icon(
+                                                            Icons
+                                                                .table_chart_outlined,
+                                                            size: 18,
+                                                            color: Color(
+                                                                _accentColorNotifier
+                                                                    .value)),
+                                                        const SizedBox(
+                                                            width: 8),
+                                                        const Text(
+                                                            'Zeiterfassung')
                                                       ])));
                                                   items.add(PopupMenuItem(
                                                       value: 'redo',
@@ -9052,31 +8936,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                                     ),
                                                                                   ),
                                                                                 ),
-                                                                              if (task.done)
-                                                                                Builder(builder: (ctx) {
-                                                                                  // Sum manual "workMinutes" and stopwatch elapsed minutes,
-                                                                                  // rounding stopwatch up to 15-minute blocks.
-                                                                                  final secs = _elapsedSecondsFor(task);
-                                                                                  const blockSec = 15 * 60;
-                                                                                  final blocks = secs > 0 ? ((secs + blockSec - 1) ~/ blockSec) : 0;
-                                                                                  final accumulatedMinutes = blocks * 15;
-                                                                                  final manual = task.workMinutes;
-                                                                                  final totalMinutes = manual + accumulatedMinutes;
-                                                                                  if (totalMinutes <= 0) return const SizedBox.shrink();
-                                                                                  final hours = totalMinutes ~/ 60;
-                                                                                  final mins = totalMinutes % 60;
-                                                                                  final label = hours > 0 ? '${hours}h ${mins}m' : '${mins}m';
-                                                                                  return Padding(
-                                                                                    padding: const EdgeInsets.only(top: 4.0),
-                                                                                    child: Text(
-                                                                                      'spent: $label',
-                                                                                      style: TextStyle(
-                                                                                        fontSize: 12,
-                                                                                        color: _variantColor,
-                                                                                      ),
-                                                                                    ),
-                                                                                  );
-                                                                                }),
                                                                             ],
                                                                           ),
                                                                   ),
@@ -9460,124 +9319,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                       ),
                                                                     ),
                                                                   ),
-                                                                const SizedBox(
-                                                                    height: 10),
-                                                                // Stopwatch display and controls
-                                                                Padding(
-                                                                  padding:
-                                                                      const EdgeInsets
-                                                                          .only(
-                                                                          bottom:
-                                                                              8.0),
-                                                                  child: Row(
-                                                                    children: [
-                                                                      Text(() {
-                                                                        final s =
-                                                                            _elapsedSecondsFor(task);
-                                                                        final hh = (s ~/
-                                                                                3600)
-                                                                            .toString()
-                                                                            .padLeft(2,
-                                                                                '0');
-                                                                        final mm = ((s % 3600) ~/
-                                                                                60)
-                                                                            .toString()
-                                                                            .padLeft(2,
-                                                                                '0');
-                                                                        final ss = (s %
-                                                                                60)
-                                                                            .toString()
-                                                                            .padLeft(2,
-                                                                                '0');
-                                                                        return 'stopwatch: $hh:$mm:$ss';
-                                                                      }()),
-                                                                      const SizedBox(
-                                                                          width:
-                                                                              8),
-                                                                      IconButton(
-                                                                        tooltip:
-                                                                            'start',
-                                                                        icon: const Icon(
-                                                                            Icons.play_arrow),
-                                                                        onPressed: task.stopwatchRunning
-                                                                            ? null
-                                                                            : () =>
-                                                                                _startStopwatch(i),
-                                                                      ),
-                                                                      IconButton(
-                                                                        tooltip:
-                                                                            'stop',
-                                                                        icon: const Icon(
-                                                                            Icons.stop),
-                                                                        onPressed: task.stopwatchRunning
-                                                                            ? () =>
-                                                                                _stopStopwatch(i)
-                                                                            : null,
-                                                                      ),
-                                                                      IconButton(
-                                                                        tooltip:
-                                                                            'reset',
-                                                                        icon: const Icon(
-                                                                            Icons.restart_alt),
-                                                                        onPressed: (task.stopwatchAccumulatedSeconds > 0 || task.stopwatchRunning)
-                                                                            ? () =>
-                                                                                _resetStopwatch(i)
-                                                                            : null,
-                                                                      ),
-                                                                      const SizedBox(
-                                                                          width:
-                                                                              12),
-                                                                      // Manual time entry (time spent) shown to the right of the stopwatch buttons
-                                                                      Flexible(
-                                                                        child:
-                                                                            ConstrainedBox(
-                                                                          constraints:
-                                                                              const BoxConstraints(maxWidth: 220),
-                                                                          child:
-                                                                              TextField(
-                                                                            controller:
-                                                                                _workControllers.putIfAbsent(task.id, () {
-                                                                              final initial = task.workMinutes > 0 ? task.workMinutes.toString() : '';
-                                                                              final c = TextEditingController(text: initial);
-                                                                              c.addListener(() {
-                                                                                if (mounted) setState(() {});
-                                                                              });
-                                                                              return c;
-                                                                            }),
-                                                                            keyboardType:
-                                                                                TextInputType.number,
-                                                                            decoration:
-                                                                                const InputDecoration(border: OutlineInputBorder(), hintText: 'time spent'),
-                                                                            onTap:
-                                                                                () {
-                                                                              // Manual entry only: do not auto-suggest stopwatch time here.
-                                                                            },
-                                                                            onSubmitted:
-                                                                                (value) {
-                                                                              final parsed = int.tryParse(value.trim());
-                                                                              if (parsed == null)
-                                                                                return;
-                                                                              try {
-                                                                                unawaited(_queueTaskAction(task.id, () async {
-                                                                                  final idx = _today.indexWhere((t) => t.id == task.id);
-                                                                                  if (idx == -1) return;
-                                                                                  setState(() {
-                                                                                    _today[idx] = _today[idx].copyWith(workMinutes: parsed);
-                                                                                  });
-                                                                                  await _saveToday();
-                                                                                  try {
-                                                                                    _upsertTimeEntry(_today[idx]);
-                                                                                  } catch (_) {}
-                                                                                }));
-                                                                              } catch (_) {}
-                                                                            },
-                                                                          ),
-                                                                        ),
-                                                                      ),
-                                                                    ],
-                                                                  ),
+                                                                TaskTimeControls(
+                                                                  key: ValueKey(
+                                                                      'task-time-${task.id}'),
+                                                                  storage:
+                                                                      _sembastStorage,
+                                                                  taskId:
+                                                                      task.id,
+                                                                  taskText:
+                                                                      task.text,
+                                                                  enabled: !task
+                                                                      .done,
+                                                                  onStarted:
+                                                                      () {
+                                                                    if (!task
+                                                                        .inProgress) {
+                                                                      setState(() =>
+                                                                          _stagedInProgress[task.id] =
+                                                                              true);
+                                                                      _scheduleDelayedReorder();
+                                                                    }
+                                                                  },
                                                                 ),
-
                                                                 Text(
                                                                     'created: ${task.createdAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(task.createdAt!) : '-'}'),
                                                                 const SizedBox(
@@ -9712,29 +9475,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                                         final was =
                                                                             _stagedInProgress[task.id] ??
                                                                                 task.inProgress;
-                                                                        if (!was) {
-                                                                          try {
-                                                                            await _startStopwatch(i);
-                                                                          } catch (_) {}
-                                                                        } else {
-                                                                          try {
-                                                                            await _stopStopwatch(i);
-                                                                          } catch (_) {}
-                                                                          // Clear the inProgress flag via the per-task queue so the spinner shows
-                                                                          unawaited(_queueTaskAction(
-                                                                              task.id,
-                                                                              () async {
-                                                                            final idx = _today.indexWhere((t) =>
-                                                                                t.id ==
-                                                                                task.id);
-                                                                            if (idx ==
-                                                                                -1)
-                                                                              return;
-                                                                            setState(() =>
-                                                                                _today[idx] = _today[idx].copyWith(inProgress: false, inProgressAt: null));
-                                                                            await _saveToday();
-                                                                          }));
-                                                                        }
+                                                                        setState(() =>
+                                                                            _stagedInProgress[task.id] =
+                                                                                !was);
+                                                                        _scheduleDelayedReorder();
                                                                         _registerActivity();
                                                                       },
                                                                     ),
@@ -9901,11 +9645,9 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   late final TextEditingController _titleController;
   late final TextEditingController _notesController;
-  late final TextEditingController _workMinutesController;
   late final TextEditingController _newSubtaskController;
   final Map<String, TextEditingController> _subtaskControllers = {};
   List<Map<String, dynamic>> _subtaskTemplates = <Map<String, dynamic>>[];
-  Timer? _ticker;
   Timer? _geometryTimer;
   TaskItem? _initialTask;
   TaskItem? _task;
@@ -9930,7 +9672,6 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     super.initState();
     _titleController = TextEditingController();
     _notesController = TextEditingController();
-    _workMinutesController = TextEditingController();
     _newSubtaskController = TextEditingController();
     _nativeWindowChannel.setMethodCallHandler((call) async {
       if (call.method == 'closeRequested') {
@@ -9938,11 +9679,6 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       } else if (call.method == 'windowGeometryChanged' &&
           _windowGeometryReady) {
         await _persistWindowGeometryIfNeeded();
-      }
-    });
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && (_task?.stopwatchRunning ?? false)) {
-        setState(() {});
       }
     });
     unawaited(_loadAppearanceSettings());
@@ -9956,12 +9692,10 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     unawaited(_persistWindowGeometryIfNeeded());
     _titleController.dispose();
     _notesController.dispose();
-    _workMinutesController.dispose();
     _newSubtaskController.dispose();
     for (final controller in _subtaskControllers.values) {
       controller.dispose();
     }
-    _ticker?.cancel();
     _geometryTimer?.cancel();
     _audioPlayer.dispose();
     _storage.dispose();
@@ -10237,8 +9971,6 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       _sourceList = found.sourceList;
       _titleController.text = found.task.text;
       _notesController.text = found.task.notes ?? '';
-      _workMinutesController.text =
-          found.task.workMinutes > 0 ? found.task.workMinutes.toString() : '';
       _syncSubtaskControllers(found.task.subtasks);
       setState(() => _loading = false);
     } catch (e) {
@@ -10250,18 +9982,12 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     }
   }
 
-  int _parseWorkMinutes() {
-    return int.tryParse(_workMinutesController.text.trim()) ??
-        (_task?.workMinutes ?? 0);
-  }
-
   TaskItem? get _effectiveTask {
     final task = _task;
     if (task == null) return null;
     return task.copyWith(
       text: _titleController.text.trim(),
       notes: _notesController.text,
-      workMinutes: _parseWorkMinutes(),
     );
   }
 
@@ -10284,30 +10010,11 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       final rows = _storage.readTaskList(listName);
       final index = rows.indexWhere((row) => row['id'] == snapshot.id);
       if (index == -1) return;
-      final previous = rows[index];
       rows[index] = snapshot.toJson();
       await _storage.writeTaskList(listName, rows);
-      await _recordTimeChange(snapshot, previous);
     }).catchError((Object error) {
       if (mounted) setState(() => _status = 'save failed: $error');
     });
-  }
-
-  Future<void> _recordTimeChange(
-      TaskItem task, Map<String, dynamic> previous) async {
-    if (previous['work_minutes'] == task.workMinutes &&
-        previous['stopwatch_seconds'] == task.stopwatchAccumulatedSeconds) {
-      return;
-    }
-    await _storage.upsertTimeEntry(
-      taskId: task.id,
-      taskText: task.text,
-      date: DateFormat('yyyy-MM-dd').format(DateTime.now()),
-      taskDone: task.done,
-      taskInProgress: task.inProgress,
-      stopwatchSeconds: task.stopwatchAccumulatedSeconds,
-      workMinutes: task.workMinutes,
-    );
   }
 
   void _syncSubtaskControllers(List<TaskStep> subtasks) {
@@ -10329,15 +10036,8 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     return '${DateTime.now().millisecondsSinceEpoch}-${math.Random().nextInt(1 << 32)}';
   }
 
-  int _elapsedSecondsFor(TaskItem task) {
-    var acc = task.stopwatchAccumulatedSeconds;
-    if (task.stopwatchRunning && task.stopwatchStartedAt != null) {
-      acc += DateTime.now().difference(task.stopwatchStartedAt!).inSeconds;
-    }
-    return acc;
-  }
-
-  void _setDone(bool value) {
+  Future<void> _setDone(bool value) async {
+    if (value && _task != null) await _storage.stopTaskTimer(_task!.id);
     _updateTask((task) => task.copyWith(
           done: value,
           inProgress: value ? false : task.inProgress,
@@ -10348,7 +10048,15 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
         ));
   }
 
-  void _setInProgress(bool value) {
+  Future<void> _setInProgress(bool value) async {
+    final task = _task;
+    if (task == null) return;
+    if (value) {
+      await _storage.startTaskTimer(taskId: task.id, taskText: task.text);
+    } else {
+      await _storage.stopTaskTimer(task.id);
+    }
+    if (!mounted) return;
     _updateTask((task) => task.copyWith(
           inProgress: value,
           done: value ? false : task.done,
@@ -10497,39 +10205,6 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
     _updateTask((current) => current.copyWith(subtasks: items));
   }
 
-  Future<void> _startStopwatch() async {
-    final task = _task;
-    if (task == null || task.stopwatchRunning) return;
-    final now = DateTime.now();
-    _updateTask((current) => current.copyWith(
-          stopwatchRunning: true,
-          stopwatchStartedAt: now,
-          inProgress: true,
-          inProgressAt: current.inProgressAt ?? now,
-        ));
-  }
-
-  Future<void> _stopStopwatch() async {
-    final task = _task;
-    if (task == null || !task.stopwatchRunning) return;
-    final started = task.stopwatchStartedAt ?? DateTime.now();
-    final added = DateTime.now().difference(started).inSeconds;
-    _updateTask((current) => current.copyWith(
-          stopwatchRunning: false,
-          stopwatchStartedAt: null,
-          stopwatchAccumulatedSeconds:
-              current.stopwatchAccumulatedSeconds + added,
-        ));
-  }
-
-  Future<void> _resetStopwatch() async {
-    _updateTask((task) => task.copyWith(
-          stopwatchRunning: false,
-          stopwatchStartedAt: null,
-          stopwatchAccumulatedSeconds: 0,
-        ));
-  }
-
   Future<void> _playDonePling() async {
     try {
       await _audioPlayer.setReleaseMode(ReleaseMode.stop);
@@ -10579,6 +10254,8 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
         setState(() => _status = 'task changed in another window');
         return;
       }
+
+      await _storage.stopTaskTimer(task.id);
 
       final moved = task.copyWith(
         done: false,
@@ -10651,12 +10328,9 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
       final updated = task.copyWith(
         text: newText,
         notes: _notesController.text,
-        workMinutes: _parseWorkMinutes(),
       );
-      final previous = rows[idx];
       rows[idx] = updated.toJson();
       await _storage.writeTaskList(_sourceList, rows);
-      await _recordTimeChange(updated, previous);
       if (!mounted) return true;
       setState(() {
         _task = updated;
@@ -10769,7 +10443,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
                     onPressed: _saving
                         ? null
                         : () async {
-                            _setDone(true);
+                            await _setDone(true);
                             await _playDonePling();
                             await _closeWindow();
                           },
@@ -10966,69 +10640,19 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
                                         ),
                                       ],
                                       const SizedBox(height: 12),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              'stopwatch: ${(() {
-                                                final s =
-                                                    _elapsedSecondsFor(_task!);
-                                                final hh = (s ~/ 3600)
-                                                    .toString()
-                                                    .padLeft(2, '0');
-                                                final mm = ((s % 3600) ~/ 60)
-                                                    .toString()
-                                                    .padLeft(2, '0');
-                                                final ss = (s % 60)
-                                                    .toString()
-                                                    .padLeft(2, '0');
-                                                return '$hh:$mm:$ss';
-                                              })()}',
-                                            ),
-                                          ),
-                                          IconButton(
-                                            tooltip: 'start',
-                                            icon: const Icon(Icons.play_arrow),
-                                            onPressed: _task!.stopwatchRunning
-                                                ? null
-                                                : _startStopwatch,
-                                          ),
-                                          IconButton(
-                                            tooltip: 'stop',
-                                            icon: const Icon(Icons.stop),
-                                            onPressed: _task!.stopwatchRunning
-                                                ? _stopStopwatch
-                                                : null,
-                                          ),
-                                          IconButton(
-                                            tooltip: 'reset',
-                                            icon: const Icon(Icons.restart_alt),
-                                            onPressed:
-                                                (_task!.stopwatchAccumulatedSeconds >
-                                                            0 ||
-                                                        _task!.stopwatchRunning)
-                                                    ? _resetStopwatch
-                                                    : null,
-                                          ),
-                                          const SizedBox(width: 12),
-                                          SizedBox(
-                                            width: 120,
-                                            child: TextField(
-                                              controller:
-                                                  _workMinutesController,
-                                              keyboardType:
-                                                  TextInputType.number,
-                                              decoration: const InputDecoration(
-                                                labelText: 'time spent',
-                                                border: OutlineInputBorder(),
-                                                isDense: true,
-                                              ),
-                                              onChanged: (_) => setState(() {}),
-                                            ),
-                                          ),
-                                        ],
+                                      TaskTimeControls(
+                                        key: ValueKey(
+                                            'task-window-time-${_task!.id}'),
+                                        storage: _storage,
+                                        taskId: _task!.id,
+                                        taskText: _task!.text,
+                                        enabled: !_task!.done,
+                                        onStarted: () {
+                                          if (!(_task?.inProgress ?? false)) {
+                                            unawaited(_setInProgress(true));
+                                          }
+                                        },
                                       ),
-                                      const SizedBox(height: 12),
                                       Text(
                                         'created: ${_task!.createdAt != null ? DateFormat('yyyy-MM-dd HH:mm').format(_task!.createdAt!) : '-'}',
                                       ),
@@ -12478,21 +12102,6 @@ class _StatsPageState extends State<StatsPage> {
     return agg.values.toList();
   }
 
-  int _elapsedSecondsFor(TaskItem t) {
-    var acc = t.stopwatchAccumulatedSeconds;
-    if (t.stopwatchRunning && t.stopwatchStartedAt != null) {
-      acc += DateTime.now().difference(t.stopwatchStartedAt!).inSeconds;
-    }
-    return acc;
-  }
-
-  int _minutesForTask(TaskItem t) {
-    final secs = _elapsedSecondsFor(t);
-    const blockSec = 15 * 60;
-    final blocks = secs > 0 ? ((secs + blockSec - 1) ~/ blockSec) : 0;
-    return blocks * 15 + t.workMinutes;
-  }
-
   _StatRow _rowFromEntry(TimeEntry e) {
     return _StatRow(
       taskText: e.taskText,
@@ -12510,7 +12119,7 @@ class _StatsPageState extends State<StatsPage> {
     final timeEntries = _timeEntriesForDay(_currentDate);
 
     // Build unified row list: one row per task.
-    // Prefer DB time for minutes; fall back to task payload for done tasks.
+    // Time comes only from bookings on the selected day.
     final doneRows = <_StatRow>[];
     final openRows = <_StatRow>[];
 
@@ -12521,7 +12130,7 @@ class _StatsPageState extends State<StatsPage> {
       final isDone = entry?.taskDone ?? true;
       final row = _StatRow(
         taskText: t.text,
-        minutes: entry?.totalMinutes ?? _minutesForTask(t),
+        minutes: entry?.totalMinutes ?? 0,
         isDone: isDone,
         completedAt: t.completedAt,
         statusLabel: isDone ? 'fertig' : (entry?.statusLabel ?? 'offen'),

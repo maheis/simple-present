@@ -36,6 +36,12 @@ The app also includes a stopwatch, manual time tracking, reminders, swipe action
 
 SimplePresent stores task data on the device. Export or back up your data using the built-in tools in the app.
 
+Start and stop the stopwatch on a task or add time manually. Time bookings are
+stored separately from tasks and can be reviewed and edited under Zeiterfassung.
+Stopwatch sessions spanning midnight are split by local calendar day. Statistics
+sum stopwatch seconds per task and day, then round up to 15-minute blocks;
+manual bookings retain their entered duration.
+
 ## Legal and Privacy
 
 The source code is licensed under the MIT License. The name, logo, icons, and other brand assets are protected separately; see `LICENSE`, `TRADEMARK.md`, and `THIRD_PARTY_LICENSES.md`.

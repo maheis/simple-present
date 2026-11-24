@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sembast/sembast_io.dart';
+import 'package:simple_present/time_booking.dart';
 
 int dailyTimeEntryDelta(int currentTotal, int previousTotal) {
   return currentTotal > previousTotal ? currentTotal - previousTotal : 0;
@@ -50,6 +51,8 @@ class SembastStorage {
   final _rawStore = StoreRef<String, Object?>('raw');
   // 'time_entries' -> map date -> List<dynamic>
   final _timeStore = StoreRef<String, Object?>('time_entries');
+  final _timeBookingsStore = StoreRef<String, Object?>('time_bookings');
+  final _activeTimersStore = StoreRef<String, Object?>('active_time_sessions');
   final _worklogStore = StoreRef<String, Object?>('task_worklog');
   final _worklogStateStore = StoreRef<String, Object?>('task_worklog_state');
 
@@ -112,7 +115,8 @@ class SembastStorage {
         }
       }
     } catch (_) {}
-    _migrateLegacyTimeEntries();
+    await _migrateLegacyTimeEntries();
+    await _migrateLegacyTimeBookings();
   }
 
   Future<void> refresh() async {
@@ -168,10 +172,11 @@ class SembastStorage {
         }
       }
     } catch (_) {}
-    _migrateLegacyTimeEntries();
+    await _migrateLegacyTimeEntries();
+    await _migrateLegacyTimeBookings();
   }
 
-  void _migrateLegacyTimeEntries() {
+  Future<void> _migrateLegacyTimeEntries() async {
     final dates = _timeCache.keys.toList()..sort();
     final stopwatchTotals = <String, int>{};
     final workTotals = <String, int>{};
@@ -203,12 +208,211 @@ class SembastStorage {
       }
       if (!changed) continue;
       _timeCache[date] = normalizedEntries;
-      unawaited(() async {
-        try {
-          await _timeStore.record(date).put(_db!, normalizedEntries);
-        } catch (_) {}
-      }());
+      await _timeStore.record(date).put(_db!, normalizedEntries);
     }
+  }
+
+  Future<void> _migrateLegacyTimeBookings() async {
+    const markerKey = 'time_bookings_migration_v1';
+    try {
+      final marker = await _rawStore.record(markerKey).get(_db!);
+      if (marker == 'done') return;
+
+      await _db!.transaction((transaction) async {
+        final transactionMarker =
+            await _rawStore.record(markerKey).get(transaction);
+        if (transactionMarker == 'done') return;
+
+        final records = await _timeStore.find(transaction);
+        for (final record in records) {
+          if (record.value is! List) continue;
+          for (final rawEntry in (record.value as List).whereType<Map>()) {
+            final entry = Map<String, dynamic>.from(rawEntry);
+            final taskId = entry['task_id']?.toString() ?? '';
+            if (taskId.isEmpty) continue;
+
+            final workMinutes =
+                int.tryParse(entry['work_minutes']?.toString() ?? '') ?? 0;
+            final stopwatchSeconds =
+                int.tryParse(entry['stopwatch_seconds']?.toString() ?? '') ?? 0;
+            final roundedStopwatchMinutes = stopwatchSeconds <= 0
+                ? 0
+                : ((stopwatchSeconds + (15 * 60) - 1) ~/ (15 * 60)) * 15;
+            final bookedMinutes = workMinutes + roundedStopwatchMinutes;
+            if (bookedMinutes <= 0) continue;
+
+            final id =
+                'legacy-${record.key}-${base64Url.encode(utf8.encode(taskId))}';
+            if (await _timeBookingsStore.record(id).get(transaction) != null) {
+              continue;
+            }
+            final recordedAt =
+                int.tryParse(entry['recorded_at']?.toString() ?? '') ?? 0;
+            final bookedAt = recordedAt > 0
+                ? DateTime.fromMillisecondsSinceEpoch(recordedAt * 1000)
+                : DateTime.tryParse('${record.key}T12:00') ?? DateTime.now();
+            final booking = TimeBooking(
+              id: id,
+              bookingDate: record.key,
+              bookingTime:
+                  '${bookedAt.hour.toString().padLeft(2, '0')}:${bookedAt.minute.toString().padLeft(2, '0')}',
+              bookedMinutes: bookedMinutes,
+              taskId: taskId,
+              taskText: entry['task_text']?.toString() ?? '(gelöschte Aufgabe)',
+            );
+            await _timeBookingsStore
+                .record(id)
+                .put(transaction, booking.toJson());
+          }
+        }
+        await _rawStore.record(markerKey).put(transaction, 'done');
+      });
+      _rawCache[markerKey] = 'done';
+    } catch (_) {}
+  }
+
+  Future<void> startTaskTimer({
+    required String taskId,
+    required String taskText,
+    DateTime? now,
+  }) async {
+    final startedAt = now ?? DateTime.now();
+    await _db!.transaction((transaction) async {
+      if (await _activeTimersStore.record(taskId).get(transaction) != null) {
+        return;
+      }
+      await _activeTimersStore.record(taskId).put(transaction, {
+        'id': '${startedAt.microsecondsSinceEpoch}-$taskId',
+        'task_id': taskId,
+        'task_text': taskText,
+        'started_at': startedAt.toIso8601String(),
+      });
+    });
+  }
+
+  Future<Map<String, dynamic>?> readTaskTimer(String taskId) async {
+    final value = await _activeTimersStore.record(taskId).get(_db!);
+    return value is Map ? Map<String, dynamic>.from(value) : null;
+  }
+
+  List<TimeBooking> _timerBookings(Map<String, dynamic> timer, DateTime now) {
+    final startedAt = DateTime.tryParse(timer['started_at']?.toString() ?? '');
+    if (startedAt == null) return [];
+    return splitTrackedTime(
+      sessionId: timer['id'].toString(),
+      taskId: timer['task_id'].toString(),
+      taskText: timer['task_text'].toString(),
+      startedAt: startedAt,
+      endedAt: now,
+    );
+  }
+
+  Future<void> stopTaskTimer(String taskId, {DateTime? now}) async {
+    final stoppedAt = now ?? DateTime.now();
+    await _db!.transaction((transaction) async {
+      final raw = await _activeTimersStore.record(taskId).get(transaction);
+      if (raw is! Map) return;
+      for (final booking
+          in _timerBookings(Map<String, dynamic>.from(raw), stoppedAt)) {
+        await _timeBookingsStore
+            .record(booking.id)
+            .put(transaction, booking.toJson());
+      }
+      await _activeTimersStore.record(taskId).delete(transaction);
+    });
+  }
+
+  Future<void> resetTaskTimer(String taskId) async {
+    await _db!.transaction((transaction) async {
+      await _activeTimersStore.record(taskId).delete(transaction);
+      final records = await _timeBookingsStore.find(transaction);
+      for (final record in records) {
+        if (record.value is! Map) continue;
+        final booking = TimeBooking.fromJson(
+            Map<String, dynamic>.from(record.value as Map));
+        if (booking.taskId != taskId || booking.trackedSeconds <= 0) continue;
+        if (booking.bookedMinutes <= 0) {
+          await _timeBookingsStore.record(record.key).delete(transaction);
+        } else {
+          final updated = Map<String, dynamic>.from(record.value as Map)
+            ..remove('tracked_seconds');
+          await _timeBookingsStore.record(record.key).put(transaction, updated);
+        }
+      }
+    });
+  }
+
+  Future<List<TimeBooking>> readTimeBookings(
+      {bool includeRunning = false}) async {
+    final bookings = await _db!.transaction((transaction) async {
+      final records = await _timeBookingsStore.find(transaction);
+      final byId = <String, TimeBooking>{};
+      for (final record in records) {
+        if (record.value is Map) {
+          final booking = TimeBooking.fromJson(
+              Map<String, dynamic>.from(record.value as Map));
+          byId[booking.id] = booking;
+        }
+      }
+      if (includeRunning) {
+        final now = DateTime.now();
+        final timers = await _activeTimersStore.find(transaction);
+        for (final timer in timers) {
+          if (timer.value is Map) {
+            for (final booking in _timerBookings(
+                Map<String, dynamic>.from(timer.value as Map), now)) {
+              byId[booking.id] = booking;
+            }
+          }
+        }
+      }
+      return byId.values.toList();
+    });
+    bookings.sort((a, b) {
+      final dateCompare = b.bookingDate.compareTo(a.bookingDate);
+      return dateCompare != 0
+          ? dateCompare
+          : b.bookingTime.compareTo(a.bookingTime);
+    });
+    return bookings;
+  }
+
+  Future<void> saveTimeBooking(TimeBooking booking) async {
+    if (booking.id.isEmpty ||
+        booking.taskId.isEmpty ||
+        booking.bookingDate.isEmpty ||
+        booking.bookingTime.isEmpty ||
+        (booking.bookedMinutes <= 0 && booking.trackedSeconds <= 0)) {
+      throw ArgumentError('Invalid time booking');
+    }
+    await _timeBookingsStore.record(booking.id).put(_db!, booking.toJson());
+  }
+
+  Future<void> deleteTimeBooking(String id) async {
+    await _timeBookingsStore.record(id).delete(_db!);
+  }
+
+  Future<List<Map<String, dynamic>>> exportTimeBookings() async {
+    final bookings = await readTimeBookings(includeRunning: true);
+    return bookings.map((booking) => booking.toJson()).toList();
+  }
+
+  Future<void> importTimeBookings(List<dynamic> entries,
+      {bool merge = false}) async {
+    await _db!.transaction((transaction) async {
+      if (!merge) await _timeBookingsStore.delete(transaction);
+      for (final raw in entries.whereType<Map>()) {
+        final booking = TimeBooking.fromJson(Map<String, dynamic>.from(raw));
+        if (booking.id.isEmpty ||
+            booking.taskId.isEmpty ||
+            (booking.bookedMinutes <= 0 && booking.trackedSeconds <= 0)) {
+          continue;
+        }
+        await _timeBookingsStore
+            .record(booking.id)
+            .put(transaction, booking.toJson());
+      }
+    });
   }
 
   List<Map<String, dynamic>> readTaskList(String listName) {
