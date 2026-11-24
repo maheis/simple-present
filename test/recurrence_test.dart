@@ -2,6 +2,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:simple_present/recurrence.dart' as app;
 
 void main() {
+  test('overdue recurrence base keeps scheduled time', () {
+    final base = app.recurrenceBase(
+      DateTime(2026, 6, 29, 18, 45),
+      DateTime(2026, 6, 30, 10, 12),
+    );
+
+    expect(base, DateTime(2026, 6, 30, 18, 45));
+    expect(
+        app.computeNextRecurrence(base, 'daily'), DateTime(2026, 7, 1, 18, 45));
+  });
+
   test('daily simple', () {
     final base = DateTime(2026, 6, 30, 10, 0);
     final next = app.computeNextRecurrence(base, 'daily');

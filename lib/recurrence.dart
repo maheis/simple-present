@@ -1,3 +1,22 @@
+DateTime recurrenceBase(DateTime? scheduledAt, DateTime now) {
+  if (scheduledAt == null) return now;
+  if (scheduledAt.year == now.year &&
+      scheduledAt.month == now.month &&
+      scheduledAt.day == now.day) {
+    return scheduledAt;
+  }
+  return DateTime(
+    now.year,
+    now.month,
+    now.day,
+    scheduledAt.hour,
+    scheduledAt.minute,
+    scheduledAt.second,
+    scheduledAt.millisecond,
+    scheduledAt.microsecond,
+  );
+}
+
 DateTime? computeNextRecurrence(DateTime base, String recurrence) {
   try {
     final s = recurrence.trim();
@@ -54,7 +73,7 @@ DateTime? computeNextRecurrence(DateTime base, String recurrence) {
               int m = ((base.month - 1 + add) % 12) + 1;
               final lastDay = DateTime(y, m + 1, 0).day;
               final day = v <= lastDay ? v : lastDay;
-              final cand = DateTime(y, m, day, base.hour, base.minute, base.second);
+                final cand = DateTime(y, m, day, base.hour, base.minute, base.second);
               if (cand.isAfter(base)) return cand;
             }
             return null;

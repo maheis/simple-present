@@ -50,6 +50,14 @@
 - [x] selektion zum verschieben nimmt immer aufgabe unter dem ding..
 - [x] subaufgaben in arbeit
 - [x] wenn eine aufgabe editiert wird, muss unten das neue aufgabenfeld entweder weg oder umfunktioniert werden um subtasks anzulegen
+- [ ] stundenerfassung suboptimal
+  - [ ] pro tag!
+  - [ ] anzeige an der aufgabe
+  - [ ] buchung manuell soll als manuell erfasst werden (als eintrag)
+  - [ ] buhcung mit einheit m h
+  - [ ] manuelle buchungen auf 15m aufrunden
+- [ ] links an punkten (jira-links generieren, bzw. pattern zum generieren)
+- [ ] fällig uhrzeit bei punkten behalten für follow-up
 
 ## notes
 
