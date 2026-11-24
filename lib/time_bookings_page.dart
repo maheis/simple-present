@@ -22,10 +22,12 @@ class TimeBookingsPage extends StatefulWidget {
     super.key,
     required this.storage,
     required this.taskOptions,
+    this.taskId,
   });
 
   final SembastStorage storage;
   final Map<String, String> taskOptions;
+  final String? taskId;
 
   @override
   State<TimeBookingsPage> createState() => _TimeBookingsPageState();
@@ -95,7 +97,13 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Zeiterfassung'),
+        title: Text(
+          widget.taskId == null
+              ? 'Zeiterfassung'
+              : 'Buchungen: ${widget.taskOptions[widget.taskId] ?? ''}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         actions: [
           IconButton(
             tooltip: 'Aktualisieren',
@@ -120,7 +128,10 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
                 child: Text(
                     'Buchungen konnten nicht geladen werden: ${snapshot.error}'));
           }
-          final bookings = snapshot.data ?? const <TimeBooking>[];
+          final bookings = (snapshot.data ?? const <TimeBooking>[])
+              .where((booking) =>
+                  widget.taskId == null || booking.taskId == widget.taskId)
+              .toList();
           if (bookings.isEmpty) {
             return Center(
               child: FilledButton.icon(
@@ -142,7 +153,7 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: Text(
-                  '${bookings.length} Buchungen · ${_durationLabel(totalMinutes)}',
+                  '${bookings.length} ${bookings.length == 1 ? 'Buchung' : 'Buchungen'} · ${_durationLabel(totalMinutes)}',
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),

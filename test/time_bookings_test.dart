@@ -308,6 +308,55 @@ void main() {
     expect(find.byTooltip('Zeit manuell buchen'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets('task controls show only bookings for the selected task',
+      (tester) async {
+    final storage = _MemoryBookingStorage();
+    storage.bookings.addAll(const [
+      TimeBooking(
+          id: 'one',
+          bookingDate: '2026-04-03',
+          bookingTime: '10:00',
+          bookedMinutes: 15,
+          taskId: 'task',
+          taskText: 'Example'),
+      TimeBooking(
+          id: 'two',
+          bookingDate: '2026-04-04',
+          bookingTime: '11:00',
+          bookedMinutes: 60,
+          taskId: 'other',
+          taskText: 'Other task'),
+    ]);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: TaskTimeControls(
+          storage: storage,
+          taskId: 'task',
+          taskText: 'Example',
+        ),
+      ),
+    ));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Buchungen anzeigen'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Buchungen: Example'), findsOneWidget);
+    expect(find.text('2026-04-03'), findsOneWidget);
+    expect(find.text('2026-04-04'), findsNothing);
+    expect(find.textContaining('1 Buchung · 15 min'), findsOneWidget);
+    expect(find.byTooltip('Bearbeiten'), findsOneWidget);
+    expect(find.byTooltip('Löschen'), findsOneWidget);
+    await tester.ensureVisible(find.byTooltip('Löschen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Löschen'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Löschen').last);
+    await tester.pumpAndSettle();
+    expect(storage.bookings.single.taskId, 'other');
+    expect(find.text('Erste Buchung erfassen'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
 }
 
 class _MemoryBookingStorage extends SembastStorage {
@@ -323,6 +372,11 @@ class _MemoryBookingStorage extends SembastStorage {
   Future<void> saveTimeBooking(TimeBooking booking) async {
     bookings.removeWhere((existing) => existing.id == booking.id);
     bookings.add(booking);
+  }
+
+  @override
+  Future<void> deleteTimeBooking(String id) async {
+    bookings.removeWhere((booking) => booking.id == id);
   }
 
   @override

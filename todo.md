@@ -51,10 +51,10 @@
 - [x] subaufgaben in arbeit
 - [x] wenn eine aufgabe editiert wird, muss unten das neue aufgabenfeld entweder weg oder umfunktioniert werden um subtasks anzulegen
 - [ ] stundenerfassung suboptimal
-  - [ ] pro tag!
-  - [ ] anzeige an der aufgabe
-  - [ ] buchung manuell soll als manuell erfasst werden (als eintrag)
-  - [ ] buhcung mit einheit m h
+  - [?] pro tag!
+  - [?] anzeige an der aufgabe
+  - [?] buchung manuell soll als manuell erfasst werden (als eintrag)
+  - [ ] buchung mit einheit m h
   - [ ] manuelle buchungen auf 15m aufrunden
   - [ ] stundenerfassung nur wenn die app läuft!
 - [ ] links an punkten (jira-links generieren, bzw. pattern zum generieren)

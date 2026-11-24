@@ -110,6 +110,17 @@ class _TaskTimeControlsState extends State<TaskTimeControls> {
     }
   }
 
+  Future<void> _showBookings() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => TimeBookingsPage(
+        storage: widget.storage,
+        taskOptions: {widget.taskId: widget.taskText},
+        taskId: widget.taskId,
+      ),
+    ));
+    if (mounted) await _refresh();
+  }
+
   Future<void> _reset() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -174,6 +185,11 @@ class _TaskTimeControlsState extends State<TaskTimeControls> {
           tooltip: 'Zeit manuell buchen',
           icon: const Icon(Icons.more_time),
           onPressed: _busy ? null : _bookManually,
+        ),
+        IconButton(
+          tooltip: 'Buchungen anzeigen',
+          icon: const Icon(Icons.receipt_long_outlined),
+          onPressed: _busy ? null : _showBookings,
         ),
       ],
     );
