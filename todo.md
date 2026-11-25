@@ -57,13 +57,19 @@
   - [x] buchung mit einheit m h
   - [x] manuelle buchungen auf 15m aufrunden
   - [?] stundenerfassung nur wenn die app läuft!
-  - [?] zeiterfassung tabelle umbennen in englisch
-  - [?] filter für tabelle
-  - [?] statistik seite zeigt "fertige" aufgaben nicht mehr richtig an!
-  - [?] horizontale skrallbar in tabellePLS
+  - [x] zeiterfassung tabelle umbennen in englisch
+  - [x] filter für tabelle
+  - [x] statistik seite zeigt "fertige" aufgaben nicht mehr richtig an!
+  - [x] horizontale skrallbar in tabelle
+  - [ ] zeiterfassung alles klein schreiben!
 - [x] links an punkten (jira-links generieren, bzw. pattern zum generieren)
 - [x] fällig uhrzeit bei punkten behalten für follow-up
-- [?] wird in "new task" ein vorhandener ausgewählt, muss die leiste danach leer sein
+- [x] wird in "new task" ein vorhandener ausgewählt, muss die leiste danach leer sein
+- [?] existiert bereits ein followup für die Aufgabe, sollte keine zweite erstellt werden wenn z.b. eine aufgabe reopen und wieder geschlossen wird
+- [ ] Hints für ticket link rule anpassen
+            [A-Za-z]+-\d+ pattern for task identifiers (e.g., JIRA issue keys)
+- [ ] ticket link rules und subtask templates kopieren können
+- [ ] ticket link rules und subtasks nach unten in den settings, über "counter" unter "font/colors"
 
 ## notes
 

@@ -1184,6 +1184,7 @@ class TaskItem {
     this.important = false,
     this.inProgress = false,
     this.recurrence,
+    this.recurrenceParentId,
     this.askRepeatDateOnRecreation = false,
     this.completedAt,
     this.inProgressAt,
@@ -1213,6 +1214,7 @@ class TaskItem {
   final List<TaskStep> subtasks;
   // recurrence values: 'daily', 'weekly', 'monthly' or null
   final String? recurrence;
+  final String? recurrenceParentId;
   // whether to ask user for repeat date when creating follow-up task
   final bool askRepeatDateOnRecreation;
   // Stopwatch state per task
@@ -1230,6 +1232,7 @@ class TaskItem {
     bool? important,
     bool? inProgress,
     Object? recurrence = _noChange,
+    Object? recurrenceParentId = _noChange,
     bool? askRepeatDateOnRecreation,
     Object? completedAt = _noChange,
     Object? inProgressAt = _noChange,
@@ -1269,6 +1272,11 @@ class TaskItem {
       recurrence: identical(recurrence, _noChange)
           ? this.recurrence
           : (recurrence == null ? null : (recurrence as String)),
+      recurrenceParentId: identical(recurrenceParentId, _noChange)
+          ? this.recurrenceParentId
+          : (recurrenceParentId == null
+              ? null
+              : (recurrenceParentId as String)),
       askRepeatDateOnRecreation:
           askRepeatDateOnRecreation ?? this.askRepeatDateOnRecreation,
       stopwatchAccumulatedSeconds:
@@ -1302,6 +1310,8 @@ class TaskItem {
         'stopwatch_started_at': stopwatchStartedAt?.toIso8601String(),
         'work_minutes': workMinutes,
         'recurrence': recurrence,
+        if (recurrenceParentId != null)
+          'recurrence_parent_id': recurrenceParentId,
         'ask_repeat_date_on_recreation': askRepeatDateOnRecreation,
       };
 
@@ -1352,6 +1362,9 @@ class TaskItem {
           (map['recurrence'] ?? map['repeat'] ?? '').toString().isNotEmpty
               ? (map['recurrence'] ?? map['repeat'] ?? '').toString()
               : null,
+      recurrenceParentId:
+          (map['recurrence_parent_id'] ?? map['recurrenceParentId'])
+              ?.toString(),
       askRepeatDateOnRecreation: map['ask_repeat_date_on_recreation'] == true,
     );
   }
@@ -1367,6 +1380,22 @@ List<TaskItem> completedTasksForStatistics(
   }
   return byId.values.where((task) => task.done).toList();
 }
+
+bool hasExistingFollowUp(String parentTaskId, Iterable<TaskItem> tasks) =>
+    tasks.any((task) => task.recurrenceParentId == parentTaskId);
+
+bool hasLegacyGeneratedFollowUp(
+  String parentTaskId,
+  Iterable<Map<String, dynamic>> redoEntries,
+  Set<String> existingTaskIds,
+) =>
+    redoEntries.any((entry) {
+      final details = entry['details'];
+      return entry['action'] == 'create' &&
+          details is Map &&
+          details['generated_from']?.toString() == parentTaskId &&
+          existingTaskIds.contains(entry['task_id']?.toString());
+    });
 
 class _LoadingGlowBlob extends StatelessWidget {
   const _LoadingGlowBlob({required this.color, required this.size});
@@ -3160,9 +3189,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         await _appendDone([task]);
       }
     } catch (_) {}
+    final rec = task.recurrence;
+    if (rec == null || rec.isEmpty) return;
+    if (!_creatingFollowUps.add(task.id)) return;
     try {
-      final rec = task.recurrence;
-      if (rec != null && rec.isNotEmpty) {
+      if (await _hasExistingFollowUp(task.id)) return;
+      {
         // Move overdue recurrences forward from today without changing their
         // scheduled clock time.
         final base =
@@ -3226,6 +3258,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             stopwatchAccumulatedSeconds: 0,
             stopwatchRunning: false,
             stopwatchStartedAt: null,
+            recurrenceParentId: task.id,
             scheduledAt: chosen,
             subtasks:
                 task.subtasks.map((s) => s.copyWith(done: false)).toList(),
@@ -3291,7 +3324,45 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           }
         }
       }
+    } catch (_) {
+    } finally {
+      _creatingFollowUps.remove(task.id);
+    }
+  }
+
+  final Set<String> _creatingFollowUps = <String>{};
+
+  Future<bool> _hasExistingFollowUp(String parentTaskId) async {
+    final tasks = <TaskItem>[];
+    final taskIds = <String>{};
+    for (final listName in const [
+      'simplepresent_today.json',
+      'simplepresent_backlog.json',
+      'simplepresent_done.json',
+      'simplepresent_trash.json',
+    ]) {
+      final list = <TaskItem>[];
+      await _loadList(_storage(listName), list);
+      tasks.addAll(list);
+      taskIds.addAll(list.map((task) => task.id));
+    }
+    if (hasExistingFollowUp(parentTaskId, tasks)) return true;
+
+    // Older follow-ups did not store their parent on the task itself. Their
+    // creation event still identifies the parent, so retain idempotency.
+    try {
+      final redoLog = await _fileFor(_storage('simplepresent_redo.log'));
+      if (!await redoLog.exists()) return false;
+      final entries = <Map<String, dynamic>>[];
+      for (final line in await redoLog.readAsLines()) {
+        try {
+          final entry = jsonDecode(line);
+          if (entry is Map) entries.add(Map<String, dynamic>.from(entry));
+        } catch (_) {}
+      }
+      return hasLegacyGeneratedFollowUp(parentTaskId, entries, taskIds);
     } catch (_) {}
+    return false;
   }
 
   Future<void> _saveList(String filename, List<TaskItem> source) async {
@@ -6365,6 +6436,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         stopwatchAccumulatedSeconds: 0,
         stopwatchRunning: false,
         stopwatchStartedAt: null,
+        recurrenceParentId: null,
       );
 
       // Insert into the same logical list where we're currently viewing, default to backlog for Done view
@@ -10340,6 +10412,7 @@ class _TaskWindowPageState extends State<TaskWindowPage> {
         stopwatchAccumulatedSeconds: 0,
         stopwatchRunning: false,
         stopwatchStartedAt: null,
+        recurrenceParentId: null,
       );
       final targetList = _sourceList == 'simplepresent_done.json'
           ? 'simplepresent_backlog.json'
