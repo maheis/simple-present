@@ -61,7 +61,7 @@
   - [x] filter für tabelle
   - [x] statistik seite zeigt "fertige" aufgaben nicht mehr richtig an!
   - [x] horizontale skrallbar in tabelle
-  - [ ] zeiterfassung alles klein schreiben!
+  - [x] zeiterfassung alles klein schreiben!
 - [x] links an punkten (jira-links generieren, bzw. pattern zum generieren)
 - [x] fällig uhrzeit bei punkten behalten für follow-up
 - [x] wird in "new task" ein vorhandener ausgewählt, muss die leiste danach leer sein
