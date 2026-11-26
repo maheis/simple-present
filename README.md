@@ -38,7 +38,7 @@ The app also includes a stopwatch, manual time tracking, reminders, swipe action
 SimplePresent stores task data on the device. Export or back up your data using the built-in tools in the app.
 
 Start and stop the stopwatch on a task or add time manually. Time bookings are
-stored separately from tasks and can be reviewed and edited under Time tracking.
+stored separately from tasks and can be reviewed and edited under time tracking.
 The table supports text, booking-type, and date-range filters.
 Stopwatch sessions spanning midnight are split by local calendar day. Statistics
 sum stopwatch seconds per task and day, then round up to 15-minute blocks;
@@ -49,7 +49,7 @@ separately with its selected date and can use minutes or hours (for example,
 entries such as `-30m` are corrections.
 
 Under Settings, add a ticket link rule with a regular expression such as
-`PLS-\d+` and an HTTP(S) URL template such as
+`[A-Za-z]+-\d+` and an HTTP(S) URL template such as
 `https://example.com/jira/%PID%`. `%PID%` is replaced by the matched ticket
 key. Links appear in task titles and alongside editable titles, notes, and
 subtasks; multiple rules can be configured.

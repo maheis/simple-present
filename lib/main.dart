@@ -8177,7 +8177,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                         const SizedBox(
                                                             width: 8),
                                                         const Text(
-                                                            'Time tracking')
+                                                            'time tracking')
                                                       ])));
                                                   items.add(PopupMenuItem(
                                                       value: 'redo',

@@ -84,7 +84,7 @@ class _TaskTimeControlsState extends State<TaskTimeControls> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Time tracking failed')),
+          const SnackBar(content: Text('time tracking failed')),
         );
       }
     } finally {
@@ -104,7 +104,7 @@ class _TaskTimeControlsState extends State<TaskTimeControls> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Booking failed')),
+          const SnackBar(content: Text('booking failed')),
         );
       }
     }
@@ -125,17 +125,17 @@ class _TaskTimeControlsState extends State<TaskTimeControls> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reset stopwatch?'),
+        title: const Text('reset stopwatch?'),
         content: const Text(
-            'All stopwatch bookings for this task will be deleted. Manual bookings will be kept.'),
+            'all stopwatch bookings for this task will be deleted. manual bookings will be kept.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const Text('cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Reset'),
+            child: const Text('reset'),
           ),
         ],
       ),
@@ -148,7 +148,7 @@ class _TaskTimeControlsState extends State<TaskTimeControls> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Reset failed')),
+          const SnackBar(content: Text('reset failed')),
         );
       }
     } finally {
@@ -184,12 +184,12 @@ class _TaskTimeControlsState extends State<TaskTimeControls> {
           onPressed: _busy || (!_running && _seconds == 0) ? null : _reset,
         ),
         IconButton(
-          tooltip: 'Add manual booking',
+          tooltip: 'add manual booking',
           icon: const Icon(Icons.more_time),
           onPressed: _busy ? null : _bookManually,
         ),
         IconButton(
-          tooltip: 'Show bookings',
+          tooltip: 'show bookings',
           icon: const Icon(Icons.receipt_long_outlined),
           onPressed: _busy ? null : _showBookings,
         ),

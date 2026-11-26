@@ -106,7 +106,7 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
                   key: const ValueKey('booking-search'),
                   controller: _searchController,
                   decoration: const InputDecoration(
-                    labelText: 'Search bookings',
+                    labelText: 'search bookings',
                     prefixIcon: Icon(Icons.search),
                     isDense: true,
                   ),
@@ -115,16 +115,16 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
               ),
               const SizedBox(width: 8),
               Tooltip(
-                message: 'Booking type',
+                message: 'booking type',
                 child: DropdownButton<String>(
                   key: const ValueKey('booking-type-filter'),
                   value: _source,
                   items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All types')),
-                    DropdownMenuItem(value: 'manual', child: Text('Manual')),
+                    DropdownMenuItem(value: 'all', child: Text('all types')),
+                    DropdownMenuItem(value: 'manual', child: Text('manual')),
                     DropdownMenuItem(
-                        value: 'stopwatch', child: Text('Stopwatch')),
-                    DropdownMenuItem(value: 'legacy', child: Text('Legacy')),
+                        value: 'stopwatch', child: Text('stopwatch')),
+                    DropdownMenuItem(value: 'legacy', child: Text('legacy')),
                   ],
                   onChanged: (value) {
                     if (value != null) setState(() => _source = value);
@@ -141,14 +141,14 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
                   icon: const Icon(Icons.date_range),
                   label: Text(
                       _dateRange == null
-                          ? 'All dates'
+                          ? 'all dates'
                           : '${DateFormat('dd.MM.yyyy').format(_dateRange!.start)} - ${DateFormat('dd.MM.yyyy').format(_dateRange!.end)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
                 ),
               ),
               IconButton(
-                tooltip: 'Clear filters',
+                tooltip: 'clear filters',
                 onPressed:
                     _query.isEmpty && _source == 'all' && _dateRange == null
                         ? null
@@ -186,16 +186,16 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete booking?'),
+        title: const Text('delete booking?'),
         content: Text('${booking.taskText} · ${booking.bookingDate}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const Text('cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
+            child: const Text('delete'),
           ),
         ],
       ),
@@ -218,9 +218,9 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
       booking.bookedMinutes + ((booking.trackedSeconds + 59) ~/ 60);
 
   String _sourceLabel(String source) => switch (source) {
-        'stopwatch' => 'Stopwatch',
-        'legacy' => 'Legacy',
-        _ => 'Manual',
+        'stopwatch' => 'stopwatch',
+        'legacy' => 'legacy',
+        _ => 'manual',
       };
 
   @override
@@ -229,19 +229,19 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
       appBar: AppBar(
         title: Text(
           widget.taskId == null
-              ? 'Time tracking'
-              : 'Bookings: ${widget.taskOptions[widget.taskId] ?? ''}',
+              ? 'time tracking'
+              : 'bookings: ${widget.taskOptions[widget.taskId] ?? ''}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
           IconButton(
-            tooltip: 'Refresh',
+            tooltip: 'refresh',
             onPressed: _reload,
             icon: const Icon(Icons.refresh),
           ),
           IconButton(
-            tooltip: 'Add booking',
+            tooltip: 'add booking',
             onPressed: () => _editBooking(),
             icon: const Icon(Icons.add),
           ),
@@ -255,7 +255,7 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
           }
           if (snapshot.hasError) {
             return Center(
-                child: Text('Could not load bookings: ${snapshot.error}'));
+                child: Text('could not load bookings: ${snapshot.error}'));
           }
           final allBookings = (snapshot.data ?? const <TimeBooking>[])
               .where((booking) =>
@@ -282,11 +282,11 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
                         child: FilledButton.icon(
                           onPressed: () => _editBooking(),
                           icon: const Icon(Icons.add),
-                          label: const Text('Add first booking'),
+                          label: const Text('add first booking'),
                         ),
                       )
                     : bookings.isEmpty
-                        ? const Center(child: Text('No matching bookings'))
+                        ? const Center(child: Text('no matching bookings'))
                         : Scrollbar(
                             key:
                                 const ValueKey('bookings-horizontal-scrollbar'),
@@ -301,11 +301,11 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
                                 child: DataTable(
                                   columnSpacing: 28,
                                   columns: const [
-                                    DataColumn(label: Text('Date')),
-                                    DataColumn(label: Text('Time')),
-                                    DataColumn(label: Text('Duration')),
-                                    DataColumn(label: Text('Type')),
-                                    DataColumn(label: Text('Task')),
+                                    DataColumn(label: Text('date')),
+                                    DataColumn(label: Text('time')),
+                                    DataColumn(label: Text('duration')),
+                                    DataColumn(label: Text('type')),
+                                    DataColumn(label: Text('task')),
                                     DataColumn(label: Text('')),
                                   ],
                                   rows: [
@@ -333,14 +333,14 @@ class _TimeBookingsPageState extends State<TimeBookingsPage> {
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               IconButton(
-                                                tooltip: 'Edit',
+                                                tooltip: 'edit',
                                                 onPressed: () =>
                                                     _editBooking(booking),
                                                 icon: const Icon(
                                                     Icons.edit_outlined),
                                               ),
                                               IconButton(
-                                                tooltip: 'Delete',
+                                                tooltip: 'delete',
                                                 onPressed: () =>
                                                     _deleteBooking(booking),
                                                 icon: const Icon(
@@ -476,8 +476,8 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
   String? _validateDuration(String? value) {
     final duration = _parseDuration();
     if (duration == null)
-      return 'Enter a number, optionally followed by m or h';
-    if (duration == 0) return 'Duration cannot be zero';
+      return 'enter a number, optionally followed by m or h';
+    if (duration == 0) return 'duration cannot be zero';
     return null;
   }
 
@@ -494,7 +494,7 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
       taskOptions[booking.taskId] = booking.taskText;
     }
     return AlertDialog(
-      title: Text(booking == null ? 'Add booking' : 'Edit booking'),
+      title: Text(booking == null ? 'add booking' : 'edit booking'),
       content: SizedBox(
         width: 440,
         child: Form(
@@ -506,7 +506,7 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
               children: [
                 DropdownButtonFormField<String>(
                   initialValue: _taskId,
-                  decoration: const InputDecoration(labelText: 'Task'),
+                  decoration: const InputDecoration(labelText: 'task'),
                   items: [
                     for (final entry in taskOptions.entries)
                       DropdownMenuItem(
@@ -521,7 +521,7 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
                   onChanged: taskOptions.isEmpty
                       ? null
                       : (value) => setState(() => _taskId = value),
-                  validator: (value) => value == null ? 'Select a task' : null,
+                  validator: (value) => value == null ? 'select a task' : null,
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -548,12 +548,12 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
                   controller: _durationController,
                   keyboardType: TextInputType.text,
                   decoration: InputDecoration(
-                    labelText: 'Duration',
+                    labelText: 'duration',
                     hintText: '30m / 1h',
                     helperText: duration != null &&
                             duration != originalMinutes &&
                             duration != rounded
-                        ? 'Booking: $rounded min'
+                        ? 'booking: $rounded min'
                         : null,
                   ),
                   onChanged: (_) => setState(() {}),
@@ -567,9 +567,9 @@ class _TimeBookingDialogState extends State<_TimeBookingDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: const Text('cancel'),
         ),
-        FilledButton(onPressed: _save, child: const Text('Save')),
+        FilledButton(onPressed: _save, child: const Text('save')),
       ],
     );
   }

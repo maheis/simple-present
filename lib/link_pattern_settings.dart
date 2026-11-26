@@ -33,7 +33,7 @@ class LinkPatternSettings extends StatelessWidget {
                     onChanged: (value) => pattern = value,
                     decoration: const InputDecoration(
                       labelText: 'Pattern (regular expression)',
-                      hintText: r'PLS-\d+',
+                      hintText: r'[A-Za-z]+-\d+',
                     ),
                     validator: (value) {
                       if ((value ?? '').trim().isEmpty)

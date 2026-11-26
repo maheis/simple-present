@@ -679,10 +679,10 @@ Future<void> main(List<String> args) async {
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Add booking'));
+    await tester.tap(find.byTooltip('add booking'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), '1h 30m');
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('save'));
     await tester.pumpAndSettle();
 
     expect(find.text('Past-day task'), findsOneWidget);
@@ -728,11 +728,11 @@ Future<void> main(List<String> args) async {
 
     await tester.tap(find.byKey(const ValueKey('booking-type-filter')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Manual').last);
+    await tester.tap(find.text('manual').last);
     await tester.pumpAndSettle();
-    expect(find.text('No matching bookings'), findsOneWidget);
+    expect(find.text('no matching bookings'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Clear filters'));
+    await tester.tap(find.byTooltip('clear filters'));
     await tester.pumpAndSettle();
     expect(find.text('Alpha'), findsOneWidget);
     expect(find.text('Beta'), findsOneWidget);
@@ -805,7 +805,7 @@ Future<void> main(List<String> args) async {
       }),
     ));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('All dates'));
+    await tester.tap(find.text('all dates'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('${today.day}').first);
     await tester.pumpAndSettle();
@@ -818,7 +818,7 @@ Future<void> main(List<String> args) async {
     expect(find.text('Today task'), findsOneWidget);
     expect(find.text('Yesterday task'), findsNothing);
     expect(find.textContaining('1 booking · 30 min'), findsOneWidget);
-    await tester.tap(find.byTooltip('Clear filters'));
+    await tester.tap(find.byTooltip('clear filters'));
     await tester.pumpAndSettle();
     expect(find.text('Yesterday task'), findsOneWidget);
   });
@@ -839,12 +839,12 @@ Future<void> main(List<String> args) async {
     await tester.pump();
 
     for (final value in ['30', '30m', '-30m']) {
-      await tester.tap(find.byTooltip('Add manual booking'));
+      await tester.tap(find.byTooltip('add manual booking'));
       await tester.pumpAndSettle();
       final fields = find.byType(TextFormField);
       expect(tester.widget<TextFormField>(fields).controller!.text, '');
       await tester.enterText(fields, value);
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('save'));
       await tester.pumpAndSettle();
     }
 
@@ -854,9 +854,9 @@ Future<void> main(List<String> args) async {
         ['manual', 'manual', 'manual']);
     expect(find.text('stopwatch: 00:30:00'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Show bookings'));
+    await tester.tap(find.byTooltip('show bookings'));
     await tester.pumpAndSettle();
-    expect(find.text('Manual'), findsNWidgets(3));
+    expect(find.text('manual'), findsNWidgets(3));
     expect(find.text('-30 min'), findsOneWidget);
     expect(find.textContaining('3 bookings · 30 min'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
@@ -883,10 +883,10 @@ Future<void> main(List<String> args) async {
       ('-1h', -60),
       ('1h 30m', 90),
     ]) {
-      await tester.tap(find.byTooltip('Add manual booking'));
+      await tester.tap(find.byTooltip('add manual booking'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField), input);
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('save'));
       await tester.pumpAndSettle();
       expect(storage.bookings.last.bookedMinutes, expectedMinutes,
           reason: input);
@@ -916,14 +916,14 @@ Future<void> main(List<String> args) async {
       ('-15m', -15),
       ('-16m', -30),
     ]) {
-      await tester.tap(find.byTooltip('Add manual booking'));
+      await tester.tap(find.byTooltip('add manual booking'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField), input);
       await tester.pump();
       if (input == '16m') {
-        expect(find.text('Booking: 30 min'), findsOneWidget);
+        expect(find.text('booking: 30 min'), findsOneWidget);
       }
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('save'));
       await tester.pumpAndSettle();
       expect(storage.bookings.last.bookedMinutes, expectedMinutes,
           reason: input);
@@ -952,9 +952,9 @@ Future<void> main(List<String> args) async {
       ),
     ));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byTooltip('Edit'));
+    await tester.ensureVisible(find.byTooltip('edit'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Edit'));
+    await tester.tap(find.byTooltip('edit'));
     await tester.pumpAndSettle();
     expect(
         tester
@@ -962,7 +962,7 @@ Future<void> main(List<String> args) async {
             .controller!
             .text,
         '2m');
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('save'));
     await tester.pumpAndSettle();
     expect(storage.bookings.single.trackedSeconds, 91);
     expect(storage.bookings.single.source, 'stopwatch');
@@ -988,14 +988,14 @@ Future<void> main(List<String> args) async {
     ));
     await tester.pumpAndSettle();
     for (final input in [null, '16m']) {
-      await tester.ensureVisible(find.byTooltip('Edit'));
+      await tester.ensureVisible(find.byTooltip('edit'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Edit'));
+      await tester.tap(find.byTooltip('edit'));
       await tester.pumpAndSettle();
       if (input != null) {
         await tester.enterText(find.byType(TextFormField), input);
       }
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('save'));
       await tester.pumpAndSettle();
       expect(storage.bookings.single.bookedMinutes, input == null ? 7 : 30);
     }
@@ -1034,7 +1034,7 @@ Future<void> main(List<String> args) async {
     await tester.tap(find.byTooltip('stop'));
     await tester.pump();
     expect(storage.runningTaskId, isNull);
-    expect(find.byTooltip('Add manual booking'), findsOneWidget);
+    expect(find.byTooltip('add manual booking'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -1067,23 +1067,23 @@ Future<void> main(List<String> args) async {
       ),
     ));
     await tester.pump();
-    await tester.tap(find.byTooltip('Show bookings'));
+    await tester.tap(find.byTooltip('show bookings'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Bookings: Example'), findsOneWidget);
+    expect(find.text('bookings: Example'), findsOneWidget);
     expect(find.text('2026-04-03'), findsOneWidget);
     expect(find.text('2026-04-04'), findsNothing);
     expect(find.textContaining('1 booking · 15 min'), findsOneWidget);
-    expect(find.byTooltip('Edit'), findsOneWidget);
-    expect(find.byTooltip('Delete'), findsOneWidget);
-    await tester.ensureVisible(find.byTooltip('Delete'));
+    expect(find.byTooltip('edit'), findsOneWidget);
+    expect(find.byTooltip('delete'), findsOneWidget);
+    await tester.ensureVisible(find.byTooltip('delete'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Delete'));
+    await tester.tap(find.byTooltip('delete'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Delete').last);
+    await tester.tap(find.text('delete').last);
     await tester.pumpAndSettle();
     expect(storage.bookings.single.taskId, 'other');
-    expect(find.text('Add first booking'), findsOneWidget);
+    expect(find.text('add first booking'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 }
