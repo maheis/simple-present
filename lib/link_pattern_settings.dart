@@ -109,6 +109,15 @@ class LinkPatternSettings extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
+                    tooltip: 'copy link rule',
+                    icon: const Icon(Icons.copy_outlined),
+                    onPressed: () {
+                      final updated = List<LinkPattern>.of(rules)
+                        ..insert(index + 1, rules[index]);
+                      onChanged(updated);
+                    },
+                  ),
+                  IconButton(
                     tooltip: 'edit link rule',
                     icon: const Icon(Icons.edit_outlined),
                     onPressed: () => _edit(context, index),

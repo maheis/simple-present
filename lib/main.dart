@@ -11491,6 +11491,27 @@ class _SettingsPageState extends State<SettingsPage> {
                   onPressed: () => _editSubtaskTemplate(i),
                 ),
                 IconButton(
+                  tooltip: 'copy template',
+                  icon: const Icon(Icons.copy_outlined),
+                  onPressed: () {
+                    final source = subtaskTemplates[i];
+                    final baseName = '${source['name']} copy';
+                    var copyName = baseName;
+                    var suffix = 2;
+                    while (subtaskTemplates
+                        .any((template) => template['name'] == copyName)) {
+                      copyName = '$baseName $suffix';
+                      suffix++;
+                    }
+                    setState(() {
+                      subtaskTemplates.insert(i + 1, {
+                        'name': copyName,
+                        'steps': List<String>.from(source['steps'] as List),
+                      });
+                    });
+                  },
+                ),
+                IconButton(
                   tooltip: 'delete template',
                   icon: const Icon(Icons.delete_outline),
                   onPressed: () => setState(() => subtaskTemplates.removeAt(i)),
@@ -11629,13 +11650,6 @@ class _SettingsPageState extends State<SettingsPage> {
             body: ListView(
               padding: const EdgeInsets.all(12),
               children: [
-                LinkPatternSettings(
-                  rules: linkPatterns,
-                  onChanged: (rules) => setState(() => linkPatterns = rules),
-                ),
-                const Divider(thickness: 1),
-                _buildSubtaskTemplatesSection(),
-                const Divider(thickness: 1),
                 const Text('font',
                     style:
                         TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
@@ -11768,6 +11782,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 const SizedBox(height: 8),
+                LinkPatternSettings(
+                  rules: linkPatterns,
+                  onChanged: (rules) => setState(() => linkPatterns = rules),
+                ),
+                const Divider(thickness: 1),
+                _buildSubtaskTemplatesSection(),
                 const Divider(thickness: 1),
                 const SizedBox(height: 8),
                 Card(

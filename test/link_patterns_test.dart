@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sembast/sembast_io.dart';
 import 'package:simple_present/main.dart' as app;
 import 'package:simple_present/link_patterns.dart';
+import 'package:simple_present/link_pattern_settings.dart';
 import 'package:simple_present/task_links.dart';
 
 void main() {
@@ -57,6 +58,28 @@ void main() {
           pattern: r'PLS-\d+', urlTemplate: 'https://second.example/%PID%'),
     ]);
     expect(sameMatch.single.uri.host, 'first.example');
+  });
+
+  testWidgets('ticket link rules can be copied independently', (tester) async {
+    var rules = <LinkPattern>[
+      const LinkPattern(
+        pattern: r'PLS-\d+',
+        urlTemplate: 'https://work.example/jira/%PID%',
+      ),
+    ];
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: LinkPatternSettings(
+          rules: rules,
+          onChanged: (updated) => rules = updated,
+        ),
+      ),
+    ));
+    await tester.tap(find.byTooltip('copy link rule'));
+    await tester.pumpAndSettle();
+    expect(rules, hasLength(2));
+    expect(rules[0].pattern, rules[1].pattern);
+    expect(rules[0].urlTemplate, rules[1].urlTemplate);
   });
 
   testWidgets('ticket links open from task title, notes and subtasks',
@@ -230,6 +253,51 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'save'));
     await tester.pumpAndSettle();
     expect(settings['linkPatterns'], isEmpty);
+  });
+
+  testWidgets('subtask templates can be copied from settings', (tester) async {
+    Map<String, dynamic>? saved;
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () async {
+              saved = await Navigator.of(context).push<Map<String, dynamic>>(
+                MaterialPageRoute(
+                  builder: (_) => const app.SettingsPage(
+                    initial: {
+                      'subtaskTemplates': [
+                        {
+                          'name': 'Review',
+                          'steps': ['Check code', 'Run tests']
+                        },
+                      ],
+                    },
+                  ),
+                ),
+              );
+            },
+            child: const Text('open settings'),
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('open settings'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Review'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('copy template'));
+    await tester.pumpAndSettle();
+    expect(find.text('Review copy'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'save'));
+    await tester.pumpAndSettle();
+    final templates = saved!['subtaskTemplates'] as List;
+    expect(templates, hasLength(2));
+    expect(templates.last['steps'], ['Check code', 'Run tests']);
   });
 
   testWidgets('task window loads link rules for title notes and subtasks',

@@ -68,8 +68,8 @@
 - [?] existiert bereits ein followup für die Aufgabe, sollte keine zweite erstellt werden wenn z.b. eine aufgabe reopen und wieder geschlossen wird
 - [ ] Hints für ticket link rule anpassen
             [A-Za-z]+-\d+ pattern for task identifiers (e.g., JIRA issue keys)
-- [ ] ticket link rules und subtask templates kopieren können
-- [ ] ticket link rules und subtasks nach unten in den settings, über "counter" unter "font/colors"
+- [x] ticket link rules und subtask templates kopieren können
+- [x] ticket link rules und subtasks nach unten in den settings, über "counter" unter "font/colors"
 
 ## notes
 
